@@ -1,0 +1,6 @@
+{
+  "name": "Git Workbench",
+  "description": "A local desktop Git workbench built with Tauri 2, Rust, React, and Vite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
