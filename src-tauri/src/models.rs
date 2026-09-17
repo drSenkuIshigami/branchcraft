@@ -56,6 +56,7 @@ pub struct FileChange {
 /// Overall repository status summary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusInfo {
+    pub root_path: String,
     pub current_branch: Option<String>,
     pub upstream: Option<String>,
     pub ahead: u32,
@@ -64,6 +65,42 @@ pub struct StatusInfo {
     pub unstaged: Vec<FileChange>,
     pub untracked: Vec<String>,
     pub conflicted: Vec<String>,
+}
+
+/// Detailed file change entry for a specific commit
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitDetailFile {
+    pub path: String,
+    pub status: ChangeType,
+    pub additions: i32,
+    pub deletions: i32,
+    pub old_path: Option<String>,
+}
+
+/// Commit summary statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitStats {
+    pub files_changed: usize,
+    pub insertions: usize,
+    pub deletions: usize,
+}
+
+/// Detailed commit metadata and file changes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommitDetail {
+    pub commit: CommitInfo,
+    pub files: Vec<CommitDetailFile>,
+    pub stats: CommitStats,
+}
+
+/// File diff comparison for Monaco editor
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileDiff {
+    pub path: String,
+    pub old_content: String,
+    pub new_content: String,
+    pub is_binary: bool,
+    pub raw_diff: String,
 }
 
 /// Typed result of a controlled Git or system execution

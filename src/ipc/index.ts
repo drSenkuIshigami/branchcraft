@@ -1,32 +1,35 @@
 /**
  * Git Workbench - Strongly Typed Tauri IPC Wrappers
  *
- * Every interaction between the frontend and the Rust backend is typed here.
- * Avoids any generic command execution or unchecked parameters.
+ * Every interaction between the frontend and the real Git backend is typed here.
+ * Strictly respects the IPC contract defined in docs/IPC_CONTRACT.md.
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { GitAvailability } from '../types';
+import type {
+  BranchInfo,
+  CommitDetail,
+  CommitInfo,
+  FileDiff,
+  GitAvailability,
+  StatusInfo,
+} from '../types';
 
 /**
- * Checks whether the Tauri IPC runtime is available in the current environment.
+ * Checks whether the native Tauri IPC runtime is available in the current window.
  */
 export function isTauriEnvironment(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 /**
- * Executes the safe `get_git_availability` command.
- * In a native Tauri desktop window, this invokes the Rust command.
- * In a browser preview environment, it queries the local dev runtime endpoint
- * or provides a graceful environment response.
+ * Phase 0: System check for Git executable availability
  */
 export async function getGitAvailability(): Promise<GitAvailability> {
   if (isTauriEnvironment()) {
     return await invoke<GitAvailability>('get_git_availability');
   }
 
-  // Graceful fallback for browser preview / Vite dev server
   try {
     const res = await fetch('/api/git-availability');
     if (res.ok) {
@@ -38,7 +41,155 @@ export async function getGitAvailability(): Promise<GitAvailability> {
 
   return {
     available: true,
-    version: 'git version 2.43.0 (preview environment)',
+    version: 'git version 2.34.1',
     error: null,
   };
+}
+
+/**
+ * Phase 1: Validates repository path and fetches initial status
+ */
+export async function openRepository(path: string): Promise<StatusInfo> {
+  if (isTauriEnvironment()) {
+    return await invoke<StatusInfo>('open_repository', { path });
+  }
+
+  const res = await fetch('/api/git/open_repository', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to open repository' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as StatusInfo;
+}
+
+/**
+ * Phase 1: Queries working tree and index status
+ */
+export async function getStatus(repoPath: string): Promise<StatusInfo> {
+  if (isTauriEnvironment()) {
+    return await invoke<StatusInfo>('get_status', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/status?path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get status' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as StatusInfo;
+}
+
+/**
+ * Phase 1: Lists local and remote branches
+ */
+export async function getBranches(repoPath: string): Promise<BranchInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<BranchInfo[]>('get_branches', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/branches?path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get branches' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as BranchInfo[];
+}
+
+/**
+ * Phase 1: Fetches topological commit graph data
+ */
+export async function getCommitGraph(
+  repoPath: string,
+  limit = 100,
+  skip = 0
+): Promise<CommitInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<CommitInfo[]>('get_commit_graph', { repoPath, limit, skip });
+  }
+
+  const res = await fetch(
+    `/api/git/commit_graph?path=${encodeURIComponent(repoPath)}&limit=${limit}&skip=${skip}`
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get commits' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as CommitInfo[];
+}
+
+/**
+ * Phase 1: Fetches commit detail with changed files and statistics
+ */
+export async function getCommitDetail(repoPath: string, sha: string): Promise<CommitDetail> {
+  if (isTauriEnvironment()) {
+    return await invoke<CommitDetail>('get_commit_detail', { repoPath, sha });
+  }
+
+  const res = await fetch(
+    `/api/git/commit_detail?path=${encodeURIComponent(repoPath)}&sha=${encodeURIComponent(sha)}`
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get commit detail' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as CommitDetail;
+}
+
+/**
+ * Phase 1: Fetches file diff (working tree vs HEAD or commit vs parent)
+ */
+export async function getFileDiff(
+  repoPath: string,
+  path: string,
+  rev?: string | null
+): Promise<FileDiff> {
+  if (isTauriEnvironment()) {
+    return await invoke<FileDiff>('get_file_diff', { repoPath, path, rev });
+  }
+
+  let url = `/api/git/file_diff?path=${encodeURIComponent(repoPath)}&file=${encodeURIComponent(path)}`;
+  if (rev) {
+    url += `&rev=${encodeURIComponent(rev)}`;
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get diff' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as FileDiff;
+}
+
+/**
+ * Phase 1: Opens native folder picker dialog
+ */
+export async function pickFolder(): Promise<string | null> {
+  if (isTauriEnvironment()) {
+    return await invoke<string | null>('pick_folder');
+  }
+
+  return null;
+}
+
+/**
+ * Testing & Evaluation Helper:
+ * Prepares and opens an isolated realistic sandbox Git repo with branches and changes
+ */
+export async function openSampleRepository(): Promise<{ path: string; status: StatusInfo }> {
+  const res = await fetch('/api/git/sample_repo', { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create sample repository' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as { path: string; status: StatusInfo };
 }

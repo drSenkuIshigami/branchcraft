@@ -6,12 +6,23 @@ pub mod git;
 pub mod models;
 pub mod safety;
 
+use commands::repository::{
+    get_branches, get_commit_detail, get_commit_graph, get_file_diff, get_status, open_repository,
+    pick_folder,
+};
 use commands::system::get_git_availability;
 
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            get_git_availability
+            get_git_availability,
+            open_repository,
+            get_status,
+            get_branches,
+            get_commit_graph,
+            get_commit_detail,
+            get_file_diff,
+            pick_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Git Workbench desktop application");

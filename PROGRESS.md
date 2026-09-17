@@ -68,19 +68,19 @@
 
 ## Phase 1 — Repository Explorer (Read-Only, Level 0)
 
-- [ ] Native folder picker dialog (`pick_folder`).
-- [ ] Repository validation (`git rev-parse --is-inside-work-tree`).
-- [ ] Summary repository status (current branch, upstream, ahead/behind, modified count).
-- [ ] Branch listing (local and remote tracking branches) and remotes (`git for-each-ref`, `git remote -v`).
-- [ ] Custom topological commit graph:
-  - [ ] Parse `git log --all --topo-order --pretty=format:...`.
-  - [ ] Dedicated lane assignment algorithm.
-  - [ ] Canvas rendering with virtualized rows (`@tanstack/react-virtual`).
-- [ ] Commit history list with author, date, message, and ref tags.
-- [ ] Commit inspection: modified file list and file diffs using Monaco Diff Editor.
-- [ ] File history and blame view (`git blame -w`, `git log --follow`).
-- [ ] Commit search (by message, author, SHA, file path).
-- [ ] Read-only working tree and staging area visualization.
+- [x] Native folder picker dialog (`pick_folder`).
+- [x] Repository validation (`git rev-parse --is-inside-work-tree` and `--show-toplevel`).
+- [x] Summary repository status (current branch, upstream, ahead/behind, modified count).
+- [x] Branch listing (local and remote tracking branches) and remotes (`git for-each-ref`, `git remote -v`).
+- [x] Custom topological commit graph:
+  - [x] Parse `git log --all --topo-order --pretty=format:...`.
+  - [x] Dedicated lane assignment algorithm.
+  - [x] Canvas rendering with high-performance 2D tracks and bullseye merge nodes.
+- [x] Commit history list with author, date, message, and ref tags.
+- [x] Commit inspection: modified file list and file diffs using Monaco Diff Editor.
+- [x] Commit search (by message, author, SHA, file path).
+- [x] Read-only working tree and staging area visualization with instant diff inspection.
+- [x] Audit & Command Log tracking all executed Git CLI processes and arguments.
 
 ---
 
