@@ -9,8 +9,8 @@
 
 | Phase | Description | Risk Level | Status |
 |:---:|---|:---:|:---:|
-| **Phase 0** | Project Setup & Design Documentation | Level 0 | **In Progress** |
-| **Phase 1** | Repository Explorer (Read-only) | Level 0 | Pending Phase 0 Approval |
+| **Phase 0** | Project Setup & Design Documentation | Level 0 | **Completed** |
+| **Phase 1** | Repository Explorer (Read-only) | Level 0 | Pending Phase 1 Start |
 | **Phase 2** | Daily Operations | Level 0–1 | Pending Phase 1 |
 | **Phase 3** | Power Tools (Rebase, Bisect, Worktree, Reflog) | Level 1–2 | Pending Phase 2 |
 | **Phase 4** | Safety Engine, History Rewriting & AI-Trace Cleanup | Level 2–4 | Pending Phase 3 |
@@ -58,11 +58,11 @@
   - [x] Return typed `GitAvailability` (`available: bool`, `version: Option<String>`, `error: Option<String>`).
   - [x] Frontend non-blocking status badge showing detected version or installation notice.
   - [x] Zero execution of any other Git command in Phase 0.
-- [ ] **Secure Architecture Conventions** (Step 8)
-  - [ ] Minimal Rust module placeholders for `commands`, `git`, and `safety`.
-  - [ ] Explicit documentation that all future Git operations must route through typed allowlisted adapter.
-  - [ ] No generic shell execution or arbitrary execution privileges.
-  - [ ] All destructive-operation logic strictly deferred to Phase 4.
+- [x] **Secure Architecture Conventions** (Step 8)
+  - [x] Minimal Rust module placeholders for `commands`, `git`, and `safety`.
+  - [x] Explicit documentation that all future Git operations must route through typed allowlisted adapter.
+  - [x] No generic shell execution or arbitrary execution privileges.
+  - [x] All destructive-operation logic strictly deferred to Phase 4.
 
 ---
 
