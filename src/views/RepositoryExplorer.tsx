@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import type { BranchInfo, CommitDetail, CommitInfo, FileDiff, StatusInfo, Theme } from '../types';
 import {
+  amendCommit,
+  createCommit,
   discardPath,
   getBranches,
   getCommitDetail,
@@ -351,6 +353,39 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  const handleCommit = async (message: string, isAmend: boolean) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = isAmend ? ['commit', '--amend', '-m', message] : ['commit', '-m', message];
+    try {
+      const res = isAmend
+        ? await amendCommit(repoPath, message)
+        : await createCommit(repoPath, message);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      setSelectedFile(null);
+      setDiff(null);
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const latestCommitMsg =
+    commits.length > 0
+      ? commits[0].body
+        ? `${commits[0].subject}\n\n${commits[0].body}`
+        : commits[0].subject
+      : undefined;
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       {/* Top Application Bar */}
@@ -462,6 +497,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onDiscardFile={handleDiscardFile}
                   onStageAll={handleStageAll}
                   onUnstageAll={handleUnstageAll}
+                  onCommit={handleCommit}
+                  lastCommitMessage={latestCommitMsg}
                   loading={loading}
                   theme={theme}
                 />

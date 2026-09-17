@@ -95,3 +95,21 @@ pub async fn stage_all(repo_path: String) -> Result<crate::models::OperationResu
 pub async fn unstage_all(repo_path: String) -> Result<crate::models::OperationResult, String> {
     GitAdapter::unstage_all(&repo_path)
 }
+
+/// Creates a commit with the specified message (git commit -m <message>)
+#[tauri::command]
+pub async fn create_commit(
+    repo_path: String,
+    message: String,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::create_commit(&repo_path, &message)
+}
+
+/// Amends the latest commit with the specified message (git commit --amend -m <message>)
+#[tauri::command]
+pub async fn amend_commit(
+    repo_path: String,
+    message: String,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::amend_commit(&repo_path, &message)
+}

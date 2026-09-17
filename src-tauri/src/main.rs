@@ -7,8 +7,9 @@ pub mod models;
 pub mod safety;
 
 use commands::repository::{
-    discard_path, get_branches, get_commit_detail, get_commit_graph, get_file_diff, get_status,
-    open_repository, pick_folder, stage_all, stage_path, unstage_all, unstage_path,
+    amend_commit, create_commit, discard_path, get_branches, get_commit_detail, get_commit_graph,
+    get_file_diff, get_status, open_repository, pick_folder, stage_all, stage_path, unstage_all,
+    unstage_path,
 };
 use commands::system::get_git_availability;
 
@@ -28,6 +29,8 @@ fn main() {
             discard_path,
             stage_all,
             unstage_all,
+            create_commit,
+            amend_commit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Git Workbench desktop application");

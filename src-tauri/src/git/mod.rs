@@ -504,4 +504,20 @@ impl GitAdapter {
     pub fn unstage_all(repo_path: &str) -> Result<OperationResult, String> {
         Self::execute_raw(Some(repo_path), &["restore", "--staged", "."])
     }
+
+    /// Creates a commit with the specified message (`git commit -m <message>`)
+    pub fn create_commit(repo_path: &str, message: &str) -> Result<OperationResult, String> {
+        if message.trim().is_empty() {
+            return Err("Commit message cannot be empty".to_string());
+        }
+        Self::execute_raw(Some(repo_path), &["commit", "-m", message])
+    }
+
+    /// Amends the latest commit with the specified message (`git commit --amend -m <message>`)
+    pub fn amend_commit(repo_path: &str, message: &str) -> Result<OperationResult, String> {
+        if message.trim().is_empty() {
+            return Err("Commit message cannot be empty".to_string());
+        }
+        Self::execute_raw(Some(repo_path), &["commit", "--amend", "-m", message])
+    }
 }

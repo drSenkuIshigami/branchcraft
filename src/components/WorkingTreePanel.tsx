@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { StatusInfo, FileChange, Theme } from '../types';
 import { DiscardConfirmModal } from './DiscardConfirmModal';
+import { CommitBox } from './CommitBox';
 
 interface WorkingTreePanelProps {
   status: StatusInfo | null;
@@ -26,6 +27,8 @@ interface WorkingTreePanelProps {
   onDiscardFile: (filePath: string, isUntracked: boolean) => Promise<void>;
   onStageAll: () => Promise<void>;
   onUnstageAll: () => Promise<void>;
+  onCommit: (message: string, isAmend: boolean) => Promise<void>;
+  lastCommitMessage?: string;
   loading: boolean;
   theme: Theme;
 }
@@ -40,6 +43,8 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   onDiscardFile,
   onStageAll,
   onUnstageAll,
+  onCommit,
+  lastCommitMessage,
   loading,
   theme,
 }) => {
@@ -307,6 +312,17 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
           )}
         </div>
       )}
+
+      {/* Commit Authoring Area (Always accessible or positioned neatly) */}
+      <div className="pt-2">
+        <CommitBox
+          stagedCount={staged.length}
+          lastCommitMessage={lastCommitMessage}
+          onCommit={onCommit}
+          loading={loading}
+          theme={theme}
+        />
+      </div>
 
       {/* Discard Confirmation Modal */}
       <DiscardConfirmModal

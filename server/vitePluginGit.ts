@@ -1,7 +1,9 @@
 import type { Plugin } from 'vite';
 import url from 'node:url';
 import {
+  amendCommit,
   checkGitAvailability,
+  createCommit,
   createOrGetSampleRepo,
   discardPath,
   getBranches,
@@ -152,6 +154,24 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await unstageAll(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/commit' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const message = typeof body.message === 'string' ? body.message : '';
+            if (!repoPath || !message) return sendJson(400, { error: 'repo_path and message required' });
+            const resData = await createCommit(repoPath, message);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/commit_amend' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const message = typeof body.message === 'string' ? body.message : '';
+            if (!repoPath || !message) return sendJson(400, { error: 'repo_path and message required' });
+            const resData = await amendCommit(repoPath, message);
             return sendJson(200, resData);
           }
 

@@ -488,6 +488,38 @@ export async function unstageAll(repoPath: string): Promise<OperationResult> {
   };
 }
 
+export async function createCommit(repoPath: string, message: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!message.trim()) {
+    throw new Error('Commit message cannot be empty');
+  }
+  const res = await runGit(rootPath, ['commit', '-m', message]);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['commit', '-m', message],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function amendCommit(repoPath: string, message: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!message.trim()) {
+    throw new Error('Commit message cannot be empty');
+  }
+  const res = await runGit(rootPath, ['commit', '--amend', '-m', message]);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['commit', '--amend', '-m', message],
+    duration_ms: res.duration_ms,
+  };
+}
+
 /**
  * Initializes or resets a realistic, isolated demo Git repository in /tmp/git-workbench-sample
  * Contains multiple commits, feature branch, merge commit, tag, and staged/unstaged changes.

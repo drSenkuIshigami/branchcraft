@@ -297,6 +297,50 @@ export async function unstageAll(repoPath: string): Promise<OperationResult> {
 }
 
 /**
+ * Phase 2: Creates a commit with the provided commit message (git commit -m <msg>)
+ */
+export async function createCommit(repoPath: string, message: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('create_commit', { repoPath, message });
+  }
+
+  const res = await fetch('/api/git/commit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, message }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create commit' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Amends the latest commit with the provided commit message (git commit --amend -m <msg>)
+ */
+export async function amendCommit(repoPath: string, message: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('amend_commit', { repoPath, message });
+  }
+
+  const res = await fetch('/api/git/commit_amend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, message }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to amend commit' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
  * Testing & Evaluation Helper:
  * Prepares and opens an isolated realistic sandbox Git repo with branches and changes
  */
