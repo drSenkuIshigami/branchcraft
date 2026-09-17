@@ -36,13 +36,7 @@ export interface BranchInfo {
   tip_sha: string;
 }
 
-export type ChangeType =
-  | 'Added'
-  | 'Modified'
-  | 'Deleted'
-  | 'Renamed'
-  | 'Copied'
-  | 'TypeChange';
+export type ChangeType = 'Added' | 'Modified' | 'Deleted' | 'Renamed' | 'Copied' | 'TypeChange';
 
 export interface FileChange {
   path: string;

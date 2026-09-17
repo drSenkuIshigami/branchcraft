@@ -14,7 +14,9 @@ export const GitStatusBadge: React.FC<GitStatusBadgeProps> = ({ status, loading,
       <div
         id="git-status-loading"
         className={`flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border ${
-          theme === 'dark' ? 'bg-zinc-800/80 border-zinc-700 text-zinc-400' : 'bg-zinc-100 border-zinc-200 text-zinc-600'
+          theme === 'dark'
+            ? 'bg-zinc-800/80 border-zinc-700 text-zinc-400'
+            : 'bg-zinc-100 border-zinc-200 text-zinc-600'
         }`}
       >
         <Loader2 className="w-3 h-3 animate-spin text-blue-500" />

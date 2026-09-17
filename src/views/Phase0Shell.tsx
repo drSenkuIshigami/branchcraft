@@ -76,7 +76,9 @@ export const Phase0Shell: React.FC<Phase0ShellProps> = ({
             </div>
           </div>
 
-          <p className={`text-sm leading-relaxed mb-6 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}>
+          <p
+            className={`text-sm leading-relaxed mb-6 ${isDark ? 'text-zinc-400' : 'text-zinc-600'}`}
+          >
             The foundational desktop architecture and security framework have been established.
             Repository features will be introduced in Phase 1.
           </p>
@@ -90,8 +92,8 @@ export const Phase0Shell: React.FC<Phase0ShellProps> = ({
                   ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-200'
                   : 'bg-emerald-50 border-emerald-200 text-emerald-900'
                 : isDark
-                ? 'bg-amber-950/20 border-amber-800/40 text-amber-200'
-                : 'bg-amber-50 border-amber-200 text-amber-900'
+                  ? 'bg-amber-950/20 border-amber-800/40 text-amber-200'
+                  : 'bg-amber-50 border-amber-200 text-amber-900'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -128,7 +130,8 @@ export const Phase0Shell: React.FC<Phase0ShellProps> = ({
                 <span>5-Tier Risk Engine</span>
               </div>
               <p className={isDark ? 'text-zinc-400' : 'text-zinc-500'}>
-                Strict allowlist policy preventing shell injection or unverified destructive execution.
+                Strict allowlist policy preventing shell injection or unverified destructive
+                execution.
               </p>
             </div>
 
@@ -153,7 +156,9 @@ export const Phase0Shell: React.FC<Phase0ShellProps> = ({
       <footer
         id="app-footer"
         className={`h-7 border-t px-4 flex items-center justify-between text-[11px] select-none ${
-          isDark ? 'bg-zinc-900 border-zinc-800 text-zinc-500' : 'bg-white border-zinc-200 text-zinc-500'
+          isDark
+            ? 'bg-zinc-900 border-zinc-800 text-zinc-500'
+            : 'bg-white border-zinc-200 text-zinc-500'
         }`}
       >
         <div className="flex items-center gap-3">

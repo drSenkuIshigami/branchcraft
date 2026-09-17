@@ -11,7 +11,14 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "eslint . && tsc --noEmit",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"*.{json,js,ts}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\" \"*.{json,js,ts}\"",
+    "cargo:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "cargo:clippy": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
+    "cargo:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
+    "check:all": "npm run lint && npm run format:check"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -27,6 +34,10 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^8.0.5",
+    "@babel/preset-react": "^8.0.1",
+    "@babel/preset-typescript": "^8.0.1",
+    "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.11.4",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
@@ -34,8 +45,12 @@
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react": "^7.37.5",
+    "prettier": "^3.9.7",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.70.0"
   }
 }

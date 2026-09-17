@@ -1,0 +1,4 @@
+# Clippy configuration for Git Workbench
+# Ensures high code quality standards across IPC commands and Git adapters.
+avoid-breaking-exported-api = false
+cognitive-complexity-threshold = 25
