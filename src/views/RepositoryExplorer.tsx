@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { BranchInfo, CommitDetail, CommitInfo, FileDiff, StatusInfo, Theme } from '../types';
 import {
+  discardPath,
   getBranches,
   getCommitDetail,
   getCommitGraph,
@@ -16,6 +17,10 @@ import {
   getStatus,
   openRepository,
   openSampleRepository,
+  stageAll,
+  stagePath,
+  unstageAll,
+  unstagePath,
 } from '../ipc';
 import { Sidebar } from '../components/Sidebar';
 import { CommitList } from '../components/CommitList';
@@ -229,6 +234,123 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  const handleStageFile = async (filePath: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await stagePath(repoPath, filePath);
+      recordCommand(
+        ['add', '--', filePath],
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['add', '--', filePath], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+    }
+  };
+
+  const handleUnstageFile = async (filePath: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await unstagePath(repoPath, filePath);
+      recordCommand(
+        ['restore', '--staged', '--', filePath],
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(
+        ['restore', '--staged', '--', filePath],
+        Math.round(performance.now() - start),
+        false,
+        1,
+        msg
+      );
+      setError(msg);
+    }
+  };
+
+  const handleDiscardFile = async (filePath: string, isUntracked: boolean) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmd = isUntracked ? ['clean', '-f', '--', filePath] : ['restore', '--', filePath];
+    try {
+      const res = await discardPath(repoPath, filePath, isUntracked);
+      recordCommand(
+        cmd,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      if (selectedFile === filePath) {
+        setSelectedFile(null);
+        setDiff(null);
+      }
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmd, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+    }
+  };
+
+  const handleStageAll = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await stageAll(repoPath);
+      recordCommand(
+        ['add', '-A'],
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['add', '-A'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+    }
+  };
+
+  const handleUnstageAll = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await unstageAll(repoPath);
+      recordCommand(
+        ['restore', '--staged', '.'],
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(
+        ['restore', '--staged', '.'],
+        Math.round(performance.now() - start),
+        false,
+        1,
+        msg
+      );
+      setError(msg);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       {/* Top Application Bar */}
@@ -335,6 +457,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   selectedFile={selectedFile}
                   onSelectFile={setSelectedFile}
                   onRefresh={handleRefresh}
+                  onStageFile={handleStageFile}
+                  onUnstageFile={handleUnstageFile}
+                  onDiscardFile={handleDiscardFile}
+                  onStageAll={handleStageAll}
+                  onUnstageAll={handleUnstageAll}
                   loading={loading}
                   theme={theme}
                 />

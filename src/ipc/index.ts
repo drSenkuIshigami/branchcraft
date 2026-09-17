@@ -12,6 +12,7 @@ import type {
   CommitInfo,
   FileDiff,
   GitAvailability,
+  OperationResult,
   StatusInfo,
 } from '../types';
 
@@ -179,6 +180,120 @@ export async function pickFolder(): Promise<string | null> {
   }
 
   return null;
+}
+
+/**
+ * Phase 2: Stages a single file (git add -- <path>)
+ */
+export async function stagePath(repoPath: string, path: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('stage_path', { repoPath, path });
+  }
+
+  const res = await fetch('/api/git/stage_path', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, path }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to stage path' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Unstages a single file (git restore --staged -- <path>)
+ */
+export async function unstagePath(repoPath: string, path: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('unstage_path', { repoPath, path });
+  }
+
+  const res = await fetch('/api/git/unstage_path', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, path }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to unstage path' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Discards working tree changes (git restore -- <path> or git clean -f)
+ */
+export async function discardPath(
+  repoPath: string,
+  path: string,
+  isUntracked = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('discard_path', { repoPath, path, isUntracked });
+  }
+
+  const res = await fetch('/api/git/discard_path', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, path, is_untracked: isUntracked }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to discard changes' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Stages all working tree changes (git add -A)
+ */
+export async function stageAll(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('stage_all', { repoPath });
+  }
+
+  const res = await fetch('/api/git/stage_all', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to stage all' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Unstages all staged changes (git restore --staged .)
+ */
+export async function unstageAll(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('unstage_all', { repoPath });
+  }
+
+  const res = await fetch('/api/git/unstage_all', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to unstage all' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
 }
 
 /**

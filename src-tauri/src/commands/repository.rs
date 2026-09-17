@@ -55,3 +55,43 @@ pub async fn pick_folder() -> Result<Option<String>, String> {
     // Return None if canceled or prompt via frontend fallback.
     Ok(None)
 }
+
+/// Stages a single file (git add -- <path>)
+#[tauri::command]
+pub async fn stage_path(
+    repo_path: String,
+    path: String,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::stage_path(&repo_path, &path)
+}
+
+/// Unstages a single file (git restore --staged -- <path>)
+#[tauri::command]
+pub async fn unstage_path(
+    repo_path: String,
+    path: String,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::unstage_path(&repo_path, &path)
+}
+
+/// Discards changes in working tree for a single file (git restore -- <path>)
+#[tauri::command]
+pub async fn discard_path(
+    repo_path: String,
+    path: String,
+    is_untracked: bool,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::discard_path(&repo_path, &path, is_untracked)
+}
+
+/// Stages all files (git add -A)
+#[tauri::command]
+pub async fn stage_all(repo_path: String) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::stage_all(&repo_path)
+}
+
+/// Unstages all files (git restore --staged .)
+#[tauri::command]
+pub async fn unstage_all(repo_path: String) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::unstage_all(&repo_path)
+}

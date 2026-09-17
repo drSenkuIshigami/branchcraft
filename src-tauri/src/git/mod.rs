@@ -475,4 +475,33 @@ impl GitAdapter {
             raw_diff: diff_res.stdout,
         })
     }
+
+    /// Stages a specific path (`git add -- <path>`)
+    pub fn stage_path(repo_path: &str, path: &str) -> Result<OperationResult, String> {
+        Self::execute_raw(Some(repo_path), &["add", "--", path])
+    }
+
+    /// Unstages a specific path (`git restore --staged -- <path>`)
+    pub fn unstage_path(repo_path: &str, path: &str) -> Result<OperationResult, String> {
+        Self::execute_raw(Some(repo_path), &["restore", "--staged", "--", path])
+    }
+
+    /// Discards working tree changes for a specific path (`git restore -- <path>` or `clean` for untracked)
+    pub fn discard_path(repo_path: &str, path: &str, is_untracked: bool) -> Result<OperationResult, String> {
+        if is_untracked {
+            Self::execute_raw(Some(repo_path), &["clean", "-f", "--", path])
+        } else {
+            Self::execute_raw(Some(repo_path), &["restore", "--", path])
+        }
+    }
+
+    /// Stages all changes in the working tree (`git add -A`)
+    pub fn stage_all(repo_path: &str) -> Result<OperationResult, String> {
+        Self::execute_raw(Some(repo_path), &["add", "-A"])
+    }
+
+    /// Unstages all staged changes (`git restore --staged .`)
+    pub fn unstage_all(repo_path: &str) -> Result<OperationResult, String> {
+        Self::execute_raw(Some(repo_path), &["restore", "--staged", "."])
+    }
 }

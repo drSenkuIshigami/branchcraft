@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FileEdit,
   FileCheck,
@@ -10,14 +10,22 @@ import {
   FilePlus,
   FileMinus,
   RefreshCw,
+  Trash2,
+  CheckCheck,
 } from 'lucide-react';
 import type { StatusInfo, FileChange, Theme } from '../types';
+import { DiscardConfirmModal } from './DiscardConfirmModal';
 
 interface WorkingTreePanelProps {
   status: StatusInfo | null;
   selectedFile: string | null;
   onSelectFile: (filePath: string) => void;
   onRefresh: () => void;
+  onStageFile: (filePath: string) => Promise<void>;
+  onUnstageFile: (filePath: string) => Promise<void>;
+  onDiscardFile: (filePath: string, isUntracked: boolean) => Promise<void>;
+  onStageAll: () => Promise<void>;
+  onUnstageAll: () => Promise<void>;
   loading: boolean;
   theme: Theme;
 }
@@ -27,8 +35,20 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   selectedFile,
   onSelectFile,
   onRefresh,
+  onStageFile,
+  onUnstageFile,
+  onDiscardFile,
+  onStageAll,
+  onUnstageAll,
   loading,
+  theme,
 }) => {
+  const [actionLoadingPath, setActionLoadingPath] = useState<string | null>(null);
+  const [batchLoading, setBatchLoading] = useState<string | null>(null);
+  const [discardTarget, setDiscardTarget] = useState<{ path: string; isUntracked: boolean } | null>(
+    null
+  );
+
   if (!status) {
     return (
       <div className="flex items-center justify-center h-full text-zinc-400 p-6 text-xs">
@@ -44,36 +64,120 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
     untracked.length === 0 &&
     conflicted.length === 0;
 
+  const handleStage = async (e: React.MouseEvent, path: string) => {
+    e.stopPropagation();
+    setActionLoadingPath(path);
+    try {
+      await onStageFile(path);
+    } finally {
+      setActionLoadingPath(null);
+    }
+  };
+
+  const handleUnstage = async (e: React.MouseEvent, path: string) => {
+    e.stopPropagation();
+    setActionLoadingPath(path);
+    try {
+      await onUnstageFile(path);
+    } finally {
+      setActionLoadingPath(null);
+    }
+  };
+
+  const handleDiscardClick = (e: React.MouseEvent, path: string, isUntracked: boolean) => {
+    e.stopPropagation();
+    setDiscardTarget({ path, isUntracked });
+  };
+
+  const handleStageAll = async () => {
+    setBatchLoading('stage');
+    try {
+      await onStageAll();
+    } finally {
+      setBatchLoading(null);
+    }
+  };
+
+  const handleUnstageAll = async () => {
+    setBatchLoading('unstage');
+    try {
+      await onUnstageAll();
+    } finally {
+      setBatchLoading(null);
+    }
+  };
+
   const renderFileRow = (
     file: FileChange | { path: string; change_type?: string },
-    isStaged: boolean
+    isStaged: boolean,
+    isUntracked = false
   ) => {
     const isSelected = selectedFile === file.path;
+    const isRowLoading = actionLoadingPath === file.path;
+
     return (
-      <button
+      <div
         key={`${isStaged ? 'staged' : 'unstaged'}-${file.path}`}
-        type="button"
         onClick={() => onSelectFile(file.path)}
-        className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-xs transition-colors rounded ${
+        className={`w-full group flex items-center justify-between px-2.5 py-1.5 text-xs transition-colors rounded cursor-pointer ${
           isSelected
             ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-medium'
             : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300'
         }`}
       >
-        <div className="flex items-center gap-2 truncate">
+        <div className="flex items-center gap-2 truncate flex-1 min-w-0 mr-2">
           {file.change_type === 'Added' ? (
             <FilePlus className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
           ) : file.change_type === 'Deleted' ? (
             <FileMinus className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+          ) : isUntracked ? (
+            <FileQuestion className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
           ) : (
             <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
           )}
           <span className="font-mono truncate">{file.path}</span>
         </div>
-        <span className="font-mono text-[10px] text-zinc-400 shrink-0 uppercase">
-          {file.change_type || 'untracked'}
-        </span>
-      </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="font-mono text-[10px] text-zinc-400 uppercase hidden sm:inline mr-1">
+            {file.change_type || (isUntracked ? 'Untracked' : 'Modified')}
+          </span>
+
+          {/* Action buttons on hover or selection */}
+          {isStaged ? (
+            <button
+              type="button"
+              onClick={(e) => handleUnstage(e, file.path)}
+              disabled={isRowLoading}
+              title="Unstage changes (git restore --staged)"
+              className="p-1 rounded text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={(e) => handleDiscardClick(e, file.path, isUntracked)}
+                disabled={isRowLoading}
+                title="Discard changes with preview"
+                className="p-1 rounded text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleStage(e, file.path)}
+                disabled={isRowLoading}
+                title="Stage changes (git add)"
+                className="p-1 rounded text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     );
   };
 
@@ -131,14 +235,25 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
             </div>
           )}
 
-          {/* Staged */}
+          {/* Staged Section */}
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 bg-zinc-50/50 dark:bg-zinc-900/30">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
                 <FileCheck className="w-4 h-4" />
                 <span>Staged Changes ({staged.length})</span>
               </div>
-              <span className="text-[10px] text-zinc-400 font-mono">Index</span>
+              {staged.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleUnstageAll}
+                  disabled={batchLoading !== null}
+                  className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-amber-600 dark:hover:text-amber-400 font-medium transition-colors"
+                  title="Unstage all staged files"
+                >
+                  <Minus className="w-3 h-3" />
+                  <span>Unstage All</span>
+                </button>
+              )}
             </div>
             {staged.length === 0 ? (
               <p className="text-[11px] text-zinc-400 italic">No staged changes</p>
@@ -147,14 +262,25 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
             )}
           </div>
 
-          {/* Unstaged */}
+          {/* Unstaged Section */}
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 bg-zinc-50/50 dark:bg-zinc-900/30">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5 font-semibold text-blue-600 dark:text-blue-400">
                 <FileEdit className="w-4 h-4" />
                 <span>Modified Files ({unstaged.length})</span>
               </div>
-              <span className="text-[10px] text-zinc-400 font-mono">Worktree</span>
+              {(unstaged.length > 0 || untracked.length > 0) && (
+                <button
+                  type="button"
+                  onClick={handleStageAll}
+                  disabled={batchLoading !== null}
+                  className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition-colors"
+                  title="Stage all modified & untracked files"
+                >
+                  <CheckCheck className="w-3 h-3 text-emerald-500" />
+                  <span>Stage All</span>
+                </button>
+              )}
             </div>
             {unstaged.length === 0 ? (
               <p className="text-[11px] text-zinc-400 italic">No modified files</p>
@@ -163,7 +289,7 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
             )}
           </div>
 
-          {/* Untracked */}
+          {/* Untracked Section */}
           {untracked.length > 0 && (
             <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 bg-zinc-50/50 dark:bg-zinc-900/30">
               <div className="flex items-center justify-between mb-2">
@@ -173,12 +299,28 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
                 </div>
               </div>
               <div className="space-y-0.5">
-                {untracked.map((path) => renderFileRow({ path, change_type: 'Untracked' }, false))}
+                {untracked.map((path) =>
+                  renderFileRow({ path, change_type: 'Untracked' }, false, true)
+                )}
               </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Discard Confirmation Modal */}
+      <DiscardConfirmModal
+        isOpen={discardTarget !== null}
+        filePath={discardTarget?.path || null}
+        isUntracked={discardTarget?.isUntracked || false}
+        onClose={() => setDiscardTarget(null)}
+        onConfirm={async () => {
+          if (discardTarget) {
+            await onDiscardFile(discardTarget.path, discardTarget.isUntracked);
+          }
+        }}
+        theme={theme}
+      />
     </div>
   );
 };

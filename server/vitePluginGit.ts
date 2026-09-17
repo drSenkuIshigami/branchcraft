@@ -3,11 +3,16 @@ import url from 'node:url';
 import {
   checkGitAvailability,
   createOrGetSampleRepo,
+  discardPath,
   getBranches,
   getCommitDetail,
   getCommitGraph,
   getFileDiff,
   getStatus,
+  stageAll,
+  stagePath,
+  unstageAll,
+  unstagePath,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -104,6 +109,50 @@ export function gitApiPlugin(): Plugin {
             if (!repoPath || !filePath) return sendJson(400, { error: 'path and file required' });
             const diff = await getFileDiff(repoPath, filePath, rev);
             return sendJson(200, diff);
+          }
+
+          if (pathname === '/api/git/stage_path' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const filePath = typeof body.path === 'string' ? body.path : '';
+            if (!repoPath || !filePath) return sendJson(400, { error: 'repo_path and path required' });
+            const resData = await stagePath(repoPath, filePath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/unstage_path' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const filePath = typeof body.path === 'string' ? body.path : '';
+            if (!repoPath || !filePath) return sendJson(400, { error: 'repo_path and path required' });
+            const resData = await unstagePath(repoPath, filePath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/discard_path' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const filePath = typeof body.path === 'string' ? body.path : '';
+            const isUntracked = Boolean(body.is_untracked);
+            if (!repoPath || !filePath) return sendJson(400, { error: 'repo_path and path required' });
+            const resData = await discardPath(repoPath, filePath, isUntracked);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stage_all' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await stageAll(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/unstage_all' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await unstageAll(repoPath);
+            return sendJson(200, resData);
           }
 
           next();

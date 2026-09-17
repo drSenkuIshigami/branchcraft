@@ -20,10 +20,15 @@ import type {
   FileChange,
   FileDiff,
   GitAvailability,
+  OperationResult,
   StatusInfo,
 } from '../src/types';
 
-function runGit(repoPath: string | null, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+function runGit(
+  repoPath: string | null,
+  args: string[]
+): Promise<{ stdout: string; stderr: string; code: number; duration_ms: number }> {
+  const start = Date.now();
   return new Promise((resolve) => {
     const options = repoPath ? { cwd: repoPath } : {};
     execFile('git', args, options, (error, stdout, stderr) => {
@@ -31,6 +36,7 @@ function runGit(repoPath: string | null, args: string[]): Promise<{ stdout: stri
         stdout: stdout || '',
         stderr: stderr || '',
         code: error ? (error.code as unknown as number) || 1 : 0,
+        duration_ms: Date.now() - start,
       });
     });
   });
@@ -413,6 +419,72 @@ export async function getFileDiff(repoPath: string, filePath: string, rev?: stri
     new_content: newContent,
     is_binary: false,
     raw_diff: rawDiff,
+  };
+}
+
+export async function stagePath(repoPath: string, filePath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['add', '--', filePath]);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['add', '--', filePath],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function unstagePath(repoPath: string, filePath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['restore', '--staged', '--', filePath]);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['restore', '--staged', '--', filePath],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function discardPath(repoPath: string, filePath: string, isUntracked = false): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = isUntracked ? ['clean', '-f', '--', filePath] : ['restore', '--', filePath];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function stageAll(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['add', '-A']);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['add', '-A'],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function unstageAll(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['restore', '--staged', '.']);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['restore', '--staged', '.'],
+    duration_ms: res.duration_ms,
   };
 }
 

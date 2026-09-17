@@ -86,9 +86,10 @@
 
 ## Phase 2 — Daily Operations (Level 0–1)
 
-- [ ] Interactive staging/unstaging of individual files (`git add`, `git restore --staged`).
+- [x] Interactive staging/unstaging of individual files (`git add`, `git restore --staged`).
+- [x] Stage all / Unstage all working tree controls (`git add -A`, `git restore --staged .`).
+- [x] Discard file changes with mandatory pre-execution confirmation modal and untracked file deletion guidance.
 - [ ] Interactive hunk staging and discarding (`git apply --cached`).
-- [ ] Discard file/hunk with mandatory pre-execution preview.
 - [ ] Commit creation with commit message validation (length warnings, format checks).
 - [ ] Amend latest commit (`git commit --amend`).
 - [ ] Branch management: create from any commit, switch, rename, safe delete (`git branch -d`).
