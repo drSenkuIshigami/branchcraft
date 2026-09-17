@@ -20,7 +20,7 @@ export const GitStatusBadge: React.FC<GitStatusBadgeProps> = ({ status, loading,
         }`}
       >
         <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
-        <span>Checking Git environment...</span>
+        <span>Checking Git...</span>
       </div>
     );
   }
@@ -30,9 +30,10 @@ export const GitStatusBadge: React.FC<GitStatusBadgeProps> = ({ status, loading,
       <div
         id="git-status-unavailable"
         className="flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border border-rose-500/30 bg-rose-500/10 text-rose-500"
+        title={status?.error || 'Git executable not detected in system PATH'}
       >
         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-        <span>Git CLI not detected in system PATH</span>
+        <span>Git Not Found</span>
       </div>
     );
   }
@@ -41,9 +42,15 @@ export const GitStatusBadge: React.FC<GitStatusBadgeProps> = ({ status, loading,
     <div
       id="git-status-available"
       className="flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+      title={status.version || 'Git CLI Ready'}
     >
       <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-      <span>{status.version || 'Git CLI Ready'}</span>
+      <span>Git CLI Ready</span>
+      {status.version && (
+        <span className="text-[10px] opacity-75 hidden sm:inline">
+          ({status.version.replace(/^git version /i, 'v')})
+        </span>
+      )}
     </div>
   );
 };

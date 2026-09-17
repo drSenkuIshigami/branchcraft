@@ -52,12 +52,12 @@
   - [x] Dark/Light theme toggle persisted in `localStorage`.
   - [x] Professional empty-state screen ("Phase 0 — Application shell is ready", "Repository features will be introduced in Phase 1.").
   - [x] Strict absence of fake Git data, mock repositories, or command log UI.
-- [ ] **Safe Git Installation Check** (Step 7)
-  - [ ] Rust IPC command `get_git_availability` executing strictly `git --version` via `std::process::Command`.
-  - [ ] Never invoke a shell (`sh`, `bash`, `cmd`).
-  - [ ] Return typed `GitAvailability` (`available: bool`, `version: Option<String>`, `error: Option<String>`).
-  - [ ] Frontend non-blocking status badge showing detected version or installation notice.
-  - [ ] Zero execution of any other Git command in Phase 0.
+- [x] **Safe Git Installation Check** (Step 7)
+  - [x] Rust IPC command `get_git_availability` executing strictly `git --version` via `std::process::Command`.
+  - [x] Never invoke a shell (`sh`, `bash`, `cmd`).
+  - [x] Return typed `GitAvailability` (`available: bool`, `version: Option<String>`, `error: Option<String>`).
+  - [x] Frontend non-blocking status badge showing detected version or installation notice.
+  - [x] Zero execution of any other Git command in Phase 0.
 - [ ] **Secure Architecture Conventions** (Step 8)
   - [ ] Minimal Rust module placeholders for `commands`, `git`, and `safety`.
   - [ ] Explicit documentation that all future Git operations must route through typed allowlisted adapter.
