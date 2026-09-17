@@ -47,11 +47,11 @@
   - [x] `docs/TEST_PLAN.md` (Quality assurance matrix, manual checklists, automated test strategy).
 - [x] **Progress Tracking**
   - [x] Create `PROGRESS.md` in root with comprehensive phase checklists.
-- [ ] **Minimal Clean Application Shell** (Step 6)
-  - [ ] App header with title `Git Workbench` and local desktop badge.
-  - [ ] Dark/Light theme toggle persisted in `localStorage`.
-  - [ ] Professional empty-state screen ("Phase 0 — Application shell is ready", "Repository features will be introduced in Phase 1.").
-  - [ ] Strict absence of fake Git data, mock repositories, or command log UI.
+- [x] **Minimal Clean Application Shell** (Step 6)
+  - [x] App header with title `Git Workbench` and local desktop badge.
+  - [x] Dark/Light theme toggle persisted in `localStorage`.
+  - [x] Professional empty-state screen ("Phase 0 — Application shell is ready", "Repository features will be introduced in Phase 1.").
+  - [x] Strict absence of fake Git data, mock repositories, or command log UI.
 - [ ] **Safe Git Installation Check** (Step 7)
   - [ ] Rust IPC command `get_git_availability` executing strictly `git --version` via `std::process::Command`.
   - [ ] Never invoke a shell (`sh`, `bash`, `cmd`).

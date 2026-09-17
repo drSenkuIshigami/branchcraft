@@ -71,7 +71,7 @@ export const Phase0Shell: React.FC<Phase0ShellProps> = ({
             <div>
               <h2 className="text-xl font-semibold tracking-tight">Git Workbench</h2>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20 mt-1">
-                Phase 0 — Application Shell Ready
+                Phase 0 — Application shell is ready
               </span>
             </div>
           </div>
