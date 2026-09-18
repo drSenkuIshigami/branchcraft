@@ -93,16 +93,16 @@
 - [x] Commit creation with commit message validation (50/72 character count guidance, length warnings, format checks).
 - [x] Amend latest commit (`git commit --amend`) with automatic previous message retrieval.
 - [x] Branch management: create from any commit, switch, rename, safe delete (`git branch -d`).
-- [ ] Remote synchronization:
-  - [ ] Fetch with prune (`git fetch --prune`).
-  - [ ] Pull with status comparison.
-  - [ ] Push with safe default `--force-with-lease` (never raw `--force`).
+- [x] Remote synchronization:
+  - [x] Fetch with prune (`git fetch --prune`).
+  - [x] Pull with status comparison.
+  - [x] Push with safe default `--force-with-lease` (never raw `--force`).
 - [x] Stash management: list, create with message/untracked/index options, apply, pop, drop, clear, branch from stash, and stash diff preview.
 - [ ] Standard merge/rebase conflict resolution workflow (conflicted files list, external editor/mergetool trigger, continue/abort).
 - [ ] File restoration from historical commit (`checkout <sha> -- <path>`).
 - [x] Working tree hard reset to HEAD with explicit confirmation warning (`git reset --hard HEAD`).
 - [ ] Open system terminal or file manager at repository root.
-- [ ] Explicit sync status indicator comparing local and upstream tracking branches.
+- [x] Explicit sync status indicator comparing local and upstream tracking branches.
 
 ---
 

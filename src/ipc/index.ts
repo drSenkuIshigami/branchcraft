@@ -13,9 +13,11 @@ import type {
   FileDiff,
   GitAvailability,
   OperationResult,
+  RemoteInfo,
   StashDetail,
   StashInfo,
   StatusInfo,
+  SyncStatus,
 } from '../types';
 
 /**
@@ -659,6 +661,117 @@ export async function resetHard(repoPath: string): Promise<OperationResult> {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to reset working tree' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function getRemotes(repoPath: string): Promise<RemoteInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<RemoteInfo[]>('get_remotes', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/remotes?path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get remotes' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as RemoteInfo[];
+}
+
+export async function getSyncStatus(repoPath: string): Promise<SyncStatus> {
+  if (isTauriEnvironment()) {
+    return await invoke<SyncStatus>('get_sync_status', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/sync_status?path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get sync status' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as SyncStatus;
+}
+
+export async function gitFetch(
+  repoPath: string,
+  remote = 'origin',
+  prune = true
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('fetch', { repoPath, remote, prune });
+  }
+
+  const res = await fetch('/api/git/fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, remote, prune }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function gitPull(
+  repoPath: string,
+  remote = 'origin',
+  branch?: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('pull', { repoPath, remote, branch });
+  }
+
+  const res = await fetch('/api/git/pull', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, remote, branch }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to pull' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function gitPush(
+  repoPath: string,
+  remote = 'origin',
+  branch?: string,
+  forceWithLease = false,
+  setUpstream = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('push', {
+      repoPath,
+      remote,
+      branch,
+      forceWithLease,
+      setUpstream,
+    });
+  }
+
+  const res = await fetch('/api/git/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      remote,
+      branch,
+      force_with_lease: forceWithLease,
+      set_upstream: setUpstream,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to push' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 

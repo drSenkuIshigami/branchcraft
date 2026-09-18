@@ -7,14 +7,19 @@ import {
   AlertCircle,
   FolderGit2,
   X,
+  Globe,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import type {
   BranchInfo,
   CommitDetail,
   CommitInfo,
   FileDiff,
+  RemoteInfo,
   StashInfo,
   StatusInfo,
+  SyncStatus,
   Theme,
 } from '../types';
 import {
@@ -32,8 +37,13 @@ import {
   getCommitDetail,
   getCommitGraph,
   getFileDiff,
+  getRemotes,
   getStashes,
   getStatus,
+  getSyncStatus,
+  gitFetch,
+  gitPull,
+  gitPush,
   openRepository,
   openSampleRepository,
   popStash,
@@ -60,6 +70,7 @@ import { CommandLogModal, type LoggedCommand } from '../components/CommandLogMod
 import { CreateBranchModal } from '../components/CreateBranchModal';
 import { RenameBranchModal } from '../components/RenameBranchModal';
 import { DeleteBranchModal } from '../components/DeleteBranchModal';
+import { RemoteSyncModal } from '../components/RemoteSyncModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -113,6 +124,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [isBranchFromStashOpen, setIsBranchFromStashOpen] = useState(false);
   const [branchFromStashTarget, setBranchFromStashTarget] = useState<StashInfo | null>(null);
   const [isResetHardOpen, setIsResetHardOpen] = useState(false);
+
+  // Remote Synchronization State (Phase 2)
+  const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   const recordCommand = useCallback(
     (commandRun: string[], durationMs: number, success = true, exitCode = 0, stderr = '') => {
@@ -184,6 +200,29 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           );
         } else {
           setSelectedStashRef(null);
+        }
+
+        // Remotes & Sync Status (Phase 2)
+        try {
+          const remotesStart = performance.now();
+          const newRemotes = await getRemotes(newStatus.root_path);
+          recordCommand(
+            ['remote', '-v'],
+            Math.round(performance.now() - remotesStart)
+          );
+          setRemotes(newRemotes);
+
+          const syncStart = performance.now();
+          const newSyncStatus = await getSyncStatus(newStatus.root_path);
+          recordCommand(
+            ['rev-list', '--left-right', '--count', 'HEAD...@{u}'],
+            Math.round(performance.now() - syncStart)
+          );
+          setSyncStatus(newSyncStatus);
+        } catch {
+          // Remotes or upstream tracking may not exist for local-only repos
+          setRemotes([]);
+          setSyncStatus(null);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -744,6 +783,87 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Remote Synchronization Handlers (Phase 2)
+  const handleFetch = async (remote = 'origin', prune = true) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['fetch', remote, ...(prune ? ['--prune'] : [])];
+
+    try {
+      const res = await gitFetch(repoPath, remote, prune);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handlePull = async (remote = 'origin', branch?: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['pull', remote, ...(branch ? [branch] : [])];
+
+    try {
+      const res = await gitPull(repoPath, remote, branch);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handlePush = async (
+    remote = 'origin',
+    branch?: string,
+    forceWithLease = false,
+    setUpstream = false
+  ) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = [
+      'push',
+      ...(setUpstream ? ['-u'] : []),
+      ...(forceWithLease ? ['--force-with-lease'] : []),
+      remote,
+      ...(branch ? [branch] : []),
+    ];
+
+    try {
+      const res = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -782,6 +902,39 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
         {/* Right: Controls, Audit Log, Git Status, Theme */}
         <div className="flex items-center gap-2">
+          {/* Remote Sync Button & Indicator (Phase 2) */}
+          {status && (
+            <button
+              type="button"
+              onClick={() => setIsSyncModalOpen(true)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200/80 dark:bg-zinc-800/60 dark:hover:bg-zinc-800 text-xs text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700/60 transition-colors"
+              title={
+                syncStatus?.has_upstream
+                  ? `Sync with ${syncStatus.upstream_name} (${syncStatus.ahead} ahead, ${syncStatus.behind} behind)`
+                  : 'Remote Synchronization'
+              }
+            >
+              <Globe className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="hidden sm:inline font-medium text-xs">Sync</span>
+              {syncStatus?.has_upstream && (syncStatus.ahead > 0 || syncStatus.behind > 0) && (
+                <div className="flex items-center gap-1 font-mono text-[10px] ml-0.5">
+                  {syncStatus.ahead > 0 && (
+                    <span className="flex items-center text-blue-600 dark:text-blue-400 font-semibold">
+                      <ArrowUp className="w-2.5 h-2.5" />
+                      {syncStatus.ahead}
+                    </span>
+                  )}
+                  {syncStatus.behind > 0 && (
+                    <span className="flex items-center text-amber-600 dark:text-amber-400 font-semibold">
+                      <ArrowDown className="w-2.5 h-2.5" />
+                      {syncStatus.behind}
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+          )}
+
           {/* Refresh */}
           <button
             type="button"
@@ -858,6 +1011,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           status={status}
           branches={branches}
           stashes={stashes}
+          remotes={remotes}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -867,6 +1021,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenDeleteBranch={handleOpenDeleteBranch}
           onOpenCreateStash={() => setIsCreateStashOpen(true)}
           onOpenResetHard={() => setIsResetHardOpen(true)}
+          onOpenSync={() => setIsSyncModalOpen(true)}
           theme={theme}
         />
 
@@ -1036,6 +1191,18 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         status={status}
         onClose={() => setIsResetHardOpen(false)}
         onConfirm={handleResetHard}
+      />
+
+      {/* Remote Synchronization Modal (Phase 2) */}
+      <RemoteSyncModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        syncStatus={syncStatus}
+        remotes={remotes}
+        currentBranch={status?.current_branch || null}
+        onFetch={handleFetch}
+        onPull={handlePull}
+        onPush={handlePush}
       />
 
       {/* Open Repository Modal */}

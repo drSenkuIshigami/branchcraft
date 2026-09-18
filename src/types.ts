@@ -118,3 +118,18 @@ export interface StashDetail {
   stats: CommitStats;
 }
 
+export interface RemoteInfo {
+  name: string;
+  fetch_url?: string | null;
+  push_url?: string | null;
+}
+
+export interface SyncStatus {
+  has_upstream: boolean;
+  upstream_name?: string | null;
+  ahead: number;
+  behind: number;
+  current_branch?: string | null;
+  remote_name?: string | null;
+}
+

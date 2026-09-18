@@ -21,9 +21,11 @@ import type {
   FileDiff,
   GitAvailability,
   OperationResult,
+  RemoteInfo,
   StashDetail,
   StashInfo,
   StatusInfo,
+  SyncStatus,
 } from '../src/types';
 
 function runGit(
@@ -961,6 +963,216 @@ export async function resetHard(repoPath: string): Promise<OperationResult> {
     duration_ms: res.duration_ms,
   };
 }
+
+export async function getRemotes(repoPath: string): Promise<RemoteInfo[]> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['remote', '-v']);
+  if (res.code !== 0) {
+    throw new Error(`Failed to list remotes: ${res.stderr}`);
+  }
+
+  const remoteMap = new Map<string, { fetch_url?: string; push_url?: string }>();
+  const lines = res.stdout.trim().split('\n');
+
+  for (const line of lines) {
+    if (!line) continue;
+    // format: origin\thttps://... (fetch)
+    const match = line.match(/^(\S+)\s+(\S+)\s+\((fetch|push)\)$/);
+    if (match) {
+      const [, name, urlStr, type] = match;
+      if (!remoteMap.has(name)) {
+        remoteMap.set(name, {});
+      }
+      const entry = remoteMap.get(name)!;
+      if (type === 'fetch') {
+        entry.fetch_url = urlStr;
+      } else if (type === 'push') {
+        entry.push_url = urlStr;
+      }
+    }
+  }
+
+  const results: RemoteInfo[] = [];
+  for (const [name, urls] of remoteMap.entries()) {
+    results.push({
+      name,
+      fetch_url: urls.fetch_url || null,
+      push_url: urls.push_url || null,
+    });
+  }
+
+  return results;
+}
+
+export async function getSyncStatus(repoPath: string): Promise<SyncStatus> {
+  const rootPath = await validateRepository(repoPath);
+
+  // Get current HEAD branch
+  const branchRes = await runGit(rootPath, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branchRes.code !== 0) {
+    return {
+      has_upstream: false,
+      ahead: 0,
+      behind: 0,
+      current_branch: null,
+      upstream_name: null,
+    };
+  }
+
+  const currentBranch = branchRes.stdout.trim();
+  if (currentBranch === 'HEAD') {
+    // Detached HEAD
+    return {
+      has_upstream: false,
+      ahead: 0,
+      behind: 0,
+      current_branch: 'HEAD (detached)',
+      upstream_name: null,
+    };
+  }
+
+  // Get upstream branch if any
+  const upstreamRes = await runGit(rootPath, [
+    'rev-parse',
+    '--abbrev-ref',
+    '--symbolic-full-name',
+    '@{u}',
+  ]);
+
+  if (upstreamRes.code !== 0 || !upstreamRes.stdout.trim()) {
+    return {
+      has_upstream: false,
+      ahead: 0,
+      behind: 0,
+      current_branch: currentBranch,
+      upstream_name: null,
+    };
+  }
+
+  const upstreamName = upstreamRes.stdout.trim();
+  const remoteName = upstreamName.split('/')[0] || null;
+
+  // Count ahead / behind
+  let ahead = 0;
+  let behind = 0;
+  const countRes = await runGit(rootPath, [
+    'rev-list',
+    '--left-right',
+    '--count',
+    `${currentBranch}...${upstreamName}`,
+  ]);
+
+  if (countRes.code === 0) {
+    const counts = countRes.stdout.trim().split(/\s+/);
+    ahead = parseInt(counts[0], 10) || 0;
+    behind = parseInt(counts[1], 10) || 0;
+  }
+
+  return {
+    has_upstream: true,
+    upstream_name: upstreamName,
+    remote_name: remoteName,
+    ahead,
+    behind,
+    current_branch: currentBranch,
+  };
+}
+
+export async function gitFetch(
+  repoPath: string,
+  remote = 'origin',
+  prune = true
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedRemote = remote.trim();
+  if (!trimmedRemote || /[\s;&|><]/.test(trimmedRemote)) {
+    throw new Error('Invalid remote name');
+  }
+
+  const args = ['fetch'];
+  if (prune) {
+    args.push('--prune');
+  }
+  args.push(trimmedRemote);
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function gitPull(
+  repoPath: string,
+  remote = 'origin',
+  branch?: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedRemote = remote.trim();
+  if (!trimmedRemote || /[\s;&|><]/.test(trimmedRemote)) {
+    throw new Error('Invalid remote name');
+  }
+
+  const args = ['pull', trimmedRemote];
+  if (branch && branch.trim()) {
+    validateBranchName(branch.trim());
+    args.push(branch.trim());
+  }
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function gitPush(
+  repoPath: string,
+  remote = 'origin',
+  branch?: string,
+  forceWithLease = false,
+  setUpstream = false
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedRemote = remote.trim();
+  if (!trimmedRemote || /[\s;&|><]/.test(trimmedRemote)) {
+    throw new Error('Invalid remote name');
+  }
+
+  const args = ['push'];
+  if (setUpstream) {
+    args.push('-u');
+  }
+  if (forceWithLease) {
+    // Safe standard as per SAFETY_POLICY.md and COMMAND_ALLOWLIST.md
+    args.push('--force-with-lease');
+  }
+  args.push(trimmedRemote);
+
+  if (branch && branch.trim()) {
+    validateBranchName(branch.trim());
+    args.push(branch.trim());
+  }
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
 
 /**
  * Initializes or resets a realistic, isolated demo Git repository in /tmp/git-workbench-sample

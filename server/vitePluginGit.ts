@@ -17,9 +17,14 @@ import {
   getCommitDetail,
   getCommitGraph,
   getFileDiff,
+  getRemotes,
   getStashDetail,
   getStashes,
   getStatus,
+  getSyncStatus,
+  gitFetch,
+  gitPull,
+  gitPush,
   popStash,
   renameBranch,
   resetHard,
@@ -318,6 +323,52 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await resetHard(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/remotes' && req.method === 'GET') {
+            const repoPath = typeof parsedUrl.query.path === 'string' ? parsedUrl.query.path : '';
+            if (!repoPath) return sendJson(400, { error: 'path query required' });
+            const remotes = await getRemotes(repoPath);
+            return sendJson(200, remotes);
+          }
+
+          if (pathname === '/api/git/sync_status' && req.method === 'GET') {
+            const repoPath = typeof parsedUrl.query.path === 'string' ? parsedUrl.query.path : '';
+            if (!repoPath) return sendJson(400, { error: 'path query required' });
+            const syncStatus = await getSyncStatus(repoPath);
+            return sendJson(200, syncStatus);
+          }
+
+          if (pathname === '/api/git/fetch' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const remote = typeof body.remote === 'string' ? body.remote : 'origin';
+            const prune = body.prune !== undefined ? Boolean(body.prune) : true;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await gitFetch(repoPath, remote, prune);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/pull' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const remote = typeof body.remote === 'string' ? body.remote : 'origin';
+            const branch = typeof body.branch === 'string' ? body.branch : undefined;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await gitPull(repoPath, remote, branch);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/push' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const remote = typeof body.remote === 'string' ? body.remote : 'origin';
+            const branch = typeof body.branch === 'string' ? body.branch : undefined;
+            const forceWithLease = Boolean(body.force_with_lease);
+            const setUpstream = Boolean(body.set_upstream);
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream);
             return sendJson(200, resData);
           }
 
