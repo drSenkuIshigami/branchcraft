@@ -113,3 +113,42 @@ pub async fn amend_commit(
 ) -> Result<crate::models::OperationResult, String> {
     GitAdapter::amend_commit(&repo_path, &message)
 }
+
+/// Creates and switches to a new branch (git switch -c <name> [<start_sha>])
+#[tauri::command]
+pub async fn create_branch(
+    repo_path: String,
+    name: String,
+    start_sha: Option<String>,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::create_branch(&repo_path, &name, start_sha.as_deref())
+}
+
+/// Switches to an existing branch (git switch <name>)
+#[tauri::command]
+pub async fn switch_branch(
+    repo_path: String,
+    name: String,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::switch_branch(&repo_path, &name)
+}
+
+/// Renames a branch (git branch -m <old_name> <new_name>)
+#[tauri::command]
+pub async fn rename_branch(
+    repo_path: String,
+    old_name: String,
+    new_name: String,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::rename_branch(&repo_path, &old_name, &new_name)
+}
+
+/// Deletes a branch (git branch -d <name> or -D if forced)
+#[tauri::command]
+pub async fn delete_branch(
+    repo_path: String,
+    name: String,
+    force: bool,
+) -> Result<crate::models::OperationResult, String> {
+    GitAdapter::delete_branch(&repo_path, &name, force)
+}

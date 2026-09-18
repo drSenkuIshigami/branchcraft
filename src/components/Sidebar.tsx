@@ -13,6 +13,9 @@ import {
   ArrowDown,
   Globe,
   PlusCircle,
+  Plus,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import type { BranchInfo, StatusInfo, Theme } from '../types';
 
@@ -22,6 +25,10 @@ interface SidebarProps {
   selectedView: 'graph' | 'working-tree';
   onSelectView: (view: 'graph' | 'working-tree') => void;
   onOpenRepoDialog: () => void;
+  onSwitchBranch: (name: string) => Promise<void>;
+  onOpenCreateBranch: (startSha?: string, refName?: string) => void;
+  onOpenRenameBranch: (branchName: string) => void;
+  onOpenDeleteBranch: (branchName: string, isHead: boolean) => void;
   theme: Theme;
 }
 
@@ -31,6 +38,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedView,
   onSelectView,
   onOpenRepoDialog,
+  onSwitchBranch,
+  onOpenCreateBranch,
+  onOpenRenameBranch,
+  onOpenDeleteBranch,
 }) => {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [workingTreeOpen, setWorkingTreeOpen] = useState(true);
@@ -172,18 +183,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Branches Section */}
         <div>
-          <button
-            type="button"
-            onClick={() => setBranchesOpen(!branchesOpen)}
-            className="w-full flex items-center justify-between px-2 py-1 font-semibold text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-          >
-            <span className="uppercase tracking-wider">Local Branches</span>
-            {branchesOpen ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-          </button>
+          <div className="flex items-center justify-between px-2 py-1">
+            <button
+              type="button"
+              onClick={() => setBranchesOpen(!branchesOpen)}
+              className="flex items-center gap-1 font-semibold text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+            >
+              <span className="uppercase tracking-wider">Local Branches</span>
+              {branchesOpen ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenCreateBranch()}
+              className="p-1 rounded text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors"
+              title="Create New Branch"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
 
           {branchesOpen && (
             <div className="mt-1 space-y-0.5">
@@ -193,44 +214,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 localBranches.map((b) => (
                   <div
                     key={b.name}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded text-[11px] font-mono ${
+                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded text-[11px] font-mono transition-colors ${
                       b.is_head
                         ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
                         : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
+                    <button
+                      type="button"
+                      onClick={() => !b.is_head && onSwitchBranch(b.name)}
+                      className={`flex items-center gap-2 truncate text-left flex-1 min-w-0 ${
+                        !b.is_head ? 'cursor-pointer hover:underline' : 'cursor-default'
+                      }`}
+                      title={b.is_head ? 'Current HEAD branch' : `Switch to ${b.name}`}
+                    >
                       <GitBranch className="w-3 h-3 shrink-0" />
                       <span className="truncate">{b.name}</span>
                       {b.is_head && (
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 uppercase">
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 uppercase shrink-0">
                           HEAD
                         </span>
                       )}
-                    </div>
+                    </button>
 
-                    {(b.ahead > 0 || b.behind > 0) && (
-                      <div className="flex items-center gap-1 shrink-0 text-[10px]">
-                        {b.ahead > 0 && (
-                          <span
-                            className="flex items-center text-blue-500"
-                            title={`${b.ahead} ahead`}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {(b.ahead > 0 || b.behind > 0) && (
+                        <div className="flex items-center gap-1 text-[10px] mr-1">
+                          {b.ahead > 0 && (
+                            <span
+                              className="flex items-center text-blue-500"
+                              title={`${b.ahead} ahead`}
+                            >
+                              <ArrowUp className="w-2.5 h-2.5" />
+                              {b.ahead}
+                            </span>
+                          )}
+                          {b.behind > 0 && (
+                            <span
+                              className="flex items-center text-amber-500"
+                              title={`${b.behind} behind`}
+                            >
+                              <ArrowDown className="w-2.5 h-2.5" />
+                              {b.behind}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Branch Actions on hover */}
+                      <div className="hidden group-hover:flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenRenameBranch(b.name);
+                          }}
+                          className="p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                          title={`Rename branch ${b.name}`}
+                        >
+                          <Pencil className="w-2.5 h-2.5" />
+                        </button>
+                        {!b.is_head && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenDeleteBranch(b.name, b.is_head);
+                            }}
+                            className="p-1 rounded text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            title={`Delete branch ${b.name}`}
                           >
-                            <ArrowUp className="w-2.5 h-2.5" />
-                            {b.ahead}
-                          </span>
-                        )}
-                        {b.behind > 0 && (
-                          <span
-                            className="flex items-center text-amber-500"
-                            title={`${b.behind} behind`}
-                          >
-                            <ArrowDown className="w-2.5 h-2.5" />
-                            {b.behind}
-                          </span>
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))
               )}

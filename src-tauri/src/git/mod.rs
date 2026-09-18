@@ -520,4 +520,90 @@ impl GitAdapter {
         }
         Self::execute_raw(Some(repo_path), &["commit", "--amend", "-m", message])
     }
+
+    /// Creates and switches to a new branch (`git switch -c <name> [<start_sha>]`)
+    pub fn create_branch(
+        repo_path: &str,
+        name: &str,
+        start_sha: Option<&str>,
+    ) -> Result<OperationResult, String> {
+        validate_branch_name(name)?;
+        if let Some(sha) = start_sha {
+            let trimmed_sha = sha.trim();
+            if !trimmed_sha.is_empty() {
+                return Self::execute_raw(Some(repo_path), &["switch", "-c", name, trimmed_sha]);
+            }
+        }
+        Self::execute_raw(Some(repo_path), &["switch", "-c", name])
+    }
+
+    /// Switches to an existing branch (`git switch <name>`)
+    pub fn switch_branch(repo_path: &str, name: &str) -> Result<OperationResult, String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("Branch name cannot be empty".to_string());
+        }
+        Self::execute_raw(Some(repo_path), &["switch", name])
+    }
+
+    /// Renames a branch (`git branch -m <old_name> <new_name>`)
+    pub fn rename_branch(
+        repo_path: &str,
+        old_name: &str,
+        new_name: &str,
+    ) -> Result<OperationResult, String> {
+        let old_name = old_name.trim();
+        let new_name = new_name.trim();
+        if old_name.is_empty() {
+            return Err("Current branch name cannot be empty".to_string());
+        }
+        validate_branch_name(new_name)?;
+        Self::execute_raw(Some(repo_path), &["branch", "-m", old_name, new_name])
+    }
+
+    /// Safely deletes a branch (`git branch -d <name>` or `git branch -D <name>` if forced)
+    pub fn delete_branch(
+        repo_path: &str,
+        name: &str,
+        force: bool,
+    ) -> Result<OperationResult, String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("Branch name cannot be empty".to_string());
+        }
+        let flag = if force { "-D" } else { "-d" };
+        Self::execute_raw(Some(repo_path), &["branch", flag, name])
+    }
+}
+
+fn validate_branch_name(name: &str) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Branch name cannot be empty".to_string());
+    }
+    if name.starts_with('-')
+        || name.starts_with('/')
+        || name.ends_with('/')
+        || name.ends_with('.')
+        || name.ends_with(".lock")
+    {
+        return Err("Invalid branch name format".to_string());
+    }
+    if name.contains("..")
+        || name.contains('~')
+        || name.contains('^')
+        || name.contains(':')
+        || name.contains('?')
+        || name.contains('*')
+        || name.contains('[')
+        || name.contains('\\')
+        || name.contains("@{")
+        || name.contains("//")
+    {
+        return Err("Branch name contains forbidden characters".to_string());
+    }
+    if name.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("Branch name cannot contain whitespace or control characters".to_string());
+    }
+    Ok(())
 }

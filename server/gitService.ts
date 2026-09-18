@@ -68,6 +68,14 @@ export async function checkGitAvailability(): Promise<GitAvailability> {
 }
 
 export async function validateRepository(repoPath: string): Promise<string> {
+  const sampleDir = '/tmp/git-workbench-sample-repo';
+  if (
+    repoPath === sampleDir &&
+    (!fs.existsSync(repoPath) || !fs.existsSync(path.join(repoPath, '.git')))
+  ) {
+    await createOrGetSampleRepo();
+  }
+
   if (!fs.existsSync(repoPath)) {
     throw new Error(`Path does not exist: ${repoPath}`);
   }
@@ -516,6 +524,116 @@ export async function amendCommit(repoPath: string, message: string): Promise<Op
     stderr: res.stderr,
     exit_code: res.code,
     command_run: ['commit', '--amend', '-m', message],
+    duration_ms: res.duration_ms,
+  };
+}
+
+function validateBranchName(name: string): void {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Branch name cannot be empty');
+  if (
+    trimmed.startsWith('-') ||
+    trimmed.startsWith('/') ||
+    trimmed.endsWith('/') ||
+    trimmed.endsWith('.') ||
+    trimmed.endsWith('.lock')
+  ) {
+    throw new Error('Invalid branch name format');
+  }
+  if (
+    trimmed.includes('..') ||
+    trimmed.includes('~') ||
+    trimmed.includes('^') ||
+    trimmed.includes(':') ||
+    trimmed.includes('?') ||
+    trimmed.includes('*') ||
+    trimmed.includes('[') ||
+    trimmed.includes('\\') ||
+    trimmed.includes('@{') ||
+    trimmed.includes('//')
+  ) {
+    throw new Error('Branch name contains forbidden characters');
+  }
+  if (/[\s\x00-\x1f\x7f]/.test(trimmed)) {
+    throw new Error('Branch name cannot contain whitespace or control characters');
+  }
+}
+
+export async function createBranch(
+  repoPath: string,
+  name: string,
+  startSha?: string
+): Promise<OperationResult> {
+  validateBranchName(name);
+  const rootPath = await validateRepository(repoPath);
+  const args =
+    startSha && startSha.trim()
+      ? ['switch', '-c', name.trim(), startSha.trim()]
+      : ['switch', '-c', name.trim()];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function switchBranch(repoPath: string, name: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Branch name cannot be empty');
+  const res = await runGit(rootPath, ['switch', trimmed]);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['switch', trimmed],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function renameBranch(
+  repoPath: string,
+  oldName: string,
+  newName: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedOld = oldName.trim();
+  validateBranchName(newName);
+  if (!trimmedOld) throw new Error('Current branch name cannot be empty');
+  const args = ['branch', '-m', trimmedOld, newName.trim()];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function deleteBranch(
+  repoPath: string,
+  name: string,
+  force = false
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Branch name cannot be empty');
+  const flag = force ? '-D' : '-d';
+  const args = ['branch', flag, trimmed];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
     duration_ms: res.duration_ms,
   };
 }

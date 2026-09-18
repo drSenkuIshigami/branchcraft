@@ -6,11 +6,14 @@ import {
   SplitSquareVertical,
   AlertCircle,
   FolderGit2,
+  X,
 } from 'lucide-react';
 import type { BranchInfo, CommitDetail, CommitInfo, FileDiff, StatusInfo, Theme } from '../types';
 import {
   amendCommit,
+  createBranch,
   createCommit,
+  deleteBranch,
   discardPath,
   getBranches,
   getCommitDetail,
@@ -19,8 +22,10 @@ import {
   getStatus,
   openRepository,
   openSampleRepository,
+  renameBranch,
   stageAll,
   stagePath,
+  switchBranch,
   unstageAll,
   unstagePath,
 } from '../ipc';
@@ -31,6 +36,9 @@ import { DiffViewer } from '../components/DiffViewer';
 import { WorkingTreePanel } from '../components/WorkingTreePanel';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
+import { CreateBranchModal } from '../components/CreateBranchModal';
+import { RenameBranchModal } from '../components/RenameBranchModal';
+import { DeleteBranchModal } from '../components/DeleteBranchModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -60,6 +68,20 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
   const [isCommandLogOpen, setIsCommandLogOpen] = useState(false);
   const [commandLogs, setCommandLogs] = useState<LoggedCommand[]>([]);
+
+  // Branch Management State
+  const [isCreateBranchOpen, setIsCreateBranchOpen] = useState(false);
+  const [createBranchStartSha, setCreateBranchStartSha] = useState<string | undefined>(undefined);
+  const [createBranchRefName, setCreateBranchRefName] = useState<string | undefined>(undefined);
+
+  const [isRenameBranchOpen, setIsRenameBranchOpen] = useState(false);
+  const [renameBranchOldName, setRenameBranchOldName] = useState('');
+
+  const [isDeleteBranchOpen, setIsDeleteBranchOpen] = useState(false);
+  const [deleteBranchTarget, setDeleteBranchTarget] = useState<{
+    name: string;
+    isHead: boolean;
+  } | null>(null);
 
   const recordCommand = useCallback(
     (commandRun: string[], durationMs: number, success = true, exitCode = 0, stderr = '') => {
@@ -119,6 +141,21 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Path does not exist') || msg.includes('not a valid Git repository')) {
+          localStorage.removeItem('git_workbench_repo_path');
+          if (path.includes('sample-repo')) {
+            // Automatically resurrect or re-initialize demo sandbox
+            try {
+              const res = await openSampleRepository();
+              setRepoPath(res.path);
+              localStorage.setItem('git_workbench_repo_path', res.path);
+              await loadRepositoryData(res.path);
+              return;
+            } catch {
+              // fall through to error display
+            }
+          }
+        }
         setError(msg);
         recordCommand(['open_repository', path], 0, false, 1, msg);
       } finally {
@@ -379,6 +416,111 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Branch operations handlers
+  const handleOpenCreateBranch = (startSha?: string, refName?: string) => {
+    setCreateBranchStartSha(startSha);
+    setCreateBranchRefName(refName);
+    setIsCreateBranchOpen(true);
+  };
+
+  const handleOpenRenameBranch = (branchName: string) => {
+    setRenameBranchOldName(branchName);
+    setIsRenameBranchOpen(true);
+  };
+
+  const handleOpenDeleteBranch = (branchName: string, isHead: boolean) => {
+    setDeleteBranchTarget({ name: branchName, isHead });
+    setIsDeleteBranchOpen(true);
+  };
+
+  const handleSwitchBranch = async (branchName: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['switch', branchName];
+    try {
+      const res = await switchBranch(repoPath, branchName);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleCreateBranch = async (name: string, startSha?: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = startSha ? ['switch', '-c', name, startSha] : ['switch', '-c', name];
+    try {
+      const res = await createBranch(repoPath, name, startSha);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleRenameBranch = async (oldName: string, newName: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['branch', '-m', oldName, newName];
+    try {
+      const res = await renameBranch(repoPath, oldName, newName);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleDeleteBranch = async (name: string, force: boolean) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = force ? ['branch', '-D', name] : ['branch', '-d', name];
+    try {
+      const res = await deleteBranch(repoPath, name, force);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -454,18 +596,35 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
       {/* Error banner if repository failed to load */}
       {error && (
-        <div className="px-4 py-2 bg-rose-500/10 border-b border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between shrink-0">
+        <div className="px-4 py-2 bg-rose-500/10 border-b border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between shrink-0 gap-3">
           <div className="flex items-center gap-2 truncate">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span className="truncate">{error}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsRepoModalOpen(true)}
-            className="font-medium underline ml-2 shrink-0 hover:text-rose-700 dark:hover:text-rose-300"
-          >
-            Switch Repository
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={handleOpenSample}
+              className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 font-medium transition-colors"
+            >
+              Open Demo Sandbox
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsRepoModalOpen(true)}
+              className="font-medium underline hover:text-rose-700 dark:hover:text-rose-300"
+            >
+              Switch Repository
+            </button>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="p-0.5 hover:bg-rose-500/20 rounded text-rose-500 hover:text-rose-700 dark:hover:text-rose-200"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -478,6 +637,10 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
+          onSwitchBranch={handleSwitchBranch}
+          onOpenCreateBranch={handleOpenCreateBranch}
+          onOpenRenameBranch={handleOpenRenameBranch}
+          onOpenDeleteBranch={handleOpenDeleteBranch}
           theme={theme}
         />
 
@@ -530,6 +693,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                     loading={detailLoading}
                     selectedFile={selectedFile}
                     onSelectFile={setSelectedFile}
+                    onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
                     theme={theme}
                   />
                 </div>
@@ -543,6 +707,38 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           )}
         </main>
       </div>
+
+      {/* Branch Management Modals */}
+      <CreateBranchModal
+        isOpen={isCreateBranchOpen}
+        onClose={() => setIsCreateBranchOpen(false)}
+        startSha={createBranchStartSha}
+        startRefName={
+          createBranchRefName ||
+          (createBranchStartSha ? undefined : branches.find((b) => b.is_head)?.name || 'HEAD')
+        }
+        existingBranches={branches.filter((b) => b.is_local).map((b) => b.name)}
+        onCreateBranch={handleCreateBranch}
+        theme={theme}
+      />
+
+      <RenameBranchModal
+        isOpen={isRenameBranchOpen}
+        onClose={() => setIsRenameBranchOpen(false)}
+        currentName={renameBranchOldName}
+        existingBranches={branches.filter((b) => b.is_local).map((b) => b.name)}
+        onRenameBranch={handleRenameBranch}
+        theme={theme}
+      />
+
+      <DeleteBranchModal
+        isOpen={isDeleteBranchOpen}
+        onClose={() => setIsDeleteBranchOpen(false)}
+        branchName={deleteBranchTarget?.name || ''}
+        isHead={deleteBranchTarget?.isHead ?? false}
+        onDeleteBranch={handleDeleteBranch}
+        theme={theme}
+      />
 
       {/* Open Repository Modal */}
       <OpenRepoModal

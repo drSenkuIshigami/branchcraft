@@ -3,16 +3,20 @@ import url from 'node:url';
 import {
   amendCommit,
   checkGitAvailability,
+  createBranch,
   createCommit,
   createOrGetSampleRepo,
+  deleteBranch,
   discardPath,
   getBranches,
   getCommitDetail,
   getCommitGraph,
   getFileDiff,
   getStatus,
+  renameBranch,
   stageAll,
   stagePath,
+  switchBranch,
   unstageAll,
   unstagePath,
 } from './gitService';
@@ -172,6 +176,47 @@ export function gitApiPlugin(): Plugin {
             const message = typeof body.message === 'string' ? body.message : '';
             if (!repoPath || !message) return sendJson(400, { error: 'repo_path and message required' });
             const resData = await amendCommit(repoPath, message);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/create_branch' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const name = typeof body.name === 'string' ? body.name : '';
+            const startSha = typeof body.start_sha === 'string' ? body.start_sha : undefined;
+            if (!repoPath || !name) return sendJson(400, { error: 'repo_path and name required' });
+            const resData = await createBranch(repoPath, name, startSha);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/switch_branch' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const name = typeof body.name === 'string' ? body.name : '';
+            if (!repoPath || !name) return sendJson(400, { error: 'repo_path and name required' });
+            const resData = await switchBranch(repoPath, name);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/rename_branch' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const oldName = typeof body.old_name === 'string' ? body.old_name : '';
+            const newName = typeof body.new_name === 'string' ? body.new_name : '';
+            if (!repoPath || !oldName || !newName) {
+              return sendJson(400, { error: 'repo_path, old_name, and new_name required' });
+            }
+            const resData = await renameBranch(repoPath, oldName, newName);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/delete_branch' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const name = typeof body.name === 'string' ? body.name : '';
+            const force = Boolean(body.force);
+            if (!repoPath || !name) return sendJson(400, { error: 'repo_path and name required' });
+            const resData = await deleteBranch(repoPath, name, force);
             return sendJson(200, resData);
           }
 

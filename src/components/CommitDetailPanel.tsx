@@ -21,6 +21,7 @@ interface CommitDetailPanelProps {
   loading: boolean;
   selectedFile: string | null;
   onSelectFile: (filePath: string) => void;
+  onCreateBranchAtCommit?: (sha: string, subject: string) => void;
   theme: Theme;
 }
 
@@ -29,6 +30,7 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   loading,
   selectedFile,
   onSelectFile,
+  onCreateBranchAtCommit,
 }) => {
   const [copiedSha, setCopiedSha] = React.useState(false);
 
@@ -83,19 +85,32 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
           <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 leading-snug">
             {commit.subject}
           </h3>
-          <button
-            type="button"
-            onClick={handleCopySha}
-            className="flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 rounded bg-zinc-200/70 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 shrink-0 transition-colors"
-            title="Copy full SHA"
-          >
-            {copiedSha ? (
-              <Check className="w-3 h-3 text-emerald-500" />
-            ) : (
-              <Copy className="w-3 h-3" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onCreateBranchAtCommit && (
+              <button
+                type="button"
+                onClick={() => onCreateBranchAtCommit(commit.sha, commit.subject)}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium transition-colors"
+                title="Create new branch at this commit"
+              >
+                <GitBranch className="w-3 h-3" />
+                <span>New Branch</span>
+              </button>
             )}
-            <span>{commit.sha.substring(0, 8)}</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleCopySha}
+              className="flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 rounded bg-zinc-200/70 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+              title="Copy full SHA"
+            >
+              {copiedSha ? (
+                <Check className="w-3 h-3 text-emerald-500" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
+              <span>{commit.sha.substring(0, 8)}</span>
+            </button>
+          </div>
         </div>
 
         {commit.body && (

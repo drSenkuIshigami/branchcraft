@@ -92,7 +92,7 @@
 - [ ] Interactive hunk staging and discarding (`git apply --cached`).
 - [x] Commit creation with commit message validation (50/72 character count guidance, length warnings, format checks).
 - [x] Amend latest commit (`git commit --amend`) with automatic previous message retrieval.
-- [ ] Branch management: create from any commit, switch, rename, safe delete (`git branch -d`).
+- [x] Branch management: create from any commit, switch, rename, safe delete (`git branch -d`).
 - [ ] Remote synchronization:
   - [ ] Fetch with prune (`git fetch --prune`).
   - [ ] Pull with status comparison.

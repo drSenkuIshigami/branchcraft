@@ -341,6 +341,106 @@ export async function amendCommit(repoPath: string, message: string): Promise<Op
 }
 
 /**
+ * Phase 2: Creates and switches to a new branch (git switch -c <name> [<start_sha>])
+ */
+export async function createBranch(
+  repoPath: string,
+  name: string,
+  startSha?: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('create_branch', { repoPath, name, startSha });
+  }
+
+  const res = await fetch('/api/git/create_branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, name, start_sha: startSha }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create branch' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Switches to an existing branch (git switch <name>)
+ */
+export async function switchBranch(repoPath: string, name: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('switch_branch', { repoPath, name });
+  }
+
+  const res = await fetch('/api/git/switch_branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, name }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to switch branch' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Renames a branch (git branch -m <old_name> <new_name>)
+ */
+export async function renameBranch(
+  repoPath: string,
+  oldName: string,
+  newName: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('rename_branch', { repoPath, oldName, newName });
+  }
+
+  const res = await fetch('/api/git/rename_branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, old_name: oldName, new_name: newName }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to rename branch' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Deletes a branch (git branch -d <name> or -D if forced)
+ */
+export async function deleteBranch(
+  repoPath: string,
+  name: string,
+  force = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('delete_branch', { repoPath, name, force });
+  }
+
+  const res = await fetch('/api/git/delete_branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, name, force }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete branch' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
  * Testing & Evaluation Helper:
  * Prepares and opens an isolated realistic sandbox Git repo with branches and changes
  */
