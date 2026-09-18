@@ -101,3 +101,20 @@ export interface BackupRef {
   created_at: string;
   reason: string;
 }
+
+export interface StashInfo {
+  index: number;
+  ref: string;
+  hash: string;
+  branch: string;
+  relative_time: string;
+  date: string;
+  message: string;
+}
+
+export interface StashDetail {
+  stash: StashInfo;
+  files: CommitDetailFile[];
+  stats: CommitStats;
+}
+

@@ -21,6 +21,8 @@ import type {
   FileDiff,
   GitAvailability,
   OperationResult,
+  StashDetail,
+  StashInfo,
   StatusInfo,
 } from '../src/types';
 
@@ -402,8 +404,16 @@ export async function getFileDiff(repoPath: string, filePath: string, rev?: stri
     const parentRes = await runGit(rootPath, ['show', `${rev}^:${filePath}`]);
     oldContent = parentRes.code === 0 ? parentRes.stdout : '';
 
-    const currRes = await runGit(rootPath, ['show', `${rev}:${filePath}`]);
+    let currRes = await runGit(rootPath, ['show', `${rev}:${filePath}`]);
+    if (currRes.code !== 0 && rev.startsWith('stash@{')) {
+      currRes = await runGit(rootPath, ['show', `${rev}^3:${filePath}`]);
+    }
     newContent = currRes.code === 0 ? currRes.stdout : '';
+
+    if (!rawDiff && newContent && !oldContent) {
+      const lines = newContent.split('\n');
+      rawDiff = `diff --git a/${filePath} b/${filePath}\nnew file mode 100644\n--- /dev/null\n+++ b/${filePath}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join('\n')}`;
+    }
   } else {
     const diffRes = await runGit(rootPath, ['diff', 'HEAD', '--', filePath]);
     rawDiff = diffRes.stdout;
@@ -627,6 +637,320 @@ export async function deleteBranch(
   if (!trimmed) throw new Error('Branch name cannot be empty');
   const flag = force ? '-D' : '-d';
   const args = ['branch', flag, trimmed];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function getStashes(repoPath: string): Promise<StashInfo[]> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, [
+    'stash',
+    'list',
+    '--pretty=format:%gd%x00%h%x00%cr%x00%ci%x00%gs',
+  ]);
+  if (!res.stdout.trim()) return [];
+
+  const lines = res.stdout.split('\n').filter(Boolean);
+  const stashes: StashInfo[] = [];
+
+  for (const line of lines) {
+    const fields = line.split('\0');
+    if (fields.length >= 5) {
+      const ref = fields[0];
+      const hash = fields[1];
+      const relativeTime = fields[2];
+      const date = fields[3];
+      const fullSubject = fields[4];
+
+      const match = ref.match(/stash@\{(\d+)\}/);
+      const index = match ? parseInt(match[1], 10) : stashes.length;
+
+      let branch = 'unknown';
+      let message = fullSubject;
+      const branchMatch = fullSubject.match(/^(?:WIP on|On)\s+([^:]+):?\s*(.*)$/);
+      if (branchMatch) {
+        branch = branchMatch[1].trim();
+        message = branchMatch[2]?.trim() || fullSubject;
+      }
+
+      stashes.push({
+        index,
+        ref,
+        hash,
+        branch,
+        relative_time: relativeTime,
+        date,
+        message,
+      });
+    }
+  }
+
+  return stashes;
+}
+
+export async function getStashDetail(
+  repoPath: string,
+  stashRef: string
+): Promise<StashDetail> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedRef = stashRef.trim();
+  if (!/^stash@\{\d+\}$/.test(trimmedRef)) {
+    throw new Error('Invalid stash reference format');
+  }
+
+  const listRes = await runGit(rootPath, [
+    'stash',
+    'list',
+    '--pretty=format:%gd%x00%h%x00%cr%x00%ci%x00%gs',
+  ]);
+  const lines = listRes.stdout.split('\n').filter(Boolean);
+  let stashInfo: StashInfo | null = null;
+
+  for (const line of lines) {
+    const fields = line.split('\0');
+    if (fields[0] === trimmedRef && fields.length >= 5) {
+      const ref = fields[0];
+      const hash = fields[1];
+      const relativeTime = fields[2];
+      const date = fields[3];
+      const fullSubject = fields[4];
+      const match = ref.match(/stash@\{(\d+)\}/);
+      const index = match ? parseInt(match[1], 10) : 0;
+      let branch = 'unknown';
+      let message = fullSubject;
+      const branchMatch = fullSubject.match(/^(?:WIP on|On)\s+([^:]+):?\s*(.*)$/);
+      if (branchMatch) {
+        branch = branchMatch[1].trim();
+        message = branchMatch[2]?.trim() || fullSubject;
+      }
+      stashInfo = {
+        index,
+        ref,
+        hash,
+        branch,
+        relative_time: relativeTime,
+        date,
+        message,
+      };
+      break;
+    }
+  }
+
+  if (!stashInfo) {
+    throw new Error(`Stash ${trimmedRef} not found`);
+  }
+
+  const statRes = await runGit(rootPath, ['show', '--numstat', '--format=', trimmedRef]);
+  const files: CommitDetailFile[] = [];
+  let totalInsertions = 0;
+  let totalDeletions = 0;
+
+  for (const line of statRes.stdout.split('\n')) {
+    const parts = line.split('\t');
+    if (parts.length >= 3) {
+      const additions = parseInt(parts[0], 10) || 0;
+      const deletions = parseInt(parts[1], 10) || 0;
+      const filePath = parts[2];
+      totalInsertions += additions;
+      totalDeletions += deletions;
+
+      files.push({
+        path: filePath,
+        status: 'Modified',
+        additions,
+        deletions,
+        old_path: null,
+      });
+    }
+  }
+
+  // Also check if untracked files commit exists: <stashRef>^3
+  const untrackedCheck = await runGit(rootPath, ['rev-parse', '--verify', `${trimmedRef}^3`]);
+  if (untrackedCheck.code === 0) {
+    const untrackedStat = await runGit(rootPath, [
+      'show',
+      '--numstat',
+      '--format=',
+      `${trimmedRef}^3`,
+    ]);
+    for (const line of untrackedStat.stdout.split('\n')) {
+      const parts = line.split('\t');
+      if (parts.length >= 3) {
+        const additions = parseInt(parts[0], 10) || 0;
+        const filePath = parts[2];
+        if (!files.some((f) => f.path === filePath)) {
+          totalInsertions += additions;
+          files.push({
+            path: filePath,
+            status: 'Added',
+            additions,
+            deletions: 0,
+            old_path: null,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    stash: stashInfo,
+    files,
+    stats: {
+      files_changed: files.length,
+      insertions: totalInsertions,
+      deletions: totalDeletions,
+    },
+  };
+}
+
+export async function createStash(
+  repoPath: string,
+  message?: string,
+  includeUntracked = false,
+  keepIndex = false
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['stash', 'push'];
+  if (includeUntracked) {
+    args.push('-u');
+  }
+  if (keepIndex) {
+    args.push('--keep-index');
+  }
+  if (message && message.trim()) {
+    args.push('-m', message.trim());
+  }
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function applyStash(
+  repoPath: string,
+  stashRef: string,
+  reinstateIndex = false
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmed = stashRef.trim();
+  if (!/^stash@\{\d+\}$/.test(trimmed)) {
+    throw new Error('Invalid stash reference format');
+  }
+  const args = ['stash', 'apply'];
+  if (reinstateIndex) {
+    args.push('--index');
+  }
+  args.push(trimmed);
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function popStash(
+  repoPath: string,
+  stashRef: string,
+  reinstateIndex = false
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmed = stashRef.trim();
+  if (!/^stash@\{\d+\}$/.test(trimmed)) {
+    throw new Error('Invalid stash reference format');
+  }
+  const args = ['stash', 'pop'];
+  if (reinstateIndex) {
+    args.push('--index');
+  }
+  args.push(trimmed);
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function dropStash(
+  repoPath: string,
+  stashRef: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmed = stashRef.trim();
+  if (!/^stash@\{\d+\}$/.test(trimmed)) {
+    throw new Error('Invalid stash reference format');
+  }
+  const args = ['stash', 'drop', trimmed];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function clearStashes(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['stash', 'clear'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function branchFromStash(
+  repoPath: string,
+  branchName: string,
+  stashRef: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedRef = stashRef.trim();
+  validateBranchName(branchName);
+  if (!/^stash@\{\d+\}$/.test(trimmedRef)) {
+    throw new Error('Invalid stash reference format');
+  }
+  const args = ['stash', 'branch', branchName.trim(), trimmedRef];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function resetHard(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['reset', '--hard', 'HEAD'];
   const res = await runGit(rootPath, args);
   return {
     success: res.code === 0,

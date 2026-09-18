@@ -97,10 +97,10 @@
   - [ ] Fetch with prune (`git fetch --prune`).
   - [ ] Pull with status comparison.
   - [ ] Push with safe default `--force-with-lease` (never raw `--force`).
-- [ ] Stash management: list, create with message/file selection, apply, pop, drop.
+- [x] Stash management: list, create with message/untracked/index options, apply, pop, drop, clear, branch from stash, and stash diff preview.
 - [ ] Standard merge/rebase conflict resolution workflow (conflicted files list, external editor/mergetool trigger, continue/abort).
 - [ ] File restoration from historical commit (`checkout <sha> -- <path>`).
-- [ ] Working tree hard reset to HEAD with explicit confirmation warning.
+- [x] Working tree hard reset to HEAD with explicit confirmation warning (`git reset --hard HEAD`).
 - [ ] Open system terminal or file manager at repository root.
 - [ ] Explicit sync status indicator comparing local and upstream tracking branches.
 

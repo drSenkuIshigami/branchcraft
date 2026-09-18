@@ -13,6 +13,8 @@ import type {
   FileDiff,
   GitAvailability,
   OperationResult,
+  StashDetail,
+  StashInfo,
   StatusInfo,
 } from '../types';
 
@@ -434,6 +436,229 @@ export async function deleteBranch(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to delete branch' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Stash Operations
+ */
+export async function getStashes(repoPath: string): Promise<StashInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<StashInfo[]>('get_stashes', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/stashes?path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch stashes' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as StashInfo[];
+}
+
+export async function getStashDetail(
+  repoPath: string,
+  stashRef: string
+): Promise<StashDetail> {
+  if (isTauriEnvironment()) {
+    return await invoke<StashDetail>('get_stash_detail', { repoPath, stashRef });
+  }
+
+  const res = await fetch(
+    `/api/git/stash_detail?path=${encodeURIComponent(repoPath)}&stash_ref=${encodeURIComponent(stashRef)}`
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch stash details' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as StashDetail;
+}
+
+export async function createStash(
+  repoPath: string,
+  message?: string,
+  includeUntracked = false,
+  keepIndex = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('create_stash', {
+      repoPath,
+      message,
+      includeUntracked,
+      keepIndex,
+    });
+  }
+
+  const res = await fetch('/api/git/stash_push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      message,
+      include_untracked: includeUntracked,
+      keep_index: keepIndex,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create stash' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function applyStash(
+  repoPath: string,
+  stashRef: string,
+  reinstateIndex = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('apply_stash', {
+      repoPath,
+      stashRef,
+      reinstateIndex,
+    });
+  }
+
+  const res = await fetch('/api/git/stash_apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      stash_ref: stashRef,
+      reinstate_index: reinstateIndex,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to apply stash' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function popStash(
+  repoPath: string,
+  stashRef: string,
+  reinstateIndex = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('pop_stash', {
+      repoPath,
+      stashRef,
+      reinstateIndex,
+    });
+  }
+
+  const res = await fetch('/api/git/stash_pop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      stash_ref: stashRef,
+      reinstate_index: reinstateIndex,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to pop stash' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function dropStash(
+  repoPath: string,
+  stashRef: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('drop_stash', { repoPath, stashRef });
+  }
+
+  const res = await fetch('/api/git/stash_drop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, stash_ref: stashRef }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to drop stash' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function clearStashes(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('clear_stashes', { repoPath });
+  }
+
+  const res = await fetch('/api/git/stash_clear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to clear stashes' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function branchFromStash(
+  repoPath: string,
+  branchName: string,
+  stashRef: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('branch_from_stash', {
+      repoPath,
+      branchName,
+      stashRef,
+    });
+  }
+
+  const res = await fetch('/api/git/stash_branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      branch_name: branchName,
+      stash_ref: stashRef,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to branch from stash' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function resetHard(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('reset_hard', { repoPath });
+  }
+
+  const res = await fetch('/api/git/reset_hard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to reset working tree' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 

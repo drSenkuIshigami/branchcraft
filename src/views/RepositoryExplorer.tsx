@@ -8,21 +8,37 @@ import {
   FolderGit2,
   X,
 } from 'lucide-react';
-import type { BranchInfo, CommitDetail, CommitInfo, FileDiff, StatusInfo, Theme } from '../types';
+import type {
+  BranchInfo,
+  CommitDetail,
+  CommitInfo,
+  FileDiff,
+  StashInfo,
+  StatusInfo,
+  Theme,
+} from '../types';
 import {
   amendCommit,
+  applyStash,
+  branchFromStash,
+  clearStashes,
   createBranch,
   createCommit,
+  createStash,
   deleteBranch,
   discardPath,
+  dropStash,
   getBranches,
   getCommitDetail,
   getCommitGraph,
   getFileDiff,
+  getStashes,
   getStatus,
   openRepository,
   openSampleRepository,
+  popStash,
   renameBranch,
+  resetHard,
   stageAll,
   stagePath,
   switchBranch,
@@ -34,6 +50,11 @@ import { CommitList } from '../components/CommitList';
 import { CommitDetailPanel } from '../components/CommitDetailPanel';
 import { DiffViewer } from '../components/DiffViewer';
 import { WorkingTreePanel } from '../components/WorkingTreePanel';
+import { StashManager } from '../components/StashManager';
+import { CreateStashModal } from '../components/CreateStashModal';
+import { DropStashModal } from '../components/DropStashModal';
+import { BranchFromStashModal } from '../components/BranchFromStashModal';
+import { ResetHardModal } from '../components/ResetHardModal';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
 import { CreateBranchModal } from '../components/CreateBranchModal';
@@ -59,7 +80,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
 
-  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree'>('graph');
+  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes'>('graph');
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -82,6 +103,16 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     name: string;
     isHead: boolean;
   } | null>(null);
+
+  // Stash Management & Reset State
+  const [stashes, setStashes] = useState<StashInfo[]>([]);
+  const [selectedStashRef, setSelectedStashRef] = useState<string | null>(null);
+  const [isCreateStashOpen, setIsCreateStashOpen] = useState(false);
+  const [isDropStashOpen, setIsDropStashOpen] = useState(false);
+  const [dropStashTarget, setDropStashTarget] = useState<StashInfo | null>(null);
+  const [isBranchFromStashOpen, setIsBranchFromStashOpen] = useState(false);
+  const [branchFromStashTarget, setBranchFromStashTarget] = useState<StashInfo | null>(null);
+  const [isResetHardOpen, setIsResetHardOpen] = useState(false);
 
   const recordCommand = useCallback(
     (commandRun: string[], durationMs: number, success = true, exitCode = 0, stderr = '') => {
@@ -138,6 +169,21 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
         if (newCommits.length > 0) {
           setSelectedSha(newCommits[0].sha);
+        }
+
+        const stashStart = performance.now();
+        const newStashes = await getStashes(newStatus.root_path);
+        recordCommand(
+          ['stash', 'list'],
+          Math.round(performance.now() - stashStart)
+        );
+        setStashes(newStashes);
+        if (newStashes.length > 0) {
+          setSelectedStashRef((prev) =>
+            prev && newStashes.some((s) => s.ref === prev) ? prev : newStashes[0].ref
+          );
+        } else {
+          setSelectedStashRef(null);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -214,7 +260,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     setDiffLoading(true);
     const start = performance.now();
 
-    const rev = selectedView === 'graph' ? selectedSha : null;
+    const rev =
+      selectedView === 'graph'
+        ? selectedSha
+        : selectedView === 'stashes'
+          ? selectedStashRef
+          : null;
     getFileDiff(repoPath, selectedFile, rev)
       .then((d) => {
         if (!isMounted) return;
@@ -235,7 +286,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     return () => {
       isMounted = false;
     };
-  }, [repoPath, selectedFile, selectedSha, selectedView, recordCommand]);
+  }, [repoPath, selectedFile, selectedSha, selectedStashRef, selectedView, recordCommand]);
 
   // Initialize: load existing or auto-open sample sandbox repository
   useEffect(() => {
@@ -521,6 +572,178 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  const handleCreateStash = async (
+    message: string,
+    includeUntracked: boolean,
+    keepIndex: boolean
+  ) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['stash', 'push'];
+    if (includeUntracked) cmdTokens.push('-u');
+    if (keepIndex) cmdTokens.push('--keep-index');
+    if (message) cmdTokens.push('-m', message);
+
+    try {
+      const res = await createStash(repoPath, message, includeUntracked, keepIndex);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleApplyStash = async (stashRef: string, reinstateIndex: boolean) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['stash', 'apply'];
+    if (reinstateIndex) cmdTokens.push('--index');
+    cmdTokens.push(stashRef);
+
+    try {
+      const res = await applyStash(repoPath, stashRef, reinstateIndex);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handlePopStash = async (stashRef: string, reinstateIndex: boolean) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['stash', 'pop'];
+    if (reinstateIndex) cmdTokens.push('--index');
+    cmdTokens.push(stashRef);
+
+    try {
+      const res = await popStash(repoPath, stashRef, reinstateIndex);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleDropStash = async (stashRef: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['stash', 'drop', stashRef];
+
+    try {
+      const res = await dropStash(repoPath, stashRef);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleClearStashes = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['stash', 'clear'];
+
+    try {
+      const res = await clearStashes(repoPath);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleBranchFromStash = async (branchName: string, stashRef: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['stash', 'branch', branchName, stashRef];
+
+    try {
+      const res = await branchFromStash(repoPath, branchName, stashRef);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleResetHard = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['reset', '--hard', 'HEAD'];
+
+    try {
+      const res = await resetHard(repoPath);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -634,6 +857,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         <Sidebar
           status={status}
           branches={branches}
+          stashes={stashes}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -641,6 +865,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenCreateBranch={handleOpenCreateBranch}
           onOpenRenameBranch={handleOpenRenameBranch}
           onOpenDeleteBranch={handleOpenDeleteBranch}
+          onOpenCreateStash={() => setIsCreateStashOpen(true)}
+          onOpenResetHard={() => setIsResetHardOpen(true)}
           theme={theme}
         />
 
@@ -667,6 +893,42 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                 />
               </div>
               <div className="lg:col-span-8 p-3 overflow-hidden h-full">
+                <DiffViewer diff={diff} loading={diffLoading} theme={theme} />
+              </div>
+            </div>
+          ) : selectedView === 'stashes' ? (
+            /* Stash mode: Stash list & changed files on left, Monaco diff on right */
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+              <div className="lg:col-span-5 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden h-full">
+                <StashManager
+                  repoPath={repoPath || ''}
+                  stashes={stashes}
+                  selectedStashRef={selectedStashRef}
+                  onSelectStash={(ref) => {
+                    setSelectedStashRef(ref);
+                    setSelectedFile(null);
+                    setDiff(null);
+                  }}
+                  onSelectFileForDiff={(filePath, stashRef) => {
+                    setSelectedStashRef(stashRef);
+                    setSelectedFile(filePath);
+                  }}
+                  activeDiffFile={selectedFile}
+                  onOpenCreateStashModal={() => setIsCreateStashOpen(true)}
+                  onApplyStash={handleApplyStash}
+                  onPopStash={handlePopStash}
+                  onRequestDropStash={(stash) => {
+                    setDropStashTarget(stash);
+                    setIsDropStashOpen(true);
+                  }}
+                  onRequestBranchFromStash={(stash) => {
+                    setBranchFromStashTarget(stash);
+                    setIsBranchFromStashOpen(true);
+                  }}
+                  onClearStashes={handleClearStashes}
+                />
+              </div>
+              <div className="lg:col-span-7 p-3 overflow-hidden h-full">
                 <DiffViewer diff={diff} loading={diffLoading} theme={theme} />
               </div>
             </div>
@@ -738,6 +1000,42 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         isHead={deleteBranchTarget?.isHead ?? false}
         onDeleteBranch={handleDeleteBranch}
         theme={theme}
+      />
+
+      {/* Stash Management Modals */}
+      <CreateStashModal
+        isOpen={isCreateStashOpen}
+        onClose={() => setIsCreateStashOpen(false)}
+        onConfirm={handleCreateStash}
+        status={status}
+      />
+
+      <DropStashModal
+        isOpen={isDropStashOpen}
+        stash={dropStashTarget}
+        onClose={() => {
+          setIsDropStashOpen(false);
+          setDropStashTarget(null);
+        }}
+        onConfirm={handleDropStash}
+      />
+
+      <BranchFromStashModal
+        isOpen={isBranchFromStashOpen}
+        stash={branchFromStashTarget}
+        existingBranches={branches}
+        onClose={() => {
+          setIsBranchFromStashOpen(false);
+          setBranchFromStashTarget(null);
+        }}
+        onConfirm={handleBranchFromStash}
+      />
+
+      <ResetHardModal
+        isOpen={isResetHardOpen}
+        status={status}
+        onClose={() => setIsResetHardOpen(false)}
+        onConfirm={handleResetHard}
       />
 
       {/* Open Repository Modal */}

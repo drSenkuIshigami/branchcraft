@@ -2,18 +2,27 @@ import type { Plugin } from 'vite';
 import url from 'node:url';
 import {
   amendCommit,
+  applyStash,
+  branchFromStash,
   checkGitAvailability,
+  clearStashes,
   createBranch,
   createCommit,
   createOrGetSampleRepo,
+  createStash,
   deleteBranch,
   discardPath,
+  dropStash,
   getBranches,
   getCommitDetail,
   getCommitGraph,
   getFileDiff,
+  getStashDetail,
+  getStashes,
   getStatus,
+  popStash,
   renameBranch,
+  resetHard,
   stageAll,
   stagePath,
   switchBranch,
@@ -117,6 +126,24 @@ export function gitApiPlugin(): Plugin {
             return sendJson(200, diff);
           }
 
+          if (pathname === '/api/git/stashes' && req.method === 'GET') {
+            const repoPath = typeof parsedUrl.query.path === 'string' ? parsedUrl.query.path : '';
+            if (!repoPath) return sendJson(400, { error: 'path query required' });
+            const stashes = await getStashes(repoPath);
+            return sendJson(200, stashes);
+          }
+
+          if (pathname === '/api/git/stash_detail' && req.method === 'GET') {
+            const repoPath = typeof parsedUrl.query.path === 'string' ? parsedUrl.query.path : '';
+            const stashRef =
+              typeof parsedUrl.query.stash_ref === 'string' ? parsedUrl.query.stash_ref : '';
+            if (!repoPath || !stashRef) {
+              return sendJson(400, { error: 'path and stash_ref required' });
+            }
+            const detail = await getStashDetail(repoPath, stashRef);
+            return sendJson(200, detail);
+          }
+
           if (pathname === '/api/git/stage_path' && req.method === 'POST') {
             const body = await readBody();
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
@@ -217,6 +244,80 @@ export function gitApiPlugin(): Plugin {
             const force = Boolean(body.force);
             if (!repoPath || !name) return sendJson(400, { error: 'repo_path and name required' });
             const resData = await deleteBranch(repoPath, name, force);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stash_push' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const message = typeof body.message === 'string' ? body.message : undefined;
+            const includeUntracked = Boolean(body.include_untracked);
+            const keepIndex = Boolean(body.keep_index);
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await createStash(repoPath, message, includeUntracked, keepIndex);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stash_apply' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const stashRef = typeof body.stash_ref === 'string' ? body.stash_ref : '';
+            const reinstateIndex = Boolean(body.reinstate_index);
+            if (!repoPath || !stashRef) {
+              return sendJson(400, { error: 'repo_path and stash_ref required' });
+            }
+            const resData = await applyStash(repoPath, stashRef, reinstateIndex);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stash_pop' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const stashRef = typeof body.stash_ref === 'string' ? body.stash_ref : '';
+            const reinstateIndex = Boolean(body.reinstate_index);
+            if (!repoPath || !stashRef) {
+              return sendJson(400, { error: 'repo_path and stash_ref required' });
+            }
+            const resData = await popStash(repoPath, stashRef, reinstateIndex);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stash_drop' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const stashRef = typeof body.stash_ref === 'string' ? body.stash_ref : '';
+            if (!repoPath || !stashRef) {
+              return sendJson(400, { error: 'repo_path and stash_ref required' });
+            }
+            const resData = await dropStash(repoPath, stashRef);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stash_clear' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await clearStashes(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/stash_branch' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const branchName = typeof body.branch_name === 'string' ? body.branch_name : '';
+            const stashRef = typeof body.stash_ref === 'string' ? body.stash_ref : '';
+            if (!repoPath || !branchName || !stashRef) {
+              return sendJson(400, { error: 'repo_path, branch_name, and stash_ref required' });
+            }
+            const resData = await branchFromStash(repoPath, branchName, stashRef);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/reset_hard' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await resetHard(repoPath);
             return sendJson(200, resData);
           }
 

@@ -16,25 +16,31 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
-import type { BranchInfo, StatusInfo, Theme } from '../types';
+import type { BranchInfo, StashInfo, StatusInfo, Theme } from '../types';
 
 interface SidebarProps {
   status: StatusInfo | null;
   branches: BranchInfo[];
-  selectedView: 'graph' | 'working-tree';
-  onSelectView: (view: 'graph' | 'working-tree') => void;
+  stashes?: StashInfo[];
+  selectedView: 'graph' | 'working-tree' | 'stashes';
+  onSelectView: (view: 'graph' | 'working-tree' | 'stashes') => void;
   onOpenRepoDialog: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
   onOpenRenameBranch: (branchName: string) => void;
   onOpenDeleteBranch: (branchName: string, isHead: boolean) => void;
+  onOpenCreateStash?: () => void;
+  onOpenResetHard?: () => void;
   theme: Theme;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   status,
   branches,
+  stashes = [],
   selectedView,
   onSelectView,
   onOpenRepoDialog,
@@ -42,6 +48,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateBranch,
   onOpenRenameBranch,
   onOpenDeleteBranch,
+  onOpenCreateStash,
+  onOpenResetHard,
 }) => {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [workingTreeOpen, setWorkingTreeOpen] = useState(true);
@@ -84,18 +92,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto p-2 space-y-3">
         {/* Working Tree Section */}
         <div>
-          <button
-            type="button"
-            onClick={() => setWorkingTreeOpen(!workingTreeOpen)}
-            className="w-full flex items-center justify-between px-2 py-1 font-semibold text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-          >
-            <span className="uppercase tracking-wider">Working Tree</span>
-            {workingTreeOpen ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
+          <div className="flex items-center justify-between px-2 py-1">
+            <button
+              type="button"
+              onClick={() => setWorkingTreeOpen(!workingTreeOpen)}
+              className="flex items-center gap-1 font-semibold text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+            >
+              <span className="uppercase tracking-wider">Working Tree</span>
+              {workingTreeOpen ? (
+                <ChevronDown className="w-3 h-3" />
+              ) : (
+                <ChevronRight className="w-3 h-3" />
+              )}
+            </button>
+            {totalDirty > 0 && onOpenResetHard && (
+              <button
+                type="button"
+                onClick={onOpenResetHard}
+                className="p-1 rounded text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                title="Discard all changes (git reset --hard HEAD)"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
             )}
-          </button>
+          </div>
 
           {workingTreeOpen && (
             <div className="mt-1 space-y-0.5">
@@ -160,6 +180,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           )}
+        </div>
+
+        {/* Stashes Navigation Button */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onSelectView('stashes')}
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors ${
+              selectedView === 'stashes'
+                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 font-medium'
+                : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Stashes</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+                {stashes.length}
+              </span>
+              {onOpenCreateStash && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenCreateStash();
+                  }}
+                  className="p-0.5 rounded text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-stone-200/50 dark:hover:bg-stone-800"
+                  title="Stash changes"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </button>
         </div>
 
         {/* Commit Graph View Button */}
