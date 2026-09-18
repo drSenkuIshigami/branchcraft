@@ -13,6 +13,7 @@ import {
   FileDiff as FileDiffIcon,
   Tag,
   GitBranch,
+  RotateCcw,
 } from 'lucide-react';
 import type { CommitDetail, CommitDetailFile, Theme } from '../types';
 
@@ -22,6 +23,7 @@ interface CommitDetailPanelProps {
   selectedFile: string | null;
   onSelectFile: (filePath: string) => void;
   onCreateBranchAtCommit?: (sha: string, subject: string) => void;
+  onRestoreFile?: (sha: string, filePath: string) => void;
   theme: Theme;
 }
 
@@ -31,6 +33,7 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   selectedFile,
   onSelectFile,
   onCreateBranchAtCommit,
+  onRestoreFile,
 }) => {
   const [copiedSha, setCopiedSha] = React.useState(false);
 
@@ -179,29 +182,48 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
         {files.map((file) => {
           const isSelected = selectedFile === file.path;
           return (
-            <button
+            <div
               key={file.path}
-              type="button"
-              onClick={() => onSelectFile(file.path)}
-              className={`w-full flex items-center justify-between px-3 py-2 text-left transition-colors ${
+              className={`group w-full flex items-center justify-between px-3 py-2 text-left transition-colors ${
                 isSelected
                   ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium'
                   : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300'
               }`}
             >
-              <div className="flex items-center gap-2 truncate pr-2">
+              <button
+                type="button"
+                onClick={() => onSelectFile(file.path)}
+                className="flex items-center gap-2 truncate pr-2 flex-1 text-left cursor-pointer"
+              >
                 {renderFileIcon(file)}
                 <span className="truncate font-mono text-[11px]">{file.path}</span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0 font-mono text-[10px]">
-                {file.additions > 0 && (
-                  <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
+              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                  {file.additions > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
+                  )}
+                  {file.deletions > 0 && (
+                    <span className="text-rose-600 dark:text-rose-400">-{file.deletions}</span>
+                  )}
+                </div>
+
+                {onRestoreFile && file.status !== 'Deleted' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRestoreFile(commit.sha, file.path);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+                    title={`Restore ${file.path} to working tree (git checkout ${commit.sha.substring(0, 7)} -- ${file.path})`}
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
                 )}
-                {file.deletions > 0 && (
-                  <span className="text-rose-600 dark:text-rose-400">-{file.deletions}</span>
-                )}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

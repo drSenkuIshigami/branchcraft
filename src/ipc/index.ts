@@ -18,6 +18,7 @@ import type {
   StashInfo,
   StatusInfo,
   SyncStatus,
+  SystemOpenResult,
 } from '../types';
 
 /**
@@ -776,6 +777,69 @@ export async function gitPush(
   }
 
   return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Restores a file from a historical commit into the working tree and index
+ * (git checkout <sha> -- <filePath>)
+ */
+export async function restoreFileFromCommit(
+  repoPath: string,
+  sha: string,
+  filePath: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('restore_from_commit', {
+      repoPath,
+      sha,
+      filePath,
+    });
+  }
+
+  const res = await fetch('/api/git/restore_from_commit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      sha,
+      file_path: filePath,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to restore file from commit' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Opens system terminal or native file explorer at repository root
+ */
+export async function openSystemLocation(
+  repoPath: string,
+  target: 'terminal' | 'file_manager'
+): Promise<SystemOpenResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<SystemOpenResult>('open_system', { repoPath, target });
+  }
+
+  const res = await fetch('/api/git/open_system', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      target,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to open system location' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as SystemOpenResult;
 }
 
 /**

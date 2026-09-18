@@ -25,9 +25,11 @@ import {
   gitFetch,
   gitPull,
   gitPush,
+  openSystemLocation,
   popStash,
   renameBranch,
   resetHard,
+  restoreFileFromCommit,
   stageAll,
   stagePath,
   switchBranch,
@@ -369,6 +371,27 @@ export function gitApiPlugin(): Plugin {
             const setUpstream = Boolean(body.set_upstream);
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/restore_from_commit' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const sha = typeof body.sha === 'string' ? body.sha : '';
+            const filePath = typeof body.file_path === 'string' ? body.file_path : '';
+            if (!repoPath || !sha || !filePath) {
+              return sendJson(400, { error: 'repo_path, sha, and file_path required' });
+            }
+            const resData = await restoreFileFromCommit(repoPath, sha, filePath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/open_system' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const target = body.target === 'file_manager' ? 'file_manager' : 'terminal';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await openSystemLocation(repoPath, target);
             return sendJson(200, resData);
           }
 

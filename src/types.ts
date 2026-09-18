@@ -133,3 +133,10 @@ export interface SyncStatus {
   remote_name?: string | null;
 }
 
+export interface SystemOpenResult {
+  success: boolean;
+  target: 'terminal' | 'file_manager';
+  message: string;
+  command_snippet?: string;
+}
+

@@ -26,6 +26,7 @@ import type {
   StashInfo,
   StatusInfo,
   SyncStatus,
+  SystemOpenResult,
 } from '../src/types';
 
 function runGit(
@@ -1171,6 +1172,144 @@ export async function gitPush(
     command_run: args,
     duration_ms: res.duration_ms,
   };
+}
+
+/**
+ * Restores a specific file from a historical commit into the working tree and index.
+ * Matches allowlist command: git checkout <sha> -- <filePath>
+ */
+export async function restoreFileFromCommit(
+  repoPath: string,
+  commitSha: string,
+  filePath: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedSha = commitSha.trim();
+  const trimmedPath = filePath.trim();
+
+  if (!/^[0-9a-fA-F]{4,64}$/.test(trimmedSha)) {
+    throw new Error('Invalid commit SHA format');
+  }
+  if (!trimmedPath || trimmedPath.startsWith('/') || trimmedPath.includes('..')) {
+    throw new Error('Invalid file path for restoration');
+  }
+
+  const args = ['checkout', trimmedSha, '--', trimmedPath];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+/**
+ * Opens system terminal or native file explorer at repository root.
+ * In containerized/web sandbox environments, provides immediate command snippet fallback.
+ */
+export async function openSystemLocation(
+  repoPath: string,
+  target: 'terminal' | 'file_manager'
+): Promise<SystemOpenResult> {
+  const rootPath = await validateRepository(repoPath);
+  const isWindows = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
+
+  if (target === 'file_manager') {
+    return new Promise((resolve) => {
+      let command = 'xdg-open';
+      let args = [rootPath];
+      if (isWindows) {
+        command = 'explorer';
+        args = [rootPath];
+      } else if (isMac) {
+        command = 'open';
+        args = [rootPath];
+      }
+
+      execFile(command, args, (err) => {
+        if (err) {
+          resolve({
+            success: false,
+            target,
+            message: `Could not launch native file manager: ${err.message}`,
+            command_snippet: rootPath,
+          });
+        } else {
+          resolve({
+            success: true,
+            target,
+            message: `Opened repository folder in system file manager: ${rootPath}`,
+            command_snippet: rootPath,
+          });
+        }
+      });
+    });
+  } else {
+    // terminal
+    return new Promise((resolve) => {
+      const commandSnippet = `cd "${rootPath}"`;
+      if (isWindows) {
+        execFile('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', `cd /d "${rootPath}"`], (err) => {
+          if (err) {
+            resolve({
+              success: true,
+              target,
+              message: `Copy terminal navigation command: ${commandSnippet}`,
+              command_snippet: commandSnippet,
+            });
+          } else {
+            resolve({
+              success: true,
+              target,
+              message: `Launched terminal at ${rootPath}`,
+              command_snippet: commandSnippet,
+            });
+          }
+        });
+      } else if (isMac) {
+        execFile('open', ['-a', 'Terminal', rootPath], (err) => {
+          if (err) {
+            resolve({
+              success: true,
+              target,
+              message: `Copy terminal navigation command: ${commandSnippet}`,
+              command_snippet: commandSnippet,
+            });
+          } else {
+            resolve({
+              success: true,
+              target,
+              message: `Launched terminal at ${rootPath}`,
+              command_snippet: commandSnippet,
+            });
+          }
+        });
+      } else {
+        // Linux: try x-terminal-emulator, otherwise provide convenient snippet
+        execFile('x-terminal-emulator', ['--working-directory', rootPath], (err) => {
+          if (err) {
+            resolve({
+              success: true,
+              target,
+              message: `Copy terminal navigation command: ${commandSnippet}`,
+              command_snippet: commandSnippet,
+            });
+          } else {
+            resolve({
+              success: true,
+              target,
+              message: `Launched terminal at ${rootPath}`,
+              command_snippet: commandSnippet,
+            });
+          }
+        });
+      }
+    });
+  }
 }
 
 

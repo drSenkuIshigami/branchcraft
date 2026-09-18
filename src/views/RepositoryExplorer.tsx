@@ -10,6 +10,9 @@ import {
   Globe,
   ArrowUp,
   ArrowDown,
+  FolderSearch,
+  SquareTerminal,
+  CheckCircle2,
 } from 'lucide-react';
 import type {
   BranchInfo,
@@ -46,9 +49,11 @@ import {
   gitPush,
   openRepository,
   openSampleRepository,
+  openSystemLocation,
   popStash,
   renameBranch,
   resetHard,
+  restoreFileFromCommit,
   stageAll,
   stagePath,
   switchBranch,
@@ -65,6 +70,7 @@ import { CreateStashModal } from '../components/CreateStashModal';
 import { DropStashModal } from '../components/DropStashModal';
 import { BranchFromStashModal } from '../components/BranchFromStashModal';
 import { ResetHardModal } from '../components/ResetHardModal';
+import { RestoreFileModal } from '../components/RestoreFileModal';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
 import { CreateBranchModal } from '../components/CreateBranchModal';
@@ -129,6 +135,23 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [remotes, setRemotes] = useState<RemoteInfo[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+
+  // File Restoration from History State (Phase 2 / Phase 3)
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [restoreTargetFile, setRestoreTargetFile] = useState<string | null>(null);
+  const [restoreTargetSha, setRestoreTargetSha] = useState<string | null>(null);
+  const [restoreTargetSubject, setRestoreTargetSubject] = useState<string | null>(null);
+
+  // System Action Feedback Toast
+  const [systemToast, setSystemToast] = useState<{ message: string; commandSnippet?: string } | null>(null);
+
+  useEffect(() => {
+    if (!systemToast) return;
+    const timer = setTimeout(() => {
+      setSystemToast(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [systemToast]);
 
   const recordCommand = useCallback(
     (commandRun: string[], durationMs: number, success = true, exitCode = 0, stderr = '') => {
@@ -864,6 +887,58 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  const handleOpenRestoreModal = (sha: string, filePath: string) => {
+    const commit = commits.find((c) => c.sha === sha);
+    setRestoreTargetSha(sha);
+    setRestoreTargetFile(filePath);
+    setRestoreTargetSubject(commit?.subject || commitDetail?.commit.subject || null);
+    setIsRestoreModalOpen(true);
+  };
+
+  const handleConfirmRestore = async (sha: string, filePath: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['checkout', sha.substring(0, 8), '--', filePath];
+    try {
+      const res = await restoreFileFromCommit(repoPath, sha, filePath);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+      setSystemToast({
+        message: `Restored ${filePath} from commit ${sha.substring(0, 8)} into working tree`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleOpenSystemLocation = async (target: 'terminal' | 'file_manager') => {
+    if (!repoPath) return;
+    try {
+      const res = await openSystemLocation(repoPath, target);
+      if (res.command_snippet) {
+        navigator.clipboard?.writeText?.(res.command_snippet).catch(() => {});
+      }
+      setSystemToast({
+        message: res.message,
+        commandSnippet: res.command_snippet,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSystemToast({
+        message: `Failed to open: ${msg}`,
+      });
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -898,6 +973,30 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               {status ? status.root_path.split('/').pop() : 'Open Repository...'}
             </span>
           </button>
+
+          {/* Quick Open System Location (Phase 2 / Phase 3) */}
+          {status && (
+            <div className="flex items-center gap-1 border-l border-zinc-200 dark:border-zinc-800 pl-2">
+              <button
+                type="button"
+                onClick={() => handleOpenSystemLocation('terminal')}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-200/60 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+                title="Launch system terminal at repository root (or copy cd command)"
+              >
+                <SquareTerminal className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                <span className="hidden md:inline text-[11px]">Terminal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenSystemLocation('file_manager')}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-200/60 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+                title="Reveal repository folder in native file explorer"
+              >
+                <FolderSearch className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <span className="hidden md:inline text-[11px]">Reveal</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right: Controls, Audit Log, Git Status, Theme */}
@@ -1111,6 +1210,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                     selectedFile={selectedFile}
                     onSelectFile={setSelectedFile}
                     onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
+                    onRestoreFile={handleOpenRestoreModal}
                     theme={theme}
                   />
                 </div>
@@ -1221,6 +1321,39 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         logs={commandLogs}
         theme={theme}
       />
+
+      {/* Restore File From Historical Commit Modal (Phase 2 / Phase 3) */}
+      <RestoreFileModal
+        isOpen={isRestoreModalOpen}
+        filePath={restoreTargetFile}
+        commitSha={restoreTargetSha}
+        commitSubject={restoreTargetSubject}
+        onClose={() => setIsRestoreModalOpen(false)}
+        onConfirm={handleConfirmRestore}
+        theme={theme}
+      />
+
+      {/* System Toast Notification */}
+      {systemToast && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 shadow-xl border border-zinc-700/60 dark:border-zinc-300 text-xs animate-in slide-in-from-bottom-2 duration-150">
+          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          <div className="flex flex-col gap-0.5 max-w-sm">
+            <span className="font-medium truncate">{systemToast.message}</span>
+            {systemToast.commandSnippet && (
+              <span className="font-mono text-[10px] opacity-75 truncate">
+                Command copied to clipboard
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSystemToast(null)}
+            className="p-1 rounded hover:bg-zinc-800 dark:hover:bg-zinc-200 text-zinc-400 hover:text-zinc-200 dark:hover:text-zinc-800 cursor-pointer ml-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
