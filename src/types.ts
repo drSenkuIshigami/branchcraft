@@ -161,3 +161,27 @@ export interface DiffHunk {
   patch: string;
 }
 
+export type RebaseAction = 'pick' | 'reword' | 'edit' | 'squash' | 'fixup' | 'drop' | 'exec';
+
+export interface RebaseTodoItem {
+  id: string;
+  sha: string;
+  short_sha: string;
+  author: string;
+  summary: string;
+  action: RebaseAction;
+  exec_command?: string;
+  new_message?: string;
+}
+
+export interface RebaseStatus {
+  in_progress: boolean;
+  current_commit?: string;
+  onto_commit?: string;
+  head_name?: string;
+  remaining_steps?: number;
+  total_steps?: number;
+  done_steps?: string[];
+  todo_steps?: string[];
+}
+

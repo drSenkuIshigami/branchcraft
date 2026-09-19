@@ -15,6 +15,9 @@ import type {
   FileDiff,
   GitAvailability,
   OperationResult,
+  RebaseAction,
+  RebaseStatus,
+  RebaseTodoItem,
   RemoteInfo,
   StashDetail,
   StashInfo,
@@ -1054,6 +1057,97 @@ export async function createDemoConflict(repoPath: string): Promise<OperationRes
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to create demo conflict' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 1: Fetches commits between baseSha and HEAD for interactive rebase plan
+ */
+export async function getRebaseCandidates(
+  repoPath: string,
+  baseSha: string
+): Promise<RebaseTodoItem[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<RebaseTodoItem[]>('get_rebase_candidates', { repoPath, baseSha });
+  }
+
+  const res = await fetch(
+    `/api/git/rebase/candidates?repo_path=${encodeURIComponent(repoPath)}&base_sha=${encodeURIComponent(baseSha)}`
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch rebase candidate commits' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as RebaseTodoItem[];
+}
+
+/**
+ * Phase 3 Step 1: Queries active rebase status including paused commit, onto commit, and todo items
+ */
+export async function getDetailedRebaseStatus(repoPath: string): Promise<RebaseStatus> {
+  if (isTauriEnvironment()) {
+    return await invoke<RebaseStatus>('get_detailed_rebase_status', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/rebase/status?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get rebase status' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as RebaseStatus;
+}
+
+/**
+ * Phase 3 Step 1: Launches interactive rebase execution with ordered todo items
+ */
+export async function executeInteractiveRebase(
+  repoPath: string,
+  baseSha: string,
+  items: RebaseTodoItem[]
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('execute_interactive_rebase', { repoPath, baseSha, items });
+  }
+
+  const res = await fetch('/api/git/rebase/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      base_sha: baseSha,
+      items,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to execute interactive rebase' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 1: Skips the currently paused/conflicted commit during active rebase
+ */
+export async function rebaseSkip(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('rebase_skip', { repoPath });
+  }
+
+  const res = await fetch('/api/git/rebase/skip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to skip rebase commit' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 

@@ -10,6 +10,7 @@
 
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type {
   BranchInfo,
@@ -23,6 +24,9 @@ import type {
   FileDiff,
   GitAvailability,
   OperationResult,
+  RebaseAction,
+  RebaseStatus,
+  RebaseTodoItem,
   RemoteInfo,
   StashDetail,
   StashInfo,
@@ -34,15 +38,20 @@ import type {
 function runGit(
   repoPath: string | null,
   args: string[],
-  stdin?: string
+  stdin?: string,
+  env?: NodeJS.ProcessEnv
 ): Promise<{ stdout: string; stderr: string; code: number; duration_ms: number }> {
   const start = Date.now();
   return new Promise((resolve) => {
-    const options = repoPath ? { cwd: repoPath } : {};
+    const options = {
+      cwd: repoPath || undefined,
+      env: env ? { ...process.env, ...env } : undefined,
+      encoding: 'utf-8' as const,
+    };
     const child = execFile('git', args, options, (error, stdout, stderr) => {
       resolve({
-        stdout: stdout || '',
-        stderr: stderr || '',
+        stdout: String(stdout || ''),
+        stderr: String(stderr || ''),
         code: error ? (error.code as unknown as number) || 1 : 0,
         duration_ms: Date.now() - start,
       });
@@ -1646,5 +1655,181 @@ export async function createDemoConflict(repoPath: string): Promise<OperationRes
     exit_code: mergeRes.code,
     command_run: ['merge', '--no-commit', conflictBranch],
     duration_ms: mergeRes.duration_ms,
+  };
+}
+
+/**
+ * Phase 3 Step 1: Retrieve list of commits from baseSha..HEAD in forward order for interactive rebase
+ */
+export async function getRebaseCandidates(
+  repoPath: string,
+  baseSha: string
+): Promise<RebaseTodoItem[]> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, [
+    'log',
+    '--reverse',
+    '--format=%H%x00%h%x00%an%x00%s',
+    `${baseSha}..HEAD`,
+  ]);
+
+  if (res.code !== 0 || !res.stdout.trim()) {
+    return [];
+  }
+
+  const lines = res.stdout.split('\n').filter(Boolean);
+  return lines.map((line, idx) => {
+    const parts = line.split('\0');
+    const sha = parts[0] || '';
+    const short_sha = parts[1] || sha.slice(0, 7);
+    const author = parts[2] || 'Unknown';
+    const summary = parts[3] || '(no commit message)';
+    return {
+      id: `rebase-${idx}-${short_sha}`,
+      sha,
+      short_sha,
+      author,
+      summary,
+      action: 'pick' as const,
+    };
+  });
+}
+
+/**
+ * Phase 3 Step 1: Get detailed active rebase status including current commit, done/todo steps
+ */
+export async function getDetailedRebaseStatus(repoPath: string): Promise<RebaseStatus> {
+  const rootPath = await validateRepository(repoPath);
+  const rebaseMergeDir = path.join(rootPath, '.git', 'rebase-merge');
+  const rebaseApplyDir = path.join(rootPath, '.git', 'rebase-apply');
+
+  const dir = fs.existsSync(rebaseMergeDir)
+    ? rebaseMergeDir
+    : fs.existsSync(rebaseApplyDir)
+    ? rebaseApplyDir
+    : null;
+
+  if (!dir) {
+    return { in_progress: false };
+  }
+
+  const readSafe = (fileName: string) => {
+    try {
+      return fs.readFileSync(path.join(dir, fileName), 'utf8').trim();
+    } catch {
+      return undefined;
+    }
+  };
+
+  const onto = readSafe('onto');
+  const headName = readSafe('head-name');
+  const currentCommit = readSafe('stopped-sha');
+  const msgNumStr = readSafe('msgnum');
+  const endStr = readSafe('end');
+  const doneContent = readSafe('done') || '';
+  const todoContent = readSafe('git-rebase-todo') || '';
+
+  const doneSteps = doneContent
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+
+  const todoSteps = todoContent
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+
+  const msgnum = msgNumStr ? parseInt(msgNumStr, 10) : undefined;
+  const end = endStr ? parseInt(endStr, 10) : undefined;
+
+  return {
+    in_progress: true,
+    onto_commit: onto,
+    head_name: headName?.replace('refs/heads/', ''),
+    current_commit: currentCommit,
+    remaining_steps: end && msgnum ? end - msgnum : todoSteps.length,
+    total_steps: end || doneSteps.length + todoSteps.length,
+    done_steps: doneSteps,
+    todo_steps: todoSteps,
+  };
+}
+
+/**
+ * Phase 3 Step 1: Execute interactive rebase plan
+ */
+export async function executeInteractiveRebase(
+  repoPath: string,
+  baseSha: string,
+  items: RebaseTodoItem[]
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+
+  // Construct todo sequence text
+  const todoLines: string[] = [];
+  for (const item of items) {
+    if (item.action === 'drop') {
+      todoLines.push(`drop ${item.sha} ${item.summary}`);
+    } else if (item.action === 'reword' && item.new_message && item.new_message.trim()) {
+      todoLines.push(`pick ${item.sha} ${item.summary}`);
+      const escapedMsg = item.new_message.replace(/"/g, '\\"');
+      todoLines.push(`exec git commit --amend -m "${escapedMsg}"`);
+    } else if (item.action === 'exec' && item.exec_command) {
+      todoLines.push(`exec ${item.exec_command}`);
+    } else {
+      todoLines.push(`${item.action} ${item.sha} ${item.summary}`);
+    }
+  }
+
+  const tempTodoPath = path.join(
+    os.tmpdir(),
+    `rebase-todo-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
+  );
+  fs.writeFileSync(tempTodoPath, todoLines.join('\n') + '\n', 'utf8');
+
+  try {
+    const sequenceEditorScript = `node -e "require('fs').copyFileSync(process.env.GIT_TODO_REPLACEMENT, process.argv[1])"`;
+    const res = await runGit(
+      rootPath,
+      ['rebase', '-i', baseSha],
+      undefined,
+      {
+        GIT_SEQUENCE_EDITOR: sequenceEditorScript,
+        GIT_TODO_REPLACEMENT: tempTodoPath,
+        GIT_EDITOR: 'cat',
+      }
+    );
+
+    return {
+      success: res.code === 0,
+      stdout: res.stdout,
+      stderr: res.stderr,
+      exit_code: res.code,
+      command_run: ['rebase', '-i', baseSha],
+      duration_ms: res.duration_ms,
+    };
+  } finally {
+    try {
+      if (fs.existsSync(tempTodoPath)) {
+        fs.unlinkSync(tempTodoPath);
+      }
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * Phase 3 Step 1: Skip the current conflicting/paused commit during rebase
+ */
+export async function rebaseSkip(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['rebase', '--skip']);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['rebase', '--skip'],
+    duration_ms: res.duration_ms,
   };
 }

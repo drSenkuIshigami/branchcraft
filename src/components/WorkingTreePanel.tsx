@@ -19,14 +19,17 @@ import type {
   Theme,
   ConflictState,
   ConflictResolutionType,
+  RebaseStatus,
 } from '../types';
 import { DiscardConfirmModal } from './DiscardConfirmModal';
 import { CommitBox } from './CommitBox';
 import { ConflictResolutionSection } from './ConflictResolutionSection';
+import { ActiveRebasePanel } from './ActiveRebasePanel';
 
 interface WorkingTreePanelProps {
   status: StatusInfo | null;
   conflictState?: ConflictState | null;
+  rebaseStatus?: RebaseStatus | null;
   selectedFile: string | null;
   onSelectFile: (filePath: string) => void;
   onRefresh: () => void;
@@ -41,6 +44,9 @@ interface WorkingTreePanelProps {
   onContinueConflict?: () => Promise<void>;
   onAbortConflict?: () => Promise<void>;
   onCreateDemoConflict?: () => Promise<void>;
+  onRebaseContinue?: () => Promise<void>;
+  onRebaseSkip?: () => Promise<void>;
+  onRebaseAbort?: () => Promise<void>;
   lastCommitMessage?: string;
   loading: boolean;
   theme: Theme;
@@ -49,6 +55,7 @@ interface WorkingTreePanelProps {
 export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   status,
   conflictState,
+  rebaseStatus,
   selectedFile,
   onSelectFile,
   onRefresh,
@@ -63,6 +70,9 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   onContinueConflict,
   onAbortConflict,
   onCreateDemoConflict,
+  onRebaseContinue,
+  onRebaseSkip,
+  onRebaseAbort,
   lastCommitMessage,
   loading,
   theme,
@@ -246,6 +256,17 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
         loading={loading}
         theme={theme}
       />
+
+      {rebaseStatus && rebaseStatus.in_progress && (
+        <ActiveRebasePanel
+          rebaseStatus={rebaseStatus}
+          hasConflicts={Boolean(conflictState && conflictState.conflicted_files.length > 0)}
+          theme={theme}
+          onContinue={onRebaseContinue || (async () => {})}
+          onSkip={onRebaseSkip || (async () => {})}
+          onAbort={onRebaseAbort || (async () => {})}
+        />
+      )}
 
       {isClean ? (
         <div className="flex flex-col items-center justify-center p-8 text-center text-zinc-400">

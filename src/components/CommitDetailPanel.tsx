@@ -14,6 +14,7 @@ import {
   Tag,
   GitBranch,
   RotateCcw,
+  Layers,
 } from 'lucide-react';
 import type { CommitDetail, CommitDetailFile, Theme } from '../types';
 
@@ -23,6 +24,7 @@ interface CommitDetailPanelProps {
   selectedFile: string | null;
   onSelectFile: (filePath: string) => void;
   onCreateBranchAtCommit?: (sha: string, subject: string) => void;
+  onStartInteractiveRebase?: (sha: string, subject: string) => void;
   onRestoreFile?: (sha: string, filePath: string) => void;
   theme: Theme;
 }
@@ -33,6 +35,7 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   selectedFile,
   onSelectFile,
   onCreateBranchAtCommit,
+  onStartInteractiveRebase,
   onRestoreFile,
 }) => {
   const [copiedSha, setCopiedSha] = React.useState(false);
@@ -98,6 +101,18 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
               >
                 <GitBranch className="w-3 h-3" />
                 <span>New Branch</span>
+              </button>
+            )}
+            {onStartInteractiveRebase && (
+              <button
+                type="button"
+                id="commit-detail-rebase-button"
+                onClick={() => onStartInteractiveRebase(commit.sha, commit.subject)}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium transition-colors"
+                title="Start interactive rebase using this commit as base"
+              >
+                <Layers className="w-3 h-3" />
+                <span>Rebase from here</span>
               </button>
             )}
             <button

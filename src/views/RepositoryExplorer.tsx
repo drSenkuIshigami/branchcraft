@@ -21,6 +21,7 @@ import type {
   ConflictResolutionType,
   ConflictState,
   FileDiff,
+  RebaseStatus,
   RemoteInfo,
   StashInfo,
   StatusInfo,
@@ -46,6 +47,7 @@ import {
   getCommitDetail,
   getCommitGraph,
   getConflictState,
+  getDetailedRebaseStatus,
   getFileDiff,
   getRemotes,
   getStashes,
@@ -59,6 +61,7 @@ import {
   openSampleRepository,
   openSystemLocation,
   popStash,
+  rebaseSkip,
   renameBranch,
   resetHard,
   resolveConflict,
@@ -82,6 +85,7 @@ import { DropStashModal } from '../components/DropStashModal';
 import { BranchFromStashModal } from '../components/BranchFromStashModal';
 import { ResetHardModal } from '../components/ResetHardModal';
 import { RestoreFileModal } from '../components/RestoreFileModal';
+import { InteractiveRebaseModal } from '../components/InteractiveRebaseModal';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
 import { CreateBranchModal } from '../components/CreateBranchModal';
@@ -158,6 +162,10 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
   // Conflict State (Phase 2)
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
+
+  // Interactive Rebase State (Phase 3 Step 1)
+  const [rebaseStatus, setRebaseStatus] = useState<RebaseStatus | null>(null);
+  const [rebaseModalTarget, setRebaseModalTarget] = useState<{ baseSha: string; baseSummary?: string } | null>(null);
 
   useEffect(() => {
     if (!systemToast) return;
@@ -275,6 +283,14 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           setConflictState(newConflictState);
         } catch {
           setConflictState(null);
+        }
+
+        // Detailed Rebase Status (Phase 3 Step 1)
+        try {
+          const detailedRebase = await getDetailedRebaseStatus(newStatus.root_path);
+          setRebaseStatus(detailedRebase);
+        } catch {
+          setRebaseStatus(null);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1139,6 +1155,68 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Interactive Rebase Handlers (Phase 3 Step 1)
+  const handleOpenRebaseModal = (baseSha: string, baseSummary?: string) => {
+    setRebaseModalTarget({ baseSha, baseSummary });
+  };
+
+  const handleRebaseContinue = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await continueConflictOperation(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Interactive rebase continued',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['rebase', '--continue'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleRebaseSkip = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await rebaseSkip(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Current commit skipped; rebase continued',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['rebase', '--skip'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleRebaseAbort = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await abortConflictOperation(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Interactive rebase aborted; original branch restored',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['rebase', '--abort'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -1333,6 +1411,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                 <WorkingTreePanel
                   status={status}
                   conflictState={conflictState}
+                  rebaseStatus={rebaseStatus}
                   selectedFile={selectedFile}
                   onSelectFile={setSelectedFile}
                   onRefresh={handleRefresh}
@@ -1347,6 +1426,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onContinueConflict={handleContinueConflict}
                   onAbortConflict={handleAbortConflict}
                   onCreateDemoConflict={handleCreateDemoConflict}
+                  onRebaseContinue={handleRebaseContinue}
+                  onRebaseSkip={handleRebaseSkip}
+                  onRebaseAbort={handleRebaseAbort}
                   lastCommitMessage={latestCommitMsg}
                   loading={loading}
                   theme={theme}
@@ -1409,6 +1491,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   commits={commits}
                   selectedSha={selectedSha}
                   onSelectCommit={setSelectedSha}
+                  onStartInteractiveRebase={handleOpenRebaseModal}
                   loading={loading}
                   theme={theme}
                 />
@@ -1424,6 +1507,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                     selectedFile={selectedFile}
                     onSelectFile={setSelectedFile}
                     onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
+                    onStartInteractiveRebase={handleOpenRebaseModal}
                     onRestoreFile={handleOpenRestoreModal}
                     theme={theme}
                   />
@@ -1546,6 +1630,26 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         onConfirm={handleConfirmRestore}
         theme={theme}
       />
+
+      {/* Interactive Rebase Modal (Phase 3 Step 1) */}
+      {rebaseModalTarget && repoPath && (
+        <InteractiveRebaseModal
+          isOpen={Boolean(rebaseModalTarget)}
+          repoPath={repoPath}
+          baseSha={rebaseModalTarget.baseSha}
+          baseSummary={rebaseModalTarget.baseSummary}
+          onClose={() => setRebaseModalTarget(null)}
+          onRebaseStarted={(cmd) => {
+            recordCommand(cmd, 0);
+            setSystemToast({
+              message: 'Interactive rebase initiated',
+              commandSnippet: cmd.join(' '),
+            });
+            if (repoPath) loadRepositoryData(repoPath);
+          }}
+          theme={theme}
+        />
+      )}
 
       {/* System Toast Notification */}
       {systemToast && (

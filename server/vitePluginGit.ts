@@ -17,11 +17,14 @@ import {
   createDemoConflict,
   discardHunk,
   dropStash,
+  executeInteractiveRebase,
   getBranches,
   getCommitDetail,
   getCommitGraph,
   getConflictState,
+  getDetailedRebaseStatus,
   getFileDiff,
+  getRebaseCandidates,
   getRemotes,
   getStashDetail,
   getStashes,
@@ -33,6 +36,7 @@ import {
   launchMergetool,
   openSystemLocation,
   popStash,
+  rebaseSkip,
   renameBranch,
   resetHard,
   resolveConflict,
@@ -487,6 +491,54 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await createDemoConflict(repoPath);
+            return sendJson(200, resData);
+          }
+
+          // Interactive Rebase (Phase 3 Step 1)
+          if (pathname === '/api/git/rebase/candidates' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            const baseSha = typeof parsedUrl.query.base_sha === 'string' ? parsedUrl.query.base_sha : '';
+            if (!repoPath || !baseSha) {
+              return sendJson(400, { error: 'repo_path and base_sha required' });
+            }
+            const resData = await getRebaseCandidates(repoPath, baseSha);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/rebase/status' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getDetailedRebaseStatus(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/rebase/start' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const baseSha = typeof body.base_sha === 'string' ? body.base_sha : '';
+            const items = Array.isArray(body.items) ? body.items : [];
+            if (!repoPath || !baseSha || items.length === 0) {
+              return sendJson(400, { error: 'repo_path, base_sha, and non-empty items required' });
+            }
+            const resData = await executeInteractiveRebase(repoPath, baseSha, items);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/rebase/skip' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await rebaseSkip(repoPath);
             return sendJson(200, resData);
           }
 

@@ -108,9 +108,9 @@
 
 ## 3 — Power Tools (Level 1–2)
 
-- [ ] Visual interactive rebase:
-  - [ ] Interactive commit list with reordering and action selection (`pick`, `reword`, `edit`, `squash`, `fixup`, `drop`, `exec`).
-  - [ ] Automatic pause on conflicts with continue/abort/skip controls.
+- [x] Visual interactive rebase:
+  - [x] Interactive commit list with reordering and action selection (`pick`, `reword`, `edit`, `squash`, `fixup`, `drop`, `exec`).
+  - [x] Automatic pause on conflicts with continue/abort/skip controls.
 - [ ] Commit author date/timestamp modification.
 - [ ] Cherry-pick workflow with conflict guidance.
 - [ ] Revert workflow (including mainline selection `-m 1` for merge commits).

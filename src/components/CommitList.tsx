@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Tag, GitBranch, Copy, Check } from 'lucide-react';
+import { Search, Tag, GitBranch, Copy, Check, Layers } from 'lucide-react';
 import type { CommitInfo, Theme } from '../types';
 import { CommitGraphCanvas } from './CommitGraphCanvas';
 
@@ -7,6 +7,7 @@ interface CommitListProps {
   commits: CommitInfo[];
   selectedSha: string | null;
   onSelectCommit: (sha: string) => void;
+  onStartInteractiveRebase?: (sha: string, subject: string) => void;
   loading: boolean;
   theme: Theme;
 }
@@ -17,6 +18,7 @@ export const CommitList: React.FC<CommitListProps> = ({
   commits,
   selectedSha,
   onSelectCommit,
+  onStartInteractiveRebase,
   loading,
   theme,
 }) => {
@@ -166,8 +168,21 @@ export const CommitList: React.FC<CommitListProps> = ({
                     {formatRelativeDate(c.author_date)}
                   </div>
 
-                  {/* Short SHA */}
-                  <div className="w-20 shrink-0 text-right px-2">
+                  {/* Short SHA & Action */}
+                  <div className="w-24 shrink-0 text-right px-2 flex items-center justify-end gap-1">
+                    {onStartInteractiveRebase && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStartInteractiveRebase(c.sha, c.subject);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-indigo-500/10 text-zinc-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-all"
+                        title="Interactive rebase onto this commit"
+                      >
+                        <Layers className="w-3 h-3" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => handleCopy(e, c.sha)}
