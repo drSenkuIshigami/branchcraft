@@ -13,12 +13,20 @@ import {
   Trash2,
   CheckCheck,
 } from 'lucide-react';
-import type { StatusInfo, FileChange, Theme } from '../types';
+import type {
+  StatusInfo,
+  FileChange,
+  Theme,
+  ConflictState,
+  ConflictResolutionType,
+} from '../types';
 import { DiscardConfirmModal } from './DiscardConfirmModal';
 import { CommitBox } from './CommitBox';
+import { ConflictResolutionSection } from './ConflictResolutionSection';
 
 interface WorkingTreePanelProps {
   status: StatusInfo | null;
+  conflictState?: ConflictState | null;
   selectedFile: string | null;
   onSelectFile: (filePath: string) => void;
   onRefresh: () => void;
@@ -28,6 +36,11 @@ interface WorkingTreePanelProps {
   onStageAll: () => Promise<void>;
   onUnstageAll: () => Promise<void>;
   onCommit: (message: string, isAmend: boolean) => Promise<void>;
+  onResolveConflict?: (filePath: string, resolution: ConflictResolutionType) => Promise<void>;
+  onLaunchMergetool?: (filePath?: string) => Promise<void>;
+  onContinueConflict?: () => Promise<void>;
+  onAbortConflict?: () => Promise<void>;
+  onCreateDemoConflict?: () => Promise<void>;
   lastCommitMessage?: string;
   loading: boolean;
   theme: Theme;
@@ -35,6 +48,7 @@ interface WorkingTreePanelProps {
 
 export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   status,
+  conflictState,
   selectedFile,
   onSelectFile,
   onRefresh,
@@ -44,6 +58,11 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   onStageAll,
   onUnstageAll,
   onCommit,
+  onResolveConflict,
+  onLaunchMergetool,
+  onContinueConflict,
+  onAbortConflict,
+  onCreateDemoConflict,
   lastCommitMessage,
   loading,
   theme,
@@ -213,6 +232,21 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
         </button>
       </div>
 
+      {/* Conflict Resolution Section */}
+      <ConflictResolutionSection
+        conflictState={conflictState || null}
+        conflictedFiles={conflicted}
+        selectedFile={selectedFile}
+        onSelectFile={onSelectFile}
+        onResolveConflict={onResolveConflict || (async () => {})}
+        onLaunchMergetool={onLaunchMergetool || (async () => {})}
+        onContinue={onContinueConflict || (async () => {})}
+        onAbort={onAbortConflict || (async () => {})}
+        onCreateDemoConflict={onCreateDemoConflict}
+        loading={loading}
+        theme={theme}
+      />
+
       {isClean ? (
         <div className="flex flex-col items-center justify-center p-8 text-center text-zinc-400">
           <FileCheck className="w-10 h-10 text-emerald-500 mb-2 stroke-1" />
@@ -223,23 +257,6 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Conflicted */}
-          {conflicted.length > 0 && (
-            <div className="border border-rose-500/30 bg-rose-500/5 rounded-lg p-3">
-              <div className="flex items-center gap-2 font-semibold text-rose-600 dark:text-rose-400 mb-2">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Unmerged / Conflicted Files ({conflicted.length})</span>
-              </div>
-              <div className="space-y-1">
-                {conflicted.map((path) => (
-                  <div key={path} className="font-mono text-xs text-rose-700 dark:text-rose-300">
-                    {path}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Staged Section */}
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 bg-zinc-50/50 dark:bg-zinc-900/30">
             <div className="flex items-center justify-between mb-2">

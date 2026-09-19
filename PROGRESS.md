@@ -10,9 +10,9 @@
 | Phase | Description | Risk Level | Status |
 |:---:|---|:---:|:---:|
 | **Phase 0** | Project Setup & Design Documentation | Level 0 | **Completed** |
-| **Phase 1** | Repository Explorer (Read-only) | Level 0 | Pending Phase 1 Start |
-| **Phase 2** | Daily Operations | Level 0–1 | Pending Phase 1 |
-| **Phase 3** | Power Tools (Rebase, Bisect, Worktree, Reflog) | Level 1–2 | Pending Phase 2 |
+| **Phase 1** | Repository Explorer (Read-only) | Level 0 | **Completed** |
+| **Phase 2** | Daily Operations | Level 0–1 | **Completed** |
+| **Phase 3** | Power Tools (Rebase, Bisect, Worktree, Reflog) | Level 1–2 | Next Up |
 | **Phase 4** | Safety Engine, History Rewriting & AI-Trace Cleanup | Level 2–4 | Pending Phase 3 |
 | **Phase 5** | Packaging, Integration Testing & Distribution | — | Pending Phase 4 |
 
@@ -89,7 +89,7 @@
 - [x] Interactive staging/unstaging of individual files (`git add`, `git restore --staged`).
 - [x] Stage all / Unstage all working tree controls (`git add -A`, `git restore --staged .`).
 - [x] Discard file changes with mandatory pre-execution confirmation modal and untracked file deletion guidance.
-- [ ] Interactive hunk staging and discarding (`git apply --cached`).
+- [x] Interactive hunk staging and discarding (`git apply --cached`, `git apply --cached --reverse`, `git apply --reverse`).
 - [x] Commit creation with commit message validation (50/72 character count guidance, length warnings, format checks).
 - [x] Amend latest commit (`git commit --amend`) with automatic previous message retrieval.
 - [x] Branch management: create from any commit, switch, rename, safe delete (`git branch -d`).
@@ -98,7 +98,7 @@
   - [x] Pull with status comparison.
   - [x] Push with safe default `--force-with-lease` (never raw `--force`).
 - [x] Stash management: list, create with message/untracked/index options, apply, pop, drop, clear, branch from stash, and stash diff preview.
-- [ ] Standard merge/rebase conflict resolution workflow (conflicted files list, external editor/mergetool trigger, continue/abort).
+- [x] Standard merge/rebase conflict resolution workflow (conflicted files list, accept ours/theirs, mark resolved, external mergetool trigger, continue/abort).
 - [x] File restoration from historical commit (`checkout <sha> -- <path>`).
 - [x] Working tree hard reset to HEAD with explicit confirmation warning (`git reset --hard HEAD`).
 - [x] Open system terminal or file manager at repository root.

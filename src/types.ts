@@ -140,3 +140,24 @@ export interface SystemOpenResult {
   command_snippet?: string;
 }
 
+export type ConflictResolutionType = 'ours' | 'theirs' | 'mark_resolved';
+
+export interface ConflictState {
+  in_merge: boolean;
+  in_rebase: boolean;
+  in_cherry_pick: boolean;
+  in_revert: boolean;
+  conflicted_files: string[];
+}
+
+export interface DiffHunk {
+  id: string;
+  header: string;
+  old_start: number;
+  old_lines: number;
+  new_start: number;
+  new_lines: number;
+  content: string;
+  patch: string;
+}
+

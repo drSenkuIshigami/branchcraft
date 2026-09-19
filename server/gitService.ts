@@ -17,6 +17,8 @@ import type {
   CommitDetail,
   CommitDetailFile,
   CommitInfo,
+  ConflictResolutionType,
+  ConflictState,
   FileChange,
   FileDiff,
   GitAvailability,
@@ -31,12 +33,13 @@ import type {
 
 function runGit(
   repoPath: string | null,
-  args: string[]
+  args: string[],
+  stdin?: string
 ): Promise<{ stdout: string; stderr: string; code: number; duration_ms: number }> {
   const start = Date.now();
   return new Promise((resolve) => {
     const options = repoPath ? { cwd: repoPath } : {};
-    execFile('git', args, options, (error, stdout, stderr) => {
+    const child = execFile('git', args, options, (error, stdout, stderr) => {
       resolve({
         stdout: stdout || '',
         stderr: stderr || '',
@@ -44,6 +47,11 @@ function runGit(
         duration_ms: Date.now() - start,
       });
     });
+    if (stdin !== undefined && child.stdin) {
+      child.stdin.on('error', () => {});
+      child.stdin.write(stdin);
+      child.stdin.end();
+    }
   });
 }
 
@@ -1394,4 +1402,249 @@ export async function createOrGetSampleRepo(): Promise<string> {
   fs.writeFileSync(path.join(targetDir, 'scratchpad.txt'), 'Temporary local notes that are untracked.\n'); // Untracked!
 
   return targetDir;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Interactive Hunk Staging & Discarding
+// ---------------------------------------------------------------------------
+
+export async function stageHunk(repoPath: string, patch: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!patch || !patch.trim()) throw new Error('Patch cannot be empty');
+  const res = await runGit(rootPath, ['apply', '--cached', '--whitespace=nowarn', '--recount', '-'], patch);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['apply', '--cached', '--whitespace=nowarn', '--recount', '-'],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function unstageHunk(repoPath: string, patch: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!patch || !patch.trim()) throw new Error('Patch cannot be empty');
+  const res = await runGit(rootPath, ['apply', '--cached', '--reverse', '--whitespace=nowarn', '--recount', '-'], patch);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['apply', '--cached', '--reverse', '--whitespace=nowarn', '--recount', '-'],
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function discardHunk(repoPath: string, patch: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!patch || !patch.trim()) throw new Error('Patch cannot be empty');
+  const res = await runGit(rootPath, ['apply', '--reverse', '--whitespace=nowarn', '--recount', '-'], patch);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: ['apply', '--reverse', '--whitespace=nowarn', '--recount', '-'],
+    duration_ms: res.duration_ms,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Conflict Resolution Workflow
+// ---------------------------------------------------------------------------
+
+export async function getConflictState(repoPath: string): Promise<ConflictState> {
+  const rootPath = await validateRepository(repoPath);
+  const gitDir = path.join(rootPath, '.git');
+
+  const inMerge = fs.existsSync(path.join(gitDir, 'MERGE_HEAD'));
+  const inRebase =
+    fs.existsSync(path.join(gitDir, 'rebase-merge')) ||
+    fs.existsSync(path.join(gitDir, 'rebase-apply'));
+  const inCherryPick = fs.existsSync(path.join(gitDir, 'CHERRY_PICK_HEAD'));
+  const inRevert = fs.existsSync(path.join(gitDir, 'REVERT_HEAD'));
+
+  const diffRes = await runGit(rootPath, ['diff', '--name-only', '--diff-filter=U']);
+  const conflictedFiles = diffRes.stdout
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return {
+    in_merge: inMerge,
+    in_rebase: inRebase,
+    in_cherry_pick: inCherryPick,
+    in_revert: inRevert,
+    conflicted_files: conflictedFiles,
+  };
+}
+
+export async function resolveConflict(
+  repoPath: string,
+  filePath: string,
+  resolution: ConflictResolutionType
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!filePath.trim()) throw new Error('File path required');
+
+  if (resolution === 'ours') {
+    const checkoutRes = await runGit(rootPath, ['checkout', '--ours', '--', filePath]);
+    if (checkoutRes.code !== 0) {
+      return {
+        success: false,
+        stdout: checkoutRes.stdout,
+        stderr: checkoutRes.stderr,
+        exit_code: checkoutRes.code,
+        command_run: ['checkout', '--ours', '--', filePath],
+        duration_ms: checkoutRes.duration_ms,
+      };
+    }
+  } else if (resolution === 'theirs') {
+    const checkoutRes = await runGit(rootPath, ['checkout', '--theirs', '--', filePath]);
+    if (checkoutRes.code !== 0) {
+      return {
+        success: false,
+        stdout: checkoutRes.stdout,
+        stderr: checkoutRes.stderr,
+        exit_code: checkoutRes.code,
+        command_run: ['checkout', '--theirs', '--', filePath],
+        duration_ms: checkoutRes.duration_ms,
+      };
+    }
+  }
+
+  // After resolving, stage file
+  const addRes = await runGit(rootPath, ['add', '--', filePath]);
+  return {
+    success: addRes.code === 0,
+    stdout: addRes.stdout,
+    stderr: addRes.stderr,
+    exit_code: addRes.code,
+    command_run:
+      resolution === 'mark_resolved'
+        ? ['add', '--', filePath]
+        : ['checkout', `--${resolution}`, '--', filePath, '&&', 'add', '--', filePath],
+    duration_ms: addRes.duration_ms,
+  };
+}
+
+export async function launchMergetool(
+  repoPath: string,
+  filePath?: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['mergetool', '--no-prompt'];
+  if (filePath) {
+    args.push('--', filePath);
+  }
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || 'Mergetool launched',
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function continueConflictOperation(repoPath: string): Promise<OperationResult> {
+  const state = await getConflictState(repoPath);
+  const rootPath = await validateRepository(repoPath);
+
+  let args: string[];
+  if (state.in_rebase) {
+    args = ['rebase', '--continue'];
+  } else if (state.in_cherry_pick) {
+    args = ['cherry-pick', '--continue'];
+  } else if (state.in_revert) {
+    args = ['revert', '--continue'];
+  } else {
+    args = ['merge', '--continue'];
+  }
+
+  let res = await runGit(rootPath, args);
+  // Fallback for merge if older git versions expect commit -m
+  if (res.code !== 0 && !state.in_rebase && !state.in_cherry_pick && !state.in_revert) {
+    res = await runGit(rootPath, ['commit', '--no-edit']);
+    args = ['commit', '--no-edit'];
+  }
+
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function abortConflictOperation(repoPath: string): Promise<OperationResult> {
+  const state = await getConflictState(repoPath);
+  const rootPath = await validateRepository(repoPath);
+
+  let args: string[];
+  if (state.in_rebase) {
+    args = ['rebase', '--abort'];
+  } else if (state.in_cherry_pick) {
+    args = ['cherry-pick', '--abort'];
+  } else if (state.in_revert) {
+    args = ['revert', '--abort'];
+  } else {
+    args = ['merge', '--abort'];
+  }
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+/**
+ * Creates an intentional merge conflict in the sandbox repository for testing & demo purposes.
+ */
+export async function createDemoConflict(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const conflictBranch = `conflict-demo-${Date.now()}`;
+  const filePath = path.join(rootPath, 'src', 'index.js');
+
+  // Ensure clean index or commit
+  await runGit(rootPath, ['checkout', 'main']);
+  
+  // Create side branch with change
+  await runGit(rootPath, ['checkout', '-b', conflictBranch]);
+  fs.writeFileSync(
+    filePath,
+    `// Incoming branch calculation update\nexport function calculateMetrics(input) {\n  return input.reduce((total, val) => total + (val * 2), 0);\n}\n`
+  );
+  await runGit(rootPath, ['add', 'src/index.js']);
+  await runGit(rootPath, ['commit', '-m', `feat(metrics): conflict demo incoming change on ${conflictBranch}`]);
+
+  // Switch to main and introduce conflicting change
+  await runGit(rootPath, ['checkout', 'main']);
+  fs.writeFileSync(
+    filePath,
+    `// Local main branch calculation update\nexport function calculateMetrics(input) {\n  return input.filter(x => x > 0).reduce((acc, curr) => acc + curr, 0);\n}\n`
+  );
+  await runGit(rootPath, ['add', 'src/index.js']);
+  await runGit(rootPath, ['commit', '-m', 'refactor(metrics): conflict demo main local change']);
+
+  // Merge side branch into main to trigger conflict
+  const mergeRes = await runGit(rootPath, ['merge', '--no-commit', conflictBranch]);
+
+  return {
+    success: true,
+    stdout: `Merge conflict intentionally created on src/index.js: ${mergeRes.stdout || mergeRes.stderr}`,
+    stderr: mergeRes.stderr,
+    exit_code: mergeRes.code,
+    command_run: ['merge', '--no-commit', conflictBranch],
+    duration_ms: mergeRes.duration_ms,
+  };
 }

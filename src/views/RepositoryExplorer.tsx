@@ -18,6 +18,8 @@ import type {
   BranchInfo,
   CommitDetail,
   CommitInfo,
+  ConflictResolutionType,
+  ConflictState,
   FileDiff,
   RemoteInfo,
   StashInfo,
@@ -26,19 +28,24 @@ import type {
   Theme,
 } from '../types';
 import {
+  abortConflictOperation,
   amendCommit,
   applyStash,
   branchFromStash,
   clearStashes,
+  continueConflictOperation,
   createBranch,
   createCommit,
+  createDemoConflict,
   createStash,
   deleteBranch,
+  discardHunk,
   discardPath,
   dropStash,
   getBranches,
   getCommitDetail,
   getCommitGraph,
+  getConflictState,
   getFileDiff,
   getRemotes,
   getStashes,
@@ -47,17 +54,21 @@ import {
   gitFetch,
   gitPull,
   gitPush,
+  launchMergetool,
   openRepository,
   openSampleRepository,
   openSystemLocation,
   popStash,
   renameBranch,
   resetHard,
+  resolveConflict,
   restoreFileFromCommit,
   stageAll,
+  stageHunk,
   stagePath,
   switchBranch,
   unstageAll,
+  unstageHunk,
   unstagePath,
 } from '../ipc';
 import { Sidebar } from '../components/Sidebar';
@@ -144,6 +155,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
   // System Action Feedback Toast
   const [systemToast, setSystemToast] = useState<{ message: string; commandSnippet?: string } | null>(null);
+
+  // Conflict State (Phase 2)
+  const [conflictState, setConflictState] = useState<ConflictState | null>(null);
 
   useEffect(() => {
     if (!systemToast) return;
@@ -246,6 +260,21 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           // Remotes or upstream tracking may not exist for local-only repos
           setRemotes([]);
           setSyncStatus(null);
+        }
+
+        // Conflict State (Phase 2)
+        try {
+          const conflictStart = performance.now();
+          const newConflictState = await getConflictState(newStatus.root_path);
+          if (newConflictState.in_merge || newConflictState.in_rebase || newConflictState.in_cherry_pick || newConflictState.in_revert) {
+            recordCommand(
+              ['status', '(conflict-detection)'],
+              Math.round(performance.now() - conflictStart)
+            );
+          }
+          setConflictState(newConflictState);
+        } catch {
+          setConflictState(null);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -939,6 +968,177 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Hunk Operations Handlers (Phase 2)
+  const handleStageHunk = async (patch: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['apply', '--cached', '-'];
+    try {
+      const res = await stageHunk(repoPath, patch);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      await loadRepositoryData(repoPath);
+      if (selectedFile) {
+        const diffStart = performance.now();
+        const newDiff = await getFileDiff(repoPath, selectedFile);
+        recordCommand(['diff', '--', selectedFile], Math.round(performance.now() - diffStart));
+        setDiff(newDiff);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleUnstageHunk = async (patch: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['apply', '--cached', '--reverse', '-'];
+    try {
+      const res = await unstageHunk(repoPath, patch);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      await loadRepositoryData(repoPath);
+      if (selectedFile) {
+        const diffStart = performance.now();
+        const newDiff = await getFileDiff(repoPath, selectedFile);
+        recordCommand(['diff', '--cached', '--', selectedFile], Math.round(performance.now() - diffStart));
+        setDiff(newDiff);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleDiscardHunk = async (patch: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['apply', '--reverse', '-'];
+    try {
+      const res = await discardHunk(repoPath, patch);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      await loadRepositoryData(repoPath);
+      if (selectedFile) {
+        const diffStart = performance.now();
+        const newDiff = await getFileDiff(repoPath, selectedFile);
+        recordCommand(['diff', '--', selectedFile], Math.round(performance.now() - diffStart));
+        setDiff(newDiff);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  // Conflict Resolution Handlers (Phase 2)
+  const handleResolveConflict = async (filePath: string, resolution: ConflictResolutionType) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens =
+      resolution === 'ours'
+        ? ['checkout', '--ours', '--', filePath]
+        : resolution === 'theirs'
+        ? ['checkout', '--theirs', '--', filePath]
+        : ['add', '--', filePath];
+
+    try {
+      const res = await resolveConflict(repoPath, filePath, resolution);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      await loadRepositoryData(repoPath);
+      setSystemToast({
+        message: `Resolved ${filePath} (${resolution})`,
+        commandSnippet: `git ${cmdTokens.join(' ')}`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleLaunchMergetool = async (filePath?: string) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const cmdTokens = ['mergetool', '--no-prompt', ...(filePath ? ['--', filePath] : [])];
+    try {
+      const res = await launchMergetool(repoPath, filePath);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'External mergetool command initiated',
+        commandSnippet: `git ${cmdTokens.join(' ')}`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+    }
+  };
+
+  const handleContinueConflict = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await continueConflictOperation(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Operation successfully continued and committed',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['continue'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleAbortConflict = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await abortConflictOperation(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Conflict operation aborted; repository state restored',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['abort'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleCreateDemoConflict = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await createDemoConflict(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Simulated merge conflict generated on src/index.js',
+        commandSnippet: 'git merge feature/conflict-demo',
+      });
+      await loadRepositoryData(repoPath);
+      setSelectedView('working-tree');
+      setSelectedFile('src/index.js');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['merge', 'feature/conflict-demo'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -1132,6 +1332,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               <div className="lg:col-span-4 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden h-full">
                 <WorkingTreePanel
                   status={status}
+                  conflictState={conflictState}
                   selectedFile={selectedFile}
                   onSelectFile={setSelectedFile}
                   onRefresh={handleRefresh}
@@ -1141,13 +1342,26 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onStageAll={handleStageAll}
                   onUnstageAll={handleUnstageAll}
                   onCommit={handleCommit}
+                  onResolveConflict={handleResolveConflict}
+                  onLaunchMergetool={handleLaunchMergetool}
+                  onContinueConflict={handleContinueConflict}
+                  onAbortConflict={handleAbortConflict}
+                  onCreateDemoConflict={handleCreateDemoConflict}
                   lastCommitMessage={latestCommitMsg}
                   loading={loading}
                   theme={theme}
                 />
               </div>
               <div className="lg:col-span-8 p-3 overflow-hidden h-full">
-                <DiffViewer diff={diff} loading={diffLoading} theme={theme} />
+                <DiffViewer
+                  diff={diff}
+                  loading={diffLoading}
+                  theme={theme}
+                  isStaged={Boolean(status?.staged.some((f) => f.path === selectedFile))}
+                  onStageHunk={handleStageHunk}
+                  onUnstageHunk={handleUnstageHunk}
+                  onDiscardHunk={handleDiscardHunk}
+                />
               </div>
             </div>
           ) : selectedView === 'stashes' ? (

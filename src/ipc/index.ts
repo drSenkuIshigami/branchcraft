@@ -10,6 +10,8 @@ import type {
   BranchInfo,
   CommitDetail,
   CommitInfo,
+  ConflictResolutionType,
+  ConflictState,
   FileDiff,
   GitAvailability,
   OperationResult,
@@ -853,4 +855,207 @@ export async function openSampleRepository(): Promise<{ path: string; status: St
     throw new Error(err.error || `HTTP ${res.status}`);
   }
   return (await res.json()) as { path: string; status: StatusInfo };
+}
+
+/**
+ * Phase 2: Stage a specific unified diff hunk via git apply --cached
+ */
+export async function stageHunk(repoPath: string, patch: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('stage_hunk', { repoPath, patch });
+  }
+
+  const res = await fetch('/api/git/hunk/stage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, patch }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to stage hunk' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Unstage a specific unified diff hunk via git apply --cached --reverse
+ */
+export async function unstageHunk(repoPath: string, patch: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('unstage_hunk', { repoPath, patch });
+  }
+
+  const res = await fetch('/api/git/hunk/unstage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, patch }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to unstage hunk' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Discard a specific unified diff hunk via git apply --reverse
+ */
+export async function discardHunk(repoPath: string, patch: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('discard_hunk', { repoPath, patch });
+  }
+
+  const res = await fetch('/api/git/hunk/discard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, patch }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to discard hunk' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Queries merge/rebase conflict status and unmerged files
+ */
+export async function getConflictState(repoPath: string): Promise<ConflictState> {
+  if (isTauriEnvironment()) {
+    return await invoke<ConflictState>('get_conflict_state', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/conflict/state?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get conflict state' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as ConflictState;
+}
+
+/**
+ * Phase 2: Resolves a conflicted file by choosing ours, theirs, or marking as resolved
+ */
+export async function resolveConflict(
+  repoPath: string,
+  filePath: string,
+  resolution: ConflictResolutionType
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('resolve_conflict', { repoPath, filePath, resolution });
+  }
+
+  const res = await fetch('/api/git/conflict/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      file_path: filePath,
+      resolution,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to resolve conflict' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Launches configured external mergetool (git mergetool)
+ */
+export async function launchMergetool(
+  repoPath: string,
+  filePath?: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('launch_mergetool', { repoPath, filePath });
+  }
+
+  const res = await fetch('/api/git/conflict/mergetool', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      file_path: filePath,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to launch mergetool' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Continues active merge/rebase operation
+ */
+export async function continueConflictOperation(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('continue_conflict_operation', { repoPath });
+  }
+
+  const res = await fetch('/api/git/conflict/continue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to continue operation' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2: Aborts active merge/rebase operation safely
+ */
+export async function abortConflictOperation(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('abort_conflict_operation', { repoPath });
+  }
+
+  const res = await fetch('/api/git/conflict/abort', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to abort operation' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 2 Demo: Intentionally triggers a merge conflict in sandbox repo
+ */
+export async function createDemoConflict(repoPath: string): Promise<OperationResult> {
+  const res = await fetch('/api/git/conflict/create_demo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create demo conflict' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
 }

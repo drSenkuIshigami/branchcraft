@@ -12,10 +12,15 @@ import {
   createStash,
   deleteBranch,
   discardPath,
+  abortConflictOperation,
+  continueConflictOperation,
+  createDemoConflict,
+  discardHunk,
   dropStash,
   getBranches,
   getCommitDetail,
   getCommitGraph,
+  getConflictState,
   getFileDiff,
   getRemotes,
   getStashDetail,
@@ -25,15 +30,19 @@ import {
   gitFetch,
   gitPull,
   gitPush,
+  launchMergetool,
   openSystemLocation,
   popStash,
   renameBranch,
   resetHard,
+  resolveConflict,
   restoreFileFromCommit,
   stageAll,
+  stageHunk,
   stagePath,
   switchBranch,
   unstageAll,
+  unstageHunk,
   unstagePath,
 } from './gitService';
 
@@ -392,6 +401,92 @@ export function gitApiPlugin(): Plugin {
             const target = body.target === 'file_manager' ? 'file_manager' : 'terminal';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await openSystemLocation(repoPath, target);
+            return sendJson(200, resData);
+          }
+
+          // Hunk Staging / Discarding
+          if (pathname === '/api/git/hunk/stage' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const patch = typeof body.patch === 'string' ? body.patch : '';
+            if (!repoPath || !patch) return sendJson(400, { error: 'repo_path and patch required' });
+            const resData = await stageHunk(repoPath, patch);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/hunk/unstage' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const patch = typeof body.patch === 'string' ? body.patch : '';
+            if (!repoPath || !patch) return sendJson(400, { error: 'repo_path and patch required' });
+            const resData = await unstageHunk(repoPath, patch);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/hunk/discard' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const patch = typeof body.patch === 'string' ? body.patch : '';
+            if (!repoPath || !patch) return sendJson(400, { error: 'repo_path and patch required' });
+            const resData = await discardHunk(repoPath, patch);
+            return sendJson(200, resData);
+          }
+
+          // Conflict Resolution
+          if (pathname === '/api/git/conflict/state' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getConflictState(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/conflict/resolve' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const filePath = typeof body.file_path === 'string' ? body.file_path : '';
+            const resolution = body.resolution as 'ours' | 'theirs' | 'mark_resolved';
+            if (!repoPath || !filePath || !resolution) {
+              return sendJson(400, { error: 'repo_path, file_path, and resolution required' });
+            }
+            const resData = await resolveConflict(repoPath, filePath, resolution);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/conflict/mergetool' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const filePath = typeof body.file_path === 'string' ? body.file_path : undefined;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await launchMergetool(repoPath, filePath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/conflict/continue' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await continueConflictOperation(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/conflict/abort' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await abortConflictOperation(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/conflict/create_demo' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await createDemoConflict(repoPath);
             return sendJson(200, resData);
           }
 
