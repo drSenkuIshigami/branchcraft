@@ -30,6 +30,7 @@ import type {
   RebaseAction,
   RebaseStatus,
   RebaseTodoItem,
+  ReflogEntry,
   RemoteInfo,
   RevertOptions,
   StashDetail,
@@ -2328,4 +2329,121 @@ fs.writeFileSync(filePath, updated.join('\\n'), 'utf8');
       // ignore
     }
   }
+}
+
+/**
+ * Phase 3 Step 5: Reflog & Emergency Recovery
+ * Queries reflog entries with formatted metadata and structured action categories.
+ */
+export async function getReflog(repoPath: string, limit = 100): Promise<ReflogEntry[]> {
+  const rootPath = await validateRepository(repoPath);
+  const safeLimit = Math.min(Math.max(1, limit), 500);
+  const res = await runGit(rootPath, [
+    'reflog',
+    'show',
+    '-n',
+    String(safeLimit),
+    '--format=%gD%x00%H%x00%h%x00%gs%x00%an%x00%ae%x00%aI',
+  ]);
+
+  if (res.code !== 0) {
+    return [];
+  }
+
+  const lines = res.stdout.split('\n').filter(Boolean);
+  const entries: ReflogEntry[] = [];
+
+  for (const line of lines) {
+    const parts = line.split('\0');
+    if (parts.length >= 7) {
+      const [selector, sha, short_sha, subject, author_name, author_email, date] = parts;
+      const match = selector.match(/@\{(\d+)\}/);
+      const index = match ? parseInt(match[1], 10) : entries.length;
+
+      let action = 'other';
+      const lower = subject.toLowerCase();
+      if (lower.startsWith('commit:') || lower.startsWith('commit (amend):') || lower.startsWith('commit (initial):')) {
+        action = 'commit';
+      } else if (lower.startsWith('checkout:')) {
+        action = 'checkout';
+      } else if (lower.startsWith('rebase')) {
+        action = 'rebase';
+      } else if (lower.startsWith('reset:')) {
+        action = 'reset';
+      } else if (lower.startsWith('cherry-pick')) {
+        action = 'cherry-pick';
+      } else if (lower.startsWith('revert')) {
+        action = 'revert';
+      } else if (lower.startsWith('merge')) {
+        action = 'merge';
+      } else if (lower.startsWith('branch:')) {
+        action = 'branch';
+      } else if (lower.startsWith('pull')) {
+        action = 'pull';
+      } else if (lower.startsWith('clone')) {
+        action = 'clone';
+      } else {
+        action = subject.split(':')[0]?.trim().toLowerCase() || 'other';
+      }
+
+      entries.push({
+        selector: selector.trim(),
+        index,
+        sha: sha.trim(),
+        short_sha: short_sha.trim(),
+        action,
+        subject: subject.trim(),
+        author_name: author_name.trim(),
+        author_email: author_email.trim(),
+        date: date.trim(),
+      });
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Resets HEAD to a target reference (commit SHA, reflog selector, branch name).
+ * Follows Level 3 Safety Policy: when mode is 'hard', an automatic backup branch is created.
+ */
+export async function resetToTarget(
+  repoPath: string,
+  target: string,
+  mode: 'soft' | 'mixed' | 'hard' = 'mixed'
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+
+  if (!target || !/^[\w@{}~^/.-]+$/.test(target)) {
+    throw new Error(`Invalid target ref format: ${target}`);
+  }
+
+  let backupRef: string | undefined = undefined;
+  let backupDuration = 0;
+
+  // Level 3 Safety Policy: When performing --hard reset, create an automatic backup branch first!
+  if (mode === 'hard') {
+    const timestamp = Date.now();
+    backupRef = `backup/pre-reset-${timestamp}`;
+    const backupRes = await runGit(rootPath, ['branch', backupRef, 'HEAD']);
+    backupDuration = backupRes.duration_ms;
+  }
+
+  const flag = mode === 'soft' ? '--soft' : mode === 'hard' ? '--hard' : '--mixed';
+  const args = ['reset', flag, target];
+  const res = await runGit(rootPath, args);
+
+  let stdout = res.stdout;
+  if (backupRef) {
+    stdout = `[Safety Backup created at refs/heads/${backupRef}]\n` + stdout;
+  }
+
+  return {
+    success: res.code === 0,
+    stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: backupRef ? ['branch', backupRef, 'HEAD', '&&', ...args] : args,
+    duration_ms: res.duration_ms + backupDuration,
+  };
 }

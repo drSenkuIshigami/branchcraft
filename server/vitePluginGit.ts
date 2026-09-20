@@ -31,6 +31,7 @@ import {
   getFileDiff,
   getGitUserConfig,
   getRebaseCandidates,
+  getReflog,
   getRemotes,
   getStashDetail,
   getStashes,
@@ -46,6 +47,7 @@ import {
   rebaseSkip,
   renameBranch,
   resetHard,
+  resetToTarget,
   resolveConflict,
   restoreFileFromCommit,
   revertAbort,
@@ -666,6 +668,25 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await createDemoRevertConflict(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/reflog' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const limit = typeof body.limit === 'number' ? body.limit : 100;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getReflog(repoPath, limit);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/reflog/reset' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const target = typeof body.target === 'string' ? body.target : '';
+            const mode = body.mode === 'soft' || body.mode === 'hard' ? body.mode : 'mixed';
+            if (!repoPath || !target) return sendJson(400, { error: 'repo_path and target required' });
+            const resData = await resetToTarget(repoPath, target, mode);
             return sendJson(200, resData);
           }
 

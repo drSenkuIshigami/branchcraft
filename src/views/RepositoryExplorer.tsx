@@ -28,6 +28,8 @@ import type {
   SyncStatus,
   Theme,
   OperationResult,
+  ReflogEntry,
+  ResetMode,
 } from '../types';
 import {
   abortConflictOperation,
@@ -52,6 +54,7 @@ import {
   getConflictState,
   getDetailedRebaseStatus,
   getFileDiff,
+  getReflog,
   getRemotes,
   getStashes,
   getStatus,
@@ -67,6 +70,7 @@ import {
   rebaseSkip,
   renameBranch,
   resetHard,
+  resetToTarget,
   resolveConflict,
   restoreFileFromCommit,
   revertSkip,
@@ -94,6 +98,8 @@ import { InteractiveRebaseModal } from '../components/InteractiveRebaseModal';
 import { CommitAuthorDateModal } from '../components/CommitAuthorDateModal';
 import { CherryPickModal } from '../components/CherryPickModal';
 import { RevertModal } from '../components/RevertModal';
+import { ReflogViewer } from '../components/ReflogViewer';
+import { ResetConfirmModal } from '../components/ResetConfirmModal';
 import type { CommitAuthorOptions } from '../components/CommitBox';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
@@ -121,7 +127,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
 
-  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes'>('graph');
+  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes' | 'reflog'>('graph');
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -184,6 +190,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
   // Revert State (Phase 3 Step 4)
   const [revertModalCommit, setRevertModalCommit] = useState<CommitInfo | null>(null);
+
+  // Reflog & Reset State (Phase 3 Step 5)
+  const [reflogEntries, setReflogEntries] = useState<ReflogEntry[]>([]);
+  const [reflogLoading, setReflogLoading] = useState(false);
+  const [resetTargetModal, setResetTargetModal] = useState<{ targetRef: string; subject?: string } | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     if (!systemToast) return;
@@ -310,6 +322,19 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         } catch {
           setRebaseStatus(null);
         }
+
+        // Reflog History (Phase 3 Step 5)
+        try {
+          const reflogStart = performance.now();
+          const newReflog = await getReflog(newStatus.root_path, 100);
+          recordCommand(
+            ['reflog', 'show', '-n', '100'],
+            Math.round(performance.now() - reflogStart)
+          );
+          setReflogEntries(newReflog);
+        } catch {
+          setReflogEntries([]);
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('Path does not exist') || msg.includes('not a valid Git repository')) {
@@ -386,7 +411,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
 
     const rev =
-      selectedView === 'graph'
+      selectedView === 'graph' || selectedView === 'reflog'
         ? selectedSha
         : selectedView === 'stashes'
           ? selectedStashRef
@@ -1381,6 +1406,74 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Reflog & Reset Handlers (Phase 3 Step 5)
+  const handleRefreshReflog = async () => {
+    if (!repoPath) return;
+    setReflogLoading(true);
+    const start = performance.now();
+    try {
+      const newReflog = await getReflog(repoPath, 100);
+      recordCommand(['reflog', 'show', '-n', '100'], Math.round(performance.now() - start));
+      setReflogEntries(newReflog);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to refresh reflog: ${msg}`);
+    } finally {
+      setReflogLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async (mode: ResetMode) => {
+    if (!repoPath || !resetTargetModal) return;
+    setResetLoading(true);
+    const start = performance.now();
+    try {
+      const res = await resetToTarget(repoPath, resetTargetModal.targetRef, mode);
+      recordCommand(res.command_run, res.duration_ms, res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: `Successfully reset HEAD to ${resetTargetModal.targetRef} (--${mode})`,
+        commandSnippet: `git reset --${mode} ${resetTargetModal.targetRef}`,
+      });
+      setResetTargetModal(null);
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Reset failed: ${msg}`);
+      recordCommand(['reset', `--${mode}`, resetTargetModal.targetRef], Math.round(performance.now() - start), false, 1, msg);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleRescueBranch = (sha: string, refSelector: string) => {
+    setCreateBranchStartSha(sha);
+    const sanitized = refSelector.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+    setCreateBranchRefName(sanitized.startsWith('rescue') ? sanitized : `rescue-${sanitized}`);
+    setIsCreateBranchOpen(true);
+  };
+
+  const handleCherryPickFromReflog = (sha: string) => {
+    const existing = commits.find((c) => c.sha === sha);
+    if (existing) {
+      setCherryPickModalCommit(existing);
+    } else {
+      const now = new Date().toISOString();
+      setCherryPickModalCommit({
+        sha,
+        parents: [],
+        author_name: 'Unknown',
+        author_email: '',
+        author_date: now,
+        committer_name: 'Unknown',
+        committer_email: '',
+        committer_date: now,
+        subject: `Commit ${sha.substring(0, 7)}`,
+        body: '',
+        refs: [],
+      });
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -1553,6 +1646,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           branches={branches}
           stashes={stashes}
           remotes={remotes}
+          reflogCount={reflogEntries.length}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -1649,6 +1743,48 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                 <DiffViewer diff={diff} loading={diffLoading} theme={theme} />
               </div>
             </div>
+          ) : selectedView === 'reflog' ? (
+            /* Reflog mode: Reflog entries timeline on left, commit detail & Monaco diff on right */
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+              <div className="lg:col-span-7 border-r border-zinc-200 dark:border-zinc-800 overflow-hidden h-full">
+                <ReflogViewer
+                  repoPath={repoPath || ''}
+                  reflogEntries={reflogEntries}
+                  loading={reflogLoading}
+                  onRefresh={handleRefreshReflog}
+                  onSelectCommit={(sha) => {
+                    setSelectedSha(sha);
+                  }}
+                  selectedSha={selectedSha}
+                  onRescueBranch={handleRescueBranch}
+                  onResetHead={(targetRef, subject) => {
+                    setResetTargetModal({ targetRef, subject });
+                  }}
+                  onCherryPick={handleCherryPickFromReflog}
+                  theme={theme}
+                />
+              </div>
+              <div className="lg:col-span-5 flex flex-col overflow-hidden h-full bg-zinc-50/20 dark:bg-zinc-900/20">
+                <div className="h-[45%] border-b border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                  <CommitDetailPanel
+                    detail={commitDetail}
+                    loading={detailLoading}
+                    selectedFile={selectedFile}
+                    onSelectFile={setSelectedFile}
+                    onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
+                    onStartInteractiveRebase={handleOpenRebaseModal}
+                    onCherryPick={setCherryPickModalCommit}
+                    onRevert={setRevertModalCommit}
+                    onModifyAuthorDate={setAuthorDateModalCommit}
+                    onRestoreFile={handleOpenRestoreModal}
+                    theme={theme}
+                  />
+                </div>
+                <div className="h-[55%] p-3 overflow-hidden">
+                  <DiffViewer diff={diff} loading={diffLoading} theme={theme} />
+                </div>
+              </div>
+            </div>
           ) : (
             /* Graph mode: Commit Graph on top, Commit details & Monaco diff below */
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -1662,6 +1798,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onCherryPick={setCherryPickModalCommit}
                   onRevert={setRevertModalCommit}
                   onModifyAuthorDate={setAuthorDateModalCommit}
+                  onResetToCommit={(c) => setResetTargetModal({ targetRef: c.sha, subject: c.subject })}
                   loading={loading}
                   theme={theme}
                 />
@@ -1885,6 +2022,19 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               handleRevertSuccess(result, revertModalCommit, hasConflict);
             }
           }}
+          theme={theme}
+        />
+      )}
+
+      {/* Reset HEAD Modal (Phase 3 Step 5) */}
+      {resetTargetModal && (
+        <ResetConfirmModal
+          isOpen={Boolean(resetTargetModal)}
+          targetRef={resetTargetModal.targetRef}
+          targetSubject={resetTargetModal.subject}
+          onClose={() => setResetTargetModal(null)}
+          onConfirm={handleConfirmReset}
+          loading={resetLoading}
           theme={theme}
         />
       )}

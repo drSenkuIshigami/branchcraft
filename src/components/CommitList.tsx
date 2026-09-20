@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Tag, GitBranch, Copy, Check, Layers, Clock, Cherry, RotateCcw } from 'lucide-react';
+import { Search, Tag, GitBranch, Copy, Check, Layers, Clock, Cherry, RotateCcw, Undo2 } from 'lucide-react';
 import type { CommitInfo, Theme } from '../types';
 import { CommitGraphCanvas } from './CommitGraphCanvas';
 
@@ -11,6 +11,7 @@ interface CommitListProps {
   onCherryPick?: (commit: CommitInfo) => void;
   onRevert?: (commit: CommitInfo) => void;
   onModifyAuthorDate?: (commit: CommitInfo) => void;
+  onResetToCommit?: (commit: CommitInfo) => void;
   loading: boolean;
   theme: Theme;
 }
@@ -25,6 +26,7 @@ export const CommitList: React.FC<CommitListProps> = ({
   onCherryPick,
   onRevert,
   onModifyAuthorDate,
+  onResetToCommit,
   loading,
   theme,
 }) => {
@@ -226,6 +228,19 @@ export const CommitList: React.FC<CommitListProps> = ({
                         title="Interactive rebase onto this commit"
                       >
                         <Layers className="w-3 h-3" />
+                      </button>
+                    )}
+                    {onResetToCommit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onResetToCommit(c);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-rose-500/10 text-zinc-400 hover:text-rose-500 dark:hover:text-rose-400 transition-all"
+                        title="Reset HEAD to this commit (--soft / --mixed / --hard)"
+                      >
+                        <Undo2 className="w-3 h-3" />
                       </button>
                     )}
                     <button

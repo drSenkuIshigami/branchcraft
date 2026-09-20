@@ -18,6 +18,7 @@ import {
   Trash2,
   Archive,
   RotateCcw,
+  History,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -26,8 +27,9 @@ interface SidebarProps {
   branches: BranchInfo[];
   stashes?: StashInfo[];
   remotes?: RemoteInfo[];
-  selectedView: 'graph' | 'working-tree' | 'stashes';
-  onSelectView: (view: 'graph' | 'working-tree' | 'stashes') => void;
+  reflogCount?: number;
+  selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog';
+  onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog') => void;
   onOpenRepoDialog: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
@@ -44,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   branches,
   stashes = [],
   remotes = [],
+  reflogCount = 0,
   selectedView,
   onSelectView,
   onOpenRepoDialog,
@@ -237,6 +240,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Commit Graph</span>
             </div>
             <span className="font-mono text-[10px] text-zinc-400">All Refs</span>
+          </button>
+        </div>
+
+        {/* Reflog & Emergency Recovery Button (Phase 3 Step 5) */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onSelectView('reflog')}
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors ${
+              selectedView === 'reflog'
+                ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium'
+                : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <History className="w-3.5 h-3.5 text-purple-500" />
+              <span>Reflog & Recovery</span>
+            </div>
+            {reflogCount > 0 && (
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                {reflogCount}
+              </span>
+            )}
           </button>
         </div>
 

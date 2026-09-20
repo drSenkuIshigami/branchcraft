@@ -222,3 +222,18 @@ export interface ModifyCommitAuthorDateParams {
   new_message?: string;
 }
 
+export type ResetMode = 'soft' | 'mixed' | 'hard';
+
+export interface ReflogEntry {
+  selector: string;
+  index: number;
+  sha: string;
+  short_sha: string;
+  action: string;
+  subject: string;
+  author_name: string;
+  author_email: string;
+  date: string;
+}
+
+

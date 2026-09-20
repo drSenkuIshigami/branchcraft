@@ -21,7 +21,9 @@ import type {
   RebaseAction,
   RebaseStatus,
   RebaseTodoItem,
+  ReflogEntry,
   RemoteInfo,
+  ResetMode,
   RevertOptions,
   StashDetail,
   StashInfo,
@@ -1461,3 +1463,53 @@ export async function createDemoRevertConflict(repoPath: string): Promise<Operat
 
   return (await res.json()) as OperationResult;
 }
+
+/**
+ * Phase 3 Step 5: Get Reflog entries for emergency recovery & audit
+ */
+export async function getReflog(repoPath: string, limit = 100): Promise<ReflogEntry[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<ReflogEntry[]>('get_reflog', { repoPath, limit });
+  }
+
+  const res = await fetch('/api/git/reflog', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, limit }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to query reflog' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as ReflogEntry[];
+}
+
+/**
+ * Phase 3 Step 5: Reset HEAD to a target reference (reflog selector, SHA, or branch)
+ * Follows Level 3 Safety Policy: when mode is 'hard', creates an automatic backup branch.
+ */
+export async function resetToTarget(
+  repoPath: string,
+  target: string,
+  mode: ResetMode = 'mixed'
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('reset_to_target', { repoPath, target, mode });
+  }
+
+  const res = await fetch('/api/git/reflog/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, target, mode }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to reset HEAD' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
