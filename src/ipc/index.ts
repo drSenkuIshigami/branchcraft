@@ -8,12 +8,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
   BranchInfo,
+  CherryPickOptions,
   CommitDetail,
   CommitInfo,
   ConflictResolutionType,
   ConflictState,
   FileDiff,
   GitAvailability,
+  GitUserConfig,
+  ModifyCommitAuthorDateParams,
   OperationResult,
   RebaseAction,
   RebaseStatus,
@@ -309,15 +312,38 @@ export async function unstageAll(repoPath: string): Promise<OperationResult> {
 /**
  * Phase 2: Creates a commit with the provided commit message (git commit -m <msg>)
  */
-export async function createCommit(repoPath: string, message: string): Promise<OperationResult> {
+export async function createCommit(
+  repoPath: string,
+  message: string,
+  options?: {
+    authorName?: string;
+    authorEmail?: string;
+    authorDate?: string;
+    committerDate?: string;
+  }
+): Promise<OperationResult> {
   if (isTauriEnvironment()) {
-    return await invoke<OperationResult>('create_commit', { repoPath, message });
+    return await invoke<OperationResult>('create_commit', {
+      repoPath,
+      message,
+      authorName: options?.authorName,
+      authorEmail: options?.authorEmail,
+      authorDate: options?.authorDate,
+      committerDate: options?.committerDate,
+    });
   }
 
   const res = await fetch('/api/git/commit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo_path: repoPath, message }),
+    body: JSON.stringify({
+      repo_path: repoPath,
+      message,
+      author_name: options?.authorName,
+      author_email: options?.authorEmail,
+      author_date: options?.authorDate,
+      committer_date: options?.committerDate,
+    }),
   });
 
   if (!res.ok) {
@@ -1148,6 +1174,169 @@ export async function rebaseSkip(repoPath: string): Promise<OperationResult> {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to skip rebase commit' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 2: Fetch Git user config (name & email)
+ */
+export async function getGitUserConfig(repoPath: string): Promise<GitUserConfig> {
+  if (isTauriEnvironment()) {
+    return await invoke<GitUserConfig>('get_git_user_config', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/config/user?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch git user config' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as GitUserConfig;
+}
+
+/**
+ * Phase 3 Step 2: Modifies commit author, author date, committer date, and message
+ */
+export async function modifyCommitAuthorDate(
+  repoPath: string,
+  params: ModifyCommitAuthorDateParams
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('modify_commit_author_date', { repoPath, ...params });
+  }
+
+  const res = await fetch('/api/git/commit/modify_author_date', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      ...params,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to modify commit author / date' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 3: Cherry-Pick a commit with optional flags
+ */
+export async function cherryPickCommit(
+  repoPath: string,
+  sha: string,
+  options?: CherryPickOptions
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('cherry_pick_commit', { repoPath, sha, options });
+  }
+
+  const res = await fetch('/api/git/cherry_pick', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      sha,
+      options,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to cherry-pick commit' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 3: Continue cherry-pick operation after conflicts resolved
+ */
+export async function cherryPickContinue(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('cherry_pick_continue', { repoPath });
+  }
+
+  const res = await fetch('/api/git/cherry_pick/continue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to continue cherry-pick' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 3: Skip current cherry-pick commit
+ */
+export async function cherryPickSkip(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('cherry_pick_skip', { repoPath });
+  }
+
+  const res = await fetch('/api/git/cherry_pick/skip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to skip cherry-pick' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 3: Abort active cherry-pick operation
+ */
+export async function cherryPickAbort(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('cherry_pick_abort', { repoPath });
+  }
+
+  const res = await fetch('/api/git/cherry_pick/abort', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to abort cherry-pick' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 3: Create intentional cherry-pick conflict for testing & demonstration
+ */
+export async function createDemoCherryPickConflict(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('create_demo_cherry_pick_conflict', { repoPath });
+  }
+
+  const res = await fetch('/api/git/cherry_pick/create_demo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create demo cherry-pick conflict' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 

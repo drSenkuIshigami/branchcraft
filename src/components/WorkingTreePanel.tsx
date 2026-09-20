@@ -22,7 +22,7 @@ import type {
   RebaseStatus,
 } from '../types';
 import { DiscardConfirmModal } from './DiscardConfirmModal';
-import { CommitBox } from './CommitBox';
+import { CommitBox, type CommitAuthorOptions } from './CommitBox';
 import { ConflictResolutionSection } from './ConflictResolutionSection';
 import { ActiveRebasePanel } from './ActiveRebasePanel';
 
@@ -38,12 +38,14 @@ interface WorkingTreePanelProps {
   onDiscardFile: (filePath: string, isUntracked: boolean) => Promise<void>;
   onStageAll: () => Promise<void>;
   onUnstageAll: () => Promise<void>;
-  onCommit: (message: string, isAmend: boolean) => Promise<void>;
+  onCommit: (message: string, isAmend: boolean, authorOptions?: CommitAuthorOptions) => Promise<void>;
   onResolveConflict?: (filePath: string, resolution: ConflictResolutionType) => Promise<void>;
   onLaunchMergetool?: (filePath?: string) => Promise<void>;
   onContinueConflict?: () => Promise<void>;
+  onSkipConflict?: () => Promise<void>;
   onAbortConflict?: () => Promise<void>;
   onCreateDemoConflict?: () => Promise<void>;
+  onCreateDemoCherryPickConflict?: () => Promise<void>;
   onRebaseContinue?: () => Promise<void>;
   onRebaseSkip?: () => Promise<void>;
   onRebaseAbort?: () => Promise<void>;
@@ -68,8 +70,10 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   onResolveConflict,
   onLaunchMergetool,
   onContinueConflict,
+  onSkipConflict,
   onAbortConflict,
   onCreateDemoConflict,
+  onCreateDemoCherryPickConflict,
   onRebaseContinue,
   onRebaseSkip,
   onRebaseAbort,
@@ -251,8 +255,10 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
         onResolveConflict={onResolveConflict || (async () => {})}
         onLaunchMergetool={onLaunchMergetool || (async () => {})}
         onContinue={onContinueConflict || (async () => {})}
+        onSkip={onSkipConflict}
         onAbort={onAbortConflict || (async () => {})}
         onCreateDemoConflict={onCreateDemoConflict}
+        onCreateDemoCherryPickConflict={onCreateDemoCherryPickConflict}
         loading={loading}
         theme={theme}
       />

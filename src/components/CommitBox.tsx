@@ -1,11 +1,29 @@
 import React, { useState } from 'react';
-import { GitCommit, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import {
+  GitCommit,
+  AlertCircle,
+  CheckCircle,
+  RefreshCw,
+  Clock,
+  User,
+  ChevronDown,
+  ChevronRight,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
 import type { Theme } from '../types';
+
+export interface CommitAuthorOptions {
+  authorName?: string;
+  authorEmail?: string;
+  authorDate?: string;
+  committerDate?: string;
+}
 
 interface CommitBoxProps {
   stagedCount: number;
   lastCommitMessage?: string;
-  onCommit: (message: string, isAmend: boolean) => Promise<void>;
+  onCommit: (message: string, isAmend: boolean, authorOptions?: CommitAuthorOptions) => Promise<void>;
   loading: boolean;
   theme: Theme;
 }
@@ -21,6 +39,23 @@ export const CommitBox: React.FC<CommitBoxProps> = ({
   const [isAmend, setIsAmend] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Author & Timestamp overrides
+  const [showAuthorOptions, setShowAuthorOptions] = useState(false);
+  const [customAuthorName, setCustomAuthorName] = useState('');
+  const [customAuthorEmail, setCustomAuthorEmail] = useState('');
+  const [customAuthorDateLocal, setCustomAuthorDateLocal] = useState('');
+  const [syncCommitterDate, setSyncCommitterDate] = useState(true);
+
+  // Helper to format date to YYYY-MM-DDTHH:mm
+  const toDateTimeLocal = (dateInput: Date): string => {
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    const hours = String(dateInput.getHours()).padStart(2, '0');
+    const mins = String(dateInput.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${mins}`;
+  };
 
   // When amend checkbox is toggled, populate with previous commit message if empty
   const handleToggleAmend = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,10 +84,32 @@ export const CommitBox: React.FC<CommitBoxProps> = ({
     setSubmitting(true);
     try {
       const fullMessage = body.trim() ? `${subject.trim()}\n\n${body.trim()}` : subject.trim();
-      await onCommit(fullMessage, isAmend);
+      
+      let authorOptions: CommitAuthorOptions | undefined = undefined;
+      if (showAuthorOptions) {
+        let authorDateIso: string | undefined = undefined;
+        if (customAuthorDateLocal) {
+          const d = new Date(customAuthorDateLocal);
+          if (!isNaN(d.getTime())) {
+            authorDateIso = d.toISOString();
+          }
+        }
+        authorOptions = {
+          authorName: customAuthorName.trim() || undefined,
+          authorEmail: customAuthorEmail.trim() || undefined,
+          authorDate: authorDateIso,
+          committerDate: syncCommitterDate ? authorDateIso : undefined,
+        };
+      }
+
+      await onCommit(fullMessage, isAmend, authorOptions);
       setSubject('');
       setBody('');
       setIsAmend(false);
+      setShowAuthorOptions(false);
+      setCustomAuthorName('');
+      setCustomAuthorEmail('');
+      setCustomAuthorDateLocal('');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -124,6 +181,123 @@ export const CommitBox: React.FC<CommitBoxProps> = ({
           placeholder="Optional extended description..."
           className="w-full px-2.5 py-1.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-xs focus:outline-hidden focus:border-blue-500 font-mono resize-y"
         />
+      </div>
+
+      {/* Author & Timestamp Options Toggle */}
+      <div className="pt-0.5">
+        <button
+          type="button"
+          onClick={() => setShowAuthorOptions((v) => !v)}
+          className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 font-medium transition-colors cursor-pointer"
+        >
+          {showAuthorOptions ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5" />
+          )}
+          <Clock className="w-3 h-3 text-blue-500" />
+          <span>Author & Timestamp Overrides</span>
+          {(customAuthorName || customAuthorEmail || customAuthorDateLocal) && (
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+          )}
+        </button>
+
+        {showAuthorOptions && (
+          <div className="mt-2 p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-950/60 space-y-2.5 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-zinc-500 mb-0.5">
+                  Author Name
+                </label>
+                <input
+                  type="text"
+                  value={customAuthorName}
+                  onChange={(e) => setCustomAuthorName(e.target.value)}
+                  placeholder="Leave empty for git config default"
+                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-zinc-500 mb-0.5">
+                  Author Email
+                </label>
+                <input
+                  type="email"
+                  value={customAuthorEmail}
+                  onChange={(e) => setCustomAuthorEmail(e.target.value)}
+                  placeholder="Leave empty for git config default"
+                  className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block text-[10px] uppercase font-bold text-zinc-500">
+                  Author Date & Time
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCustomAuthorDateLocal(toDateTimeLocal(new Date()))}
+                    className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                  >
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>Now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setHours(d.getHours() - 1);
+                      setCustomAuthorDateLocal(toDateTimeLocal(d));
+                    }}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  >
+                    -1h
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() - 1);
+                      setCustomAuthorDateLocal(toDateTimeLocal(d));
+                    }}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  >
+                    -1d
+                  </button>
+                  {customAuthorDateLocal && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomAuthorDateLocal('')}
+                      className="text-[10px] text-rose-500 hover:underline ml-1"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              <input
+                type="datetime-local"
+                step="1"
+                value={customAuthorDateLocal}
+                onChange={(e) => setCustomAuthorDateLocal(e.target.value)}
+                className="w-full px-2 py-1 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 text-xs font-mono focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-[11px] text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={syncCommitterDate}
+                onChange={(e) => setSyncCommitterDate(e.target.checked)}
+                className="rounded border-zinc-300 dark:border-zinc-700 text-blue-600"
+              />
+              <span>Synchronize committer timestamp to match author timestamp</span>
+            </label>
+          </div>
+        )}
       </div>
 
       {error && (

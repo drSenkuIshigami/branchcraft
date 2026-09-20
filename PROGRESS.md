@@ -111,7 +111,7 @@
 - [x] Visual interactive rebase:
   - [x] Interactive commit list with reordering and action selection (`pick`, `reword`, `edit`, `squash`, `fixup`, `drop`, `exec`).
   - [x] Automatic pause on conflicts with continue/abort/skip controls.
-- [ ] Commit author date/timestamp modification.
+- [x] Commit author date/timestamp modification (HEAD commit amendment and historical rebase rewriting, custom author identity, ISO-8601 / RFC2822 timestamps, committer date synchronization, and pre-commit author override controls).
 - [ ] Cherry-pick workflow with conflict guidance.
 - [ ] Revert workflow (including mainline selection `-m 1` for merge commits).
 - [ ] Reset dialog with soft, mixed, and hard modes + precise explanatory impact preview.

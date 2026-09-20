@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Tag, GitBranch, Copy, Check, Layers } from 'lucide-react';
+import { Search, Tag, GitBranch, Copy, Check, Layers, Clock, Cherry } from 'lucide-react';
 import type { CommitInfo, Theme } from '../types';
 import { CommitGraphCanvas } from './CommitGraphCanvas';
 
@@ -8,6 +8,8 @@ interface CommitListProps {
   selectedSha: string | null;
   onSelectCommit: (sha: string) => void;
   onStartInteractiveRebase?: (sha: string, subject: string) => void;
+  onCherryPick?: (commit: CommitInfo) => void;
+  onModifyAuthorDate?: (commit: CommitInfo) => void;
   loading: boolean;
   theme: Theme;
 }
@@ -19,6 +21,8 @@ export const CommitList: React.FC<CommitListProps> = ({
   selectedSha,
   onSelectCommit,
   onStartInteractiveRebase,
+  onCherryPick,
+  onModifyAuthorDate,
   loading,
   theme,
 }) => {
@@ -124,7 +128,7 @@ export const CommitList: React.FC<CommitListProps> = ({
                   key={c.sha}
                   onClick={() => onSelectCommit(c.sha)}
                   style={{ height: `${ROW_HEIGHT}px` }}
-                  className={`flex items-center border-b border-zinc-100 dark:border-zinc-800/60 cursor-pointer transition-colors px-2 select-none ${
+                  className={`group flex items-center border-b border-zinc-100 dark:border-zinc-800/60 cursor-pointer transition-colors px-2 select-none ${
                     isSelected
                       ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
                       : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200'
@@ -169,7 +173,33 @@ export const CommitList: React.FC<CommitListProps> = ({
                   </div>
 
                   {/* Short SHA & Action */}
-                  <div className="w-24 shrink-0 text-right px-2 flex items-center justify-end gap-1">
+                  <div className="w-28 shrink-0 text-right px-2 flex items-center justify-end gap-1">
+                    {onCherryPick && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCherryPick(c);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-emerald-500/10 text-zinc-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-all"
+                        title="Cherry-pick this commit onto HEAD"
+                      >
+                        <Cherry className="w-3 h-3" />
+                      </button>
+                    )}
+                    {onModifyAuthorDate && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onModifyAuthorDate(c);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-amber-500/10 text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400 transition-all"
+                        title="Modify commit author / date"
+                      >
+                        <Clock className="w-3 h-3" />
+                      </button>
+                    )}
                     {onStartInteractiveRebase && (
                       <button
                         type="button"

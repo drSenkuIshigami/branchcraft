@@ -5,9 +5,14 @@ import {
   applyStash,
   branchFromStash,
   checkGitAvailability,
+  cherryPickAbort,
+  cherryPickCommit,
+  cherryPickContinue,
+  cherryPickSkip,
   clearStashes,
   createBranch,
   createCommit,
+  createDemoCherryPickConflict,
   createOrGetSampleRepo,
   createStash,
   deleteBranch,
@@ -24,6 +29,7 @@ import {
   getConflictState,
   getDetailedRebaseStatus,
   getFileDiff,
+  getGitUserConfig,
   getRebaseCandidates,
   getRemotes,
   getStashDetail,
@@ -34,6 +40,7 @@ import {
   gitPull,
   gitPush,
   launchMergetool,
+  modifyCommitAuthorDate,
   openSystemLocation,
   popStash,
   rebaseSkip,
@@ -213,7 +220,33 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             const message = typeof body.message === 'string' ? body.message : '';
             if (!repoPath || !message) return sendJson(400, { error: 'repo_path and message required' });
-            const resData = await createCommit(repoPath, message);
+            const options = {
+              authorName: typeof body.author_name === 'string' ? body.author_name : undefined,
+              authorEmail: typeof body.author_email === 'string' ? body.author_email : undefined,
+              authorDate: typeof body.author_date === 'string' ? body.author_date : undefined,
+              committerDate: typeof body.committer_date === 'string' ? body.committer_date : undefined,
+            };
+            const resData = await createCommit(repoPath, message, options);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/config/user' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getGitUserConfig(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/commit/modify_author_date' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await modifyCommitAuthorDate(repoPath, body);
             return sendJson(200, resData);
           }
 
@@ -539,6 +572,51 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await rebaseSkip(repoPath);
+            return sendJson(200, resData);
+          }
+
+          // Cherry-Pick Workflow (Phase 3 Step 3)
+          if (pathname === '/api/git/cherry_pick' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const sha = typeof body.sha === 'string' ? body.sha : '';
+            const options = body.options && typeof body.options === 'object' ? body.options : undefined;
+            if (!repoPath || !sha) {
+              return sendJson(400, { error: 'repo_path and sha required' });
+            }
+            const resData = await cherryPickCommit(repoPath, sha, options);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/cherry_pick/continue' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await cherryPickContinue(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/cherry_pick/skip' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await cherryPickSkip(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/cherry_pick/abort' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await cherryPickAbort(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/cherry_pick/create_demo' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await createDemoCherryPickConflict(repoPath);
             return sendJson(200, resData);
           }
 

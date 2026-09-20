@@ -15,6 +15,7 @@ import path from 'node:path';
 import type {
   BranchInfo,
   ChangeType,
+  CherryPickOptions,
   CommitDetail,
   CommitDetailFile,
   CommitInfo,
@@ -23,6 +24,8 @@ import type {
   FileChange,
   FileDiff,
   GitAvailability,
+  GitUserConfig,
+  ModifyCommitAuthorDateParams,
   OperationResult,
   RebaseAction,
   RebaseStatus,
@@ -526,18 +529,47 @@ export async function unstageAll(repoPath: string): Promise<OperationResult> {
   };
 }
 
-export async function createCommit(repoPath: string, message: string): Promise<OperationResult> {
+export async function createCommit(
+  repoPath: string,
+  message: string,
+  options?: {
+    authorName?: string;
+    authorEmail?: string;
+    authorDate?: string;
+    committerDate?: string;
+  }
+): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
   if (!message.trim()) {
     throw new Error('Commit message cannot be empty');
   }
-  const res = await runGit(rootPath, ['commit', '-m', message]);
+  const args = ['commit', '-m', message];
+  const env: Record<string, string> = {};
+
+  if (options?.authorName || options?.authorEmail) {
+    const name = options.authorName?.trim() || '';
+    const email = options.authorEmail?.trim() || '';
+    args.push(`--author=${name} <${email}>`);
+  }
+  if (options?.authorDate) {
+    args.push(`--date=${options.authorDate}`);
+  }
+  if (options?.committerDate) {
+    env.GIT_COMMITTER_DATE = options.committerDate;
+  }
+
+  const res = await runGit(
+    rootPath,
+    args,
+    undefined,
+    Object.keys(env).length > 0 ? env : undefined
+  );
   return {
     success: res.code === 0,
     stdout: res.stdout,
     stderr: res.stderr,
     exit_code: res.code,
-    command_run: ['commit', '-m', message],
+    command_run: args,
     duration_ms: res.duration_ms,
   };
 }
@@ -1480,12 +1512,31 @@ export async function getConflictState(repoPath: string): Promise<ConflictState>
     .map((s) => s.trim())
     .filter(Boolean);
 
+  let cherryPickHead: string | null = null;
+  let cherryPickSubject: string | null = null;
+  if (inCherryPick) {
+    try {
+      const headFile = path.join(gitDir, 'CHERRY_PICK_HEAD');
+      if (fs.existsSync(headFile)) {
+        cherryPickHead = fs.readFileSync(headFile, 'utf-8').trim();
+        if (cherryPickHead) {
+          const showRes = await runGit(rootPath, ['log', '-1', '--format=%s', cherryPickHead]);
+          cherryPickSubject = showRes.stdout.trim() || null;
+        }
+      }
+    } catch {
+      // Ignore fallback
+    }
+  }
+
   return {
     in_merge: inMerge,
     in_rebase: inRebase,
     in_cherry_pick: inCherryPick,
     in_revert: inRevert,
     conflicted_files: conflictedFiles,
+    cherry_pick_head: cherryPickHead,
+    cherry_pick_subject: cherryPickSubject,
   };
 }
 
@@ -1613,6 +1664,134 @@ export async function abortConflictOperation(repoPath: string): Promise<Operatio
     exit_code: res.code,
     command_run: args,
     duration_ms: res.duration_ms,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 Step 3: Cherry-Pick Workflow with Conflict Guidance
+// ---------------------------------------------------------------------------
+
+export async function cherryPickCommit(
+  repoPath: string,
+  sha: string,
+  options?: CherryPickOptions
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedSha = sha.trim();
+  if (!/^[0-9a-fA-F]{4,64}$/.test(trimmedSha)) {
+    throw new Error('Invalid commit SHA for cherry-pick');
+  }
+
+  const args = ['cherry-pick'];
+  if (options?.noCommit) {
+    args.push('-n');
+  }
+  if (options?.recordOrigin) {
+    args.push('-x');
+  }
+  if (options?.signoff) {
+    args.push('-s');
+  }
+  if (options?.edit) {
+    args.push('--edit');
+  }
+  if (options?.mainline && Number.isInteger(options.mainline) && options.mainline > 0) {
+    args.push('-m', String(options.mainline));
+  }
+  args.push(trimmedSha);
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function cherryPickContinue(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['cherry-pick', '--continue'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function cherryPickSkip(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['cherry-pick', '--skip'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function cherryPickAbort(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['cherry-pick', '--abort'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function createDemoCherryPickConflict(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const sideBranch = `cherry-demo-source-${Date.now()}`;
+  const targetBranch = `cherry-demo-target-${Date.now()}`;
+  const filePath = path.join(rootPath, 'src', 'metrics-cherry.txt');
+
+  // Checkout main and establish base file
+  await runGit(rootPath, ['checkout', 'main']);
+  fs.writeFileSync(filePath, 'Base line 1\nBase line 2\nBase line 3\n');
+  await runGit(rootPath, ['add', 'src/metrics-cherry.txt']);
+  await runGit(rootPath, ['commit', '-m', 'chore: prepare cherry-pick base file']);
+
+  // Create side branch with commit to cherry pick
+  await runGit(rootPath, ['checkout', '-b', sideBranch]);
+  fs.writeFileSync(filePath, 'Base line 1\nSOURCE BRANCH MODIFICATION\nBase line 3\n');
+  await runGit(rootPath, ['add', 'src/metrics-cherry.txt']);
+  await runGit(rootPath, ['commit', '-m', 'feat(metrics): source change to cherry-pick']);
+  
+  // Get source commit SHA
+  const shaRes = await runGit(rootPath, ['rev-parse', 'HEAD']);
+  const sourceSha = shaRes.stdout.trim();
+
+  // Create target branch with conflicting change
+  await runGit(rootPath, ['checkout', 'main']);
+  await runGit(rootPath, ['checkout', '-b', targetBranch]);
+  fs.writeFileSync(filePath, 'Base line 1\nTARGET CONFLICTING MODIFICATION\nBase line 3\n');
+  await runGit(rootPath, ['add', 'src/metrics-cherry.txt']);
+  await runGit(rootPath, ['commit', '-m', 'refactor(metrics): target branch conflict change']);
+
+  // Trigger cherry-pick that conflicts!
+  const cpRes = await runGit(rootPath, ['cherry-pick', sourceSha]);
+
+  return {
+    success: true,
+    stdout: `Cherry-pick conflict created against ${sourceSha.slice(0, 7)}: ${cpRes.stdout || cpRes.stderr}`,
+    stderr: cpRes.stderr,
+    exit_code: cpRes.code,
+    command_run: ['cherry-pick', sourceSha],
+    duration_ms: cpRes.duration_ms,
   };
 }
 
@@ -1832,4 +2011,176 @@ export async function rebaseSkip(repoPath: string): Promise<OperationResult> {
     command_run: ['rebase', '--skip'],
     duration_ms: res.duration_ms,
   };
+}
+
+/**
+ * Phase 3 Step 2: Fetch Git user.name and user.email from repository configuration
+ */
+export async function getGitUserConfig(repoPath: string): Promise<GitUserConfig> {
+  const rootPath = await validateRepository(repoPath);
+  const nameRes = await runGit(rootPath, ['config', 'user.name']);
+  const emailRes = await runGit(rootPath, ['config', 'user.email']);
+  return {
+    name: nameRes.stdout.trim(),
+    email: emailRes.stdout.trim(),
+  };
+}
+
+/**
+ * Phase 3 Step 2: Modify commit author, author date, committer date, and message
+ * Supports both HEAD commit in-place amend and historical commits via automated rebase edit.
+ */
+export async function modifyCommitAuthorDate(
+  repoPath: string,
+  params: ModifyCommitAuthorDateParams
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+
+  // Check if target commit is HEAD
+  const headRes = await runGit(rootPath, ['rev-parse', 'HEAD']);
+  const headSha = headRes.stdout.trim();
+  const target = params.target_sha?.trim();
+  const isHead =
+    !target ||
+    target.toUpperCase() === 'HEAD' ||
+    headSha.startsWith(target) ||
+    target.startsWith(headSha);
+
+  // Build amend arguments
+  const args: string[] = ['commit', '--amend'];
+
+  if (params.new_message !== undefined && params.new_message !== null) {
+    if (!params.new_message.trim()) {
+      throw new Error('Commit message cannot be empty');
+    }
+    args.push('-m', params.new_message);
+  } else {
+    args.push('--no-edit');
+  }
+
+  if (params.reset_author) {
+    args.push('--reset-author');
+  } else if (params.author_name || params.author_email) {
+    const name = params.author_name?.trim() || '';
+    const email = params.author_email?.trim() || '';
+    args.push(`--author=${name} <${email}>`);
+  }
+
+  if (params.author_date) {
+    args.push(`--date=${params.author_date}`);
+  }
+
+  const env: Record<string, string> = {};
+  if (params.sync_committer_date_to_author && params.author_date) {
+    env.GIT_COMMITTER_DATE = params.author_date;
+  } else if (params.committer_date) {
+    env.GIT_COMMITTER_DATE = params.committer_date;
+  }
+
+  if (params.committer_name) {
+    env.GIT_COMMITTER_NAME = params.committer_name;
+  }
+  if (params.committer_email) {
+    env.GIT_COMMITTER_EMAIL = params.committer_email;
+  }
+
+  if (isHead) {
+    const res = await runGit(
+      rootPath,
+      args,
+      undefined,
+      Object.keys(env).length > 0 ? env : undefined
+    );
+    return {
+      success: res.code === 0,
+      stdout: res.stdout,
+      stderr: res.stderr,
+      exit_code: res.code,
+      command_run: args,
+      duration_ms: res.duration_ms,
+    };
+  }
+
+  // Target is a historical commit: perform automated rebase edit
+  const parentRes = await runGit(rootPath, ['rev-parse', `${target}^`]);
+  const hasParent = parentRes.code === 0;
+  const baseRef = hasParent ? `${target}^` : '--root';
+
+  const targetRevRes = await runGit(rootPath, ['rev-parse', target!]);
+  const fullTargetSha = targetRevRes.code === 0 ? targetRevRes.stdout.trim() : target!;
+  const shortSha = fullTargetSha.slice(0, 7);
+
+  const scriptContent = `
+const fs = require('fs');
+const filePath = process.argv[1];
+const targetSha = process.env.TARGET_COMMIT_SHA;
+let content = fs.readFileSync(filePath, 'utf8');
+const lines = content.split('\\n');
+const updated = lines.map(line => {
+  if (line.startsWith('pick ') && (line.includes(targetSha) || line.includes(targetSha.slice(0, 7)))) {
+    return line.replace(/^pick /, 'edit ');
+  }
+  return line;
+});
+fs.writeFileSync(filePath, updated.join('\\n'), 'utf8');
+`.trim();
+
+  const tempScriptPath = path.join(
+    os.tmpdir(),
+    `rebase-edit-seq-${Date.now()}-${Math.random().toString(36).slice(2)}.js`
+  );
+  fs.writeFileSync(tempScriptPath, scriptContent, 'utf8');
+
+  try {
+    const rebaseArgs = ['rebase', '-i'];
+    if (baseRef === '--root') {
+      rebaseArgs.push('--root');
+    } else {
+      rebaseArgs.push(baseRef);
+    }
+
+    const rebaseStart = await runGit(rootPath, rebaseArgs, undefined, {
+      GIT_SEQUENCE_EDITOR: `node "${tempScriptPath}"`,
+      TARGET_COMMIT_SHA: fullTargetSha,
+      GIT_EDITOR: 'cat',
+    });
+
+    if (rebaseStart.code !== 0) {
+      throw new Error(`Failed to initiate rebase for commit ${shortSha}: ${rebaseStart.stderr || rebaseStart.stdout}`);
+    }
+
+    // Now Git is stopped at `edit` for the target commit!
+    const amendRes = await runGit(
+      rootPath,
+      args,
+      undefined,
+      Object.keys(env).length > 0 ? env : undefined
+    );
+
+    if (amendRes.code !== 0) {
+      throw new Error(`Failed to amend commit at rebase pause: ${amendRes.stderr || amendRes.stdout}`);
+    }
+
+    // Continue the rebase to HEAD
+    const continueRes = await runGit(rootPath, ['rebase', '--continue'], undefined, {
+      GIT_EDITOR: 'cat',
+    });
+
+    return {
+      success: continueRes.code === 0,
+      stdout: `${amendRes.stdout}\n${continueRes.stdout}`.trim(),
+      stderr: continueRes.stderr,
+      exit_code: continueRes.code,
+      command_run: ['rebase', '-i', baseRef, '&&', 'commit', '--amend', '&&', 'rebase', '--continue'],
+      duration_ms: rebaseStart.duration_ms + amendRes.duration_ms + continueRes.duration_ms,
+    };
+  } finally {
+    try {
+      if (fs.existsSync(tempScriptPath)) {
+        fs.unlinkSync(tempScriptPath);
+      }
+    } catch {
+      // ignore
+    }
+  }
 }

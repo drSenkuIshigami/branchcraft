@@ -10,6 +10,8 @@ import {
   ShieldAlert,
   Play,
   Check,
+  Cherry,
+  SkipForward,
 } from 'lucide-react';
 import type { ConflictState, ConflictResolutionType, Theme } from '../types';
 
@@ -21,8 +23,10 @@ interface ConflictResolutionSectionProps {
   onResolveConflict: (filePath: string, resolution: ConflictResolutionType) => Promise<void>;
   onLaunchMergetool: (filePath?: string) => Promise<void>;
   onContinue: () => Promise<void>;
+  onSkip?: () => Promise<void>;
   onAbort: () => Promise<void>;
   onCreateDemoConflict?: () => Promise<void>;
+  onCreateDemoCherryPickConflict?: () => Promise<void>;
   loading: boolean;
   theme: Theme;
 }
@@ -35,8 +39,10 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
   onResolveConflict,
   onLaunchMergetool,
   onContinue,
+  onSkip,
   onAbort,
   onCreateDemoConflict,
+  onCreateDemoCherryPickConflict,
   loading,
 }) => {
   const [actionFile, setActionFile] = useState<string | null>(null);
@@ -51,30 +57,51 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
 
   if (!hasConflictState) {
     return (
-      <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-zinc-100/60 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 text-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3 py-2 rounded-lg bg-zinc-100/60 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 text-xs">
         <div className="flex items-center gap-2 text-zinc-500">
           <GitMerge className="w-3.5 h-3.5 text-zinc-400" />
-          <span>No merge or rebase conflicts currently detected</span>
+          <span>No merge, rebase, or cherry-pick conflicts currently detected</span>
         </div>
-        {onCreateDemoConflict && (
-          <button
-            type="button"
-            onClick={async () => {
-              setGlobalActionLoading('demo');
-              try {
-                await onCreateDemoConflict();
-              } finally {
-                setGlobalActionLoading(null);
-              }
-            }}
-            disabled={globalActionLoading !== null || loading}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer"
-            title="Create a sandbox conflict on src/index.js to test conflict workflows"
-          >
-            <Play className="w-3 h-3 text-blue-500" />
-            <span>Simulate Conflict</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onCreateDemoConflict && (
+            <button
+              type="button"
+              onClick={async () => {
+                setGlobalActionLoading('demo');
+                try {
+                  await onCreateDemoConflict();
+                } finally {
+                  setGlobalActionLoading(null);
+                }
+              }}
+              disabled={globalActionLoading !== null || loading}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer"
+              title="Create a sandbox conflict on src/index.js to test merge conflict resolution"
+            >
+              <Play className="w-3 h-3 text-blue-500" />
+              <span>Simulate Merge Conflict</span>
+            </button>
+          )}
+          {onCreateDemoCherryPickConflict && (
+            <button
+              type="button"
+              onClick={async () => {
+                setGlobalActionLoading('cherry_demo');
+                try {
+                  await onCreateDemoCherryPickConflict();
+                } finally {
+                  setGlobalActionLoading(null);
+                }
+              }}
+              disabled={globalActionLoading !== null || loading}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-zinc-600 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+              title="Create a sandbox conflict to test cherry-pick conflict guidance and resolution"
+            >
+              <Cherry className="w-3 h-3 text-emerald-500" />
+              <span>Simulate Cherry-pick Conflict</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -89,7 +116,17 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
     ? 'Merge Conflict in Progress'
     : 'Unmerged Working Tree Conflicts';
 
-  const opDescription = inRebase
+  const opDescription = inCherryPick
+    ? `A cherry-pick was paused due to colliding changes${
+        conflictState?.cherry_pick_head
+          ? ` while applying commit ${conflictState.cherry_pick_head.slice(0, 7)}`
+          : ''
+      }${
+        conflictState?.cherry_pick_subject
+          ? ` ("${conflictState.cherry_pick_subject}")`
+          : ''
+      }. Resolve the conflicted files below and click Continue, or click Skip to omit this commit.`
+    : inRebase
     ? 'A rebase sequence was paused due to merge conflicts. Resolve files then continue or abort.'
     : inMerge
     ? 'A merge operation encountered conflicting changes between local branch and incoming branch.'
@@ -122,6 +159,16 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
     }
   };
 
+  const handleSkip = async () => {
+    if (!onSkip) return;
+    setGlobalActionLoading('skip');
+    try {
+      await onSkip();
+    } finally {
+      setGlobalActionLoading(null);
+    }
+  };
+
   const handleAbort = async () => {
     setGlobalActionLoading('abort');
     try {
@@ -140,7 +187,11 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
         <div className="flex items-start gap-2.5">
           <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
-            <AlertTriangle className="w-4 h-4" />
+            {inCherryPick ? (
+              <Cherry className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            ) : (
+              <AlertTriangle className="w-4 h-4" />
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -157,8 +208,25 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
           </div>
         </div>
 
-        {/* Action Controls: Continue / Abort */}
+        {/* Action Controls: Skip / Abort / Continue */}
         <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+          {(inCherryPick || inRebase) && onSkip && (
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={globalActionLoading !== null}
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-200/70 dark:bg-zinc-800/80 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 text-xs font-medium transition-colors cursor-pointer"
+              title={
+                inCherryPick
+                  ? 'Skip applying this commit (git cherry-pick --skip)'
+                  : 'Skip current rebase commit (git rebase --skip)'
+              }
+            >
+              <SkipForward className="w-3.5 h-3.5" />
+              <span>Skip Commit</span>
+            </button>
+          )}
+
           {confirmAbort ? (
             <div className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/30 p-1 rounded-lg text-[11px]">
               <span className="text-rose-600 dark:text-rose-400 font-medium px-1">Abort operation?</span>
@@ -184,7 +252,7 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
               onClick={() => setConfirmAbort(true)}
               disabled={globalActionLoading !== null}
               className="flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-200/70 dark:bg-zinc-800/80 hover:bg-rose-500/15 hover:text-rose-600 dark:hover:text-rose-400 text-zinc-700 dark:text-zinc-300 text-xs font-medium transition-colors cursor-pointer"
-              title="Safely abort active merge or rebase, restoring HEAD"
+              title="Safely abort active cherry-pick or merge, restoring previous HEAD state"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Abort</span>
@@ -202,12 +270,14 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
             }`}
             title={
               allResolved
-                ? 'All conflicts resolved! Complete merge / continue rebase'
+                ? inCherryPick
+                  ? 'All conflicts resolved! Continue cherry-pick'
+                  : 'All conflicts resolved! Complete merge / continue rebase'
                 : 'Resolve all conflicting files before continuing'
             }
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Continue</span>
+            <span>{inCherryPick ? 'Continue Cherry-Pick' : 'Continue'}</span>
           </button>
         </div>
       </div>

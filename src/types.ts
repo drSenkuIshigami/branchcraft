@@ -148,6 +148,16 @@ export interface ConflictState {
   in_cherry_pick: boolean;
   in_revert: boolean;
   conflicted_files: string[];
+  cherry_pick_head?: string | null;
+  cherry_pick_subject?: string | null;
+}
+
+export interface CherryPickOptions {
+  noCommit?: boolean;
+  recordOrigin?: boolean;
+  signoff?: boolean;
+  edit?: boolean;
+  mainline?: number;
 }
 
 export interface DiffHunk {
@@ -183,5 +193,23 @@ export interface RebaseStatus {
   total_steps?: number;
   done_steps?: string[];
   todo_steps?: string[];
+}
+
+export interface GitUserConfig {
+  name: string;
+  email: string;
+}
+
+export interface ModifyCommitAuthorDateParams {
+  target_sha?: string;
+  author_name?: string;
+  author_email?: string;
+  reset_author?: boolean;
+  author_date?: string;
+  committer_date?: string;
+  committer_name?: string;
+  committer_email?: string;
+  sync_committer_date_to_author?: boolean;
+  new_message?: string;
 }
 

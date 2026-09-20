@@ -13,10 +13,12 @@ import {
   FileDiff as FileDiffIcon,
   Tag,
   GitBranch,
+  Cherry,
   RotateCcw,
   Layers,
+  Clock,
 } from 'lucide-react';
-import type { CommitDetail, CommitDetailFile, Theme } from '../types';
+import type { CommitDetail, CommitDetailFile, CommitInfo, Theme } from '../types';
 
 interface CommitDetailPanelProps {
   detail: CommitDetail | null;
@@ -25,6 +27,8 @@ interface CommitDetailPanelProps {
   onSelectFile: (filePath: string) => void;
   onCreateBranchAtCommit?: (sha: string, subject: string) => void;
   onStartInteractiveRebase?: (sha: string, subject: string) => void;
+  onCherryPick?: (commit: CommitInfo) => void;
+  onModifyAuthorDate?: (commit: CommitInfo) => void;
   onRestoreFile?: (sha: string, filePath: string) => void;
   theme: Theme;
 }
@@ -36,6 +40,8 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   onSelectFile,
   onCreateBranchAtCommit,
   onStartInteractiveRebase,
+  onCherryPick,
+  onModifyAuthorDate,
   onRestoreFile,
 }) => {
   const [copiedSha, setCopiedSha] = React.useState(false);
@@ -115,6 +121,30 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
                 <span>Rebase from here</span>
               </button>
             )}
+            {onCherryPick && (
+              <button
+                type="button"
+                id="commit-detail-cherry-pick-button"
+                onClick={() => onCherryPick(commit)}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-colors"
+                title="Cherry-pick this commit onto current HEAD branch"
+              >
+                <Cherry className="w-3 h-3" />
+                <span>Cherry-Pick</span>
+              </button>
+            )}
+            {onModifyAuthorDate && (
+              <button
+                type="button"
+                id="commit-detail-modify-author-button"
+                onClick={() => onModifyAuthorDate(commit)}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-medium transition-colors"
+                title="Modify author name, email, or timestamp"
+              >
+                <Clock className="w-3 h-3" />
+                <span>Edit Author / Date</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleCopySha}
@@ -138,14 +168,30 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
         )}
 
         <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-[11px] text-zinc-500">
-          <div className="flex items-center gap-1">
+          <div
+            className={`flex items-center gap-1 ${
+              onModifyAuthorDate
+                ? 'cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors'
+                : ''
+            }`}
+            onClick={() => onModifyAuthorDate?.(commit)}
+            title={onModifyAuthorDate ? 'Click to edit author or timestamp' : undefined}
+          >
             <User className="w-3 h-3 text-zinc-400" />
             <span className="font-medium text-zinc-700 dark:text-zinc-300">
               {commit.author_name}
             </span>
             <span className="text-[10px] opacity-75">&lt;{commit.author_email}&gt;</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div
+            className={`flex items-center gap-1 ${
+              onModifyAuthorDate
+                ? 'cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors'
+                : ''
+            }`}
+            onClick={() => onModifyAuthorDate?.(commit)}
+            title={onModifyAuthorDate ? 'Click to edit author or timestamp' : undefined}
+          >
             <Calendar className="w-3 h-3 text-zinc-400" />
             <span>{new Date(commit.author_date).toLocaleString()}</span>
           </div>

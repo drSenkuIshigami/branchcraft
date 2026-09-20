@@ -27,16 +27,19 @@ import type {
   StatusInfo,
   SyncStatus,
   Theme,
+  OperationResult,
 } from '../types';
 import {
   abortConflictOperation,
   amendCommit,
   applyStash,
   branchFromStash,
+  cherryPickSkip,
   clearStashes,
   continueConflictOperation,
   createBranch,
   createCommit,
+  createDemoCherryPickConflict,
   createDemoConflict,
   createStash,
   deleteBranch,
@@ -86,6 +89,9 @@ import { BranchFromStashModal } from '../components/BranchFromStashModal';
 import { ResetHardModal } from '../components/ResetHardModal';
 import { RestoreFileModal } from '../components/RestoreFileModal';
 import { InteractiveRebaseModal } from '../components/InteractiveRebaseModal';
+import { CommitAuthorDateModal } from '../components/CommitAuthorDateModal';
+import { CherryPickModal } from '../components/CherryPickModal';
+import type { CommitAuthorOptions } from '../components/CommitBox';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
 import { CreateBranchModal } from '../components/CreateBranchModal';
@@ -166,6 +172,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   // Interactive Rebase State (Phase 3 Step 1)
   const [rebaseStatus, setRebaseStatus] = useState<RebaseStatus | null>(null);
   const [rebaseModalTarget, setRebaseModalTarget] = useState<{ baseSha: string; baseSummary?: string } | null>(null);
+
+  // Commit Author & Date Modification State (Phase 3 Step 2)
+  const [authorDateModalCommit, setAuthorDateModalCommit] = useState<CommitInfo | null>(null);
+
+  // Cherry-pick State (Phase 3 Step 3)
+  const [cherryPickModalCommit, setCherryPickModalCommit] = useState<CommitInfo | null>(null);
 
   useEffect(() => {
     if (!systemToast) return;
@@ -548,14 +560,26 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
-  const handleCommit = async (message: string, isAmend: boolean) => {
+  const handleCommit = async (
+    message: string,
+    isAmend: boolean,
+    authorOptions?: CommitAuthorOptions
+  ) => {
     if (!repoPath) return;
     const start = performance.now();
     const cmdTokens = isAmend ? ['commit', '--amend', '-m', message] : ['commit', '-m', message];
+    if (authorOptions?.authorDate) {
+      cmdTokens.push(`--date=${authorOptions.authorDate}`);
+    }
+    if (authorOptions?.authorName || authorOptions?.authorEmail) {
+      cmdTokens.push(
+        `--author="${authorOptions.authorName || ''} <${authorOptions.authorEmail || ''}>"`
+      );
+    }
     try {
       const res = isAmend
         ? await amendCommit(repoPath, message)
-        : await createCommit(repoPath, message);
+        : await createCommit(repoPath, message, authorOptions);
       recordCommand(
         cmdTokens,
         Math.round(performance.now() - start),
@@ -1217,6 +1241,84 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Cherry-Pick Handlers (Phase 3 Step 3)
+  const handleCherryPickSuccess = async (
+    result: OperationResult,
+    commit: CommitInfo,
+    hasConflict?: boolean
+  ) => {
+    recordCommand(
+      result.command_run || ['cherry-pick', commit.sha.slice(0, 7)],
+      result.duration_ms || 100,
+      result.success,
+      result.exit_code,
+      result.stderr
+    );
+
+    if (repoPath) {
+      await loadRepositoryData(repoPath);
+    }
+
+    if (hasConflict || result.exit_code === 1) {
+      setSelectedView('working-tree');
+      setSystemToast({
+        message: `Cherry-pick paused with conflicts applying ${commit.sha.slice(0, 7)}. Resolve in Working Tree.`,
+        commandSnippet: result.command_run?.join(' '),
+      });
+    } else {
+      setSystemToast({
+        message: `Successfully cherry-picked commit ${commit.sha.slice(0, 7)} onto HEAD`,
+        commandSnippet: result.command_run?.join(' '),
+      });
+    }
+  };
+
+  const handleSkipConflict = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      let res: OperationResult;
+      if (conflictState?.in_cherry_pick) {
+        res = await cherryPickSkip(repoPath);
+      } else {
+        res = await rebaseSkip(repoPath);
+      }
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: conflictState?.in_cherry_pick
+          ? 'Cherry-pick commit skipped; operation resumed'
+          : 'Rebase commit skipped; rebase resumed',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['skip'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleCreateDemoCherryPickConflict = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await createDemoCherryPickConflict(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Simulated cherry-pick conflict scenario prepared',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+      setSelectedView('working-tree');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['cherry-pick', 'demo-conflict'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -1424,8 +1526,10 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onResolveConflict={handleResolveConflict}
                   onLaunchMergetool={handleLaunchMergetool}
                   onContinueConflict={handleContinueConflict}
+                  onSkipConflict={handleSkipConflict}
                   onAbortConflict={handleAbortConflict}
                   onCreateDemoConflict={handleCreateDemoConflict}
+                  onCreateDemoCherryPickConflict={handleCreateDemoCherryPickConflict}
                   onRebaseContinue={handleRebaseContinue}
                   onRebaseSkip={handleRebaseSkip}
                   onRebaseAbort={handleRebaseAbort}
@@ -1492,6 +1596,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   selectedSha={selectedSha}
                   onSelectCommit={setSelectedSha}
                   onStartInteractiveRebase={handleOpenRebaseModal}
+                  onCherryPick={setCherryPickModalCommit}
+                  onModifyAuthorDate={setAuthorDateModalCommit}
                   loading={loading}
                   theme={theme}
                 />
@@ -1508,6 +1614,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                     onSelectFile={setSelectedFile}
                     onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
                     onStartInteractiveRebase={handleOpenRebaseModal}
+                    onCherryPick={setCherryPickModalCommit}
+                    onModifyAuthorDate={setAuthorDateModalCommit}
                     onRestoreFile={handleOpenRestoreModal}
                     theme={theme}
                   />
@@ -1646,6 +1754,54 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               commandSnippet: cmd.join(' '),
             });
             if (repoPath) loadRepositoryData(repoPath);
+          }}
+          theme={theme}
+        />
+      )}
+
+      {/* Modify Commit Author & Timestamp Modal (Phase 3 Step 2) */}
+      {authorDateModalCommit && repoPath && (
+        <CommitAuthorDateModal
+          isOpen={Boolean(authorDateModalCommit)}
+          repoPath={repoPath}
+          commit={authorDateModalCommit}
+          isHead={Boolean(
+            authorDateModalCommit &&
+              (authorDateModalCommit.refs.some((r) => r.includes('HEAD')) ||
+                branches.find((b) => b.is_head)?.tip_sha === authorDateModalCommit.sha ||
+                commits[0]?.sha === authorDateModalCommit.sha)
+          )}
+          onClose={() => setAuthorDateModalCommit(null)}
+          onSuccess={async (result) => {
+            recordCommand(
+              ['commit', '--amend', '...'],
+              100,
+              result.success,
+              result.exit_code,
+              result.stderr
+            );
+            setSystemToast({
+              message: 'Commit author and timestamp updated successfully!',
+            });
+            if (repoPath) {
+              await loadRepositoryData(repoPath);
+            }
+          }}
+          onStartInteractiveRebase={handleOpenRebaseModal}
+        />
+      )}
+
+      {/* Cherry-Pick Modal (Phase 3 Step 3) */}
+      {cherryPickModalCommit && repoPath && (
+        <CherryPickModal
+          isOpen={Boolean(cherryPickModalCommit)}
+          repoPath={repoPath}
+          commit={cherryPickModalCommit}
+          onClose={() => setCherryPickModalCommit(null)}
+          onSuccess={(result, hasConflict) => {
+            if (cherryPickModalCommit) {
+              handleCherryPickSuccess(result, cherryPickModalCommit, hasConflict);
+            }
           }}
           theme={theme}
         />
