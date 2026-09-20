@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Tag, GitBranch, Copy, Check, Layers, Clock, Cherry } from 'lucide-react';
+import { Search, Tag, GitBranch, Copy, Check, Layers, Clock, Cherry, RotateCcw } from 'lucide-react';
 import type { CommitInfo, Theme } from '../types';
 import { CommitGraphCanvas } from './CommitGraphCanvas';
 
@@ -9,6 +9,7 @@ interface CommitListProps {
   onSelectCommit: (sha: string) => void;
   onStartInteractiveRebase?: (sha: string, subject: string) => void;
   onCherryPick?: (commit: CommitInfo) => void;
+  onRevert?: (commit: CommitInfo) => void;
   onModifyAuthorDate?: (commit: CommitInfo) => void;
   loading: boolean;
   theme: Theme;
@@ -22,6 +23,7 @@ export const CommitList: React.FC<CommitListProps> = ({
   onSelectCommit,
   onStartInteractiveRebase,
   onCherryPick,
+  onRevert,
   onModifyAuthorDate,
   loading,
   theme,
@@ -185,6 +187,19 @@ export const CommitList: React.FC<CommitListProps> = ({
                         title="Cherry-pick this commit onto HEAD"
                       >
                         <Cherry className="w-3 h-3" />
+                      </button>
+                    )}
+                    {onRevert && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRevert(c);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-indigo-500/10 text-zinc-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-all"
+                        title="Revert this commit (undo via inverse commit)"
+                      >
+                        <RotateCcw className="w-3 h-3" />
                       </button>
                     )}
                     {onModifyAuthorDate && (

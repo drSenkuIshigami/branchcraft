@@ -28,6 +28,7 @@ interface CommitDetailPanelProps {
   onCreateBranchAtCommit?: (sha: string, subject: string) => void;
   onStartInteractiveRebase?: (sha: string, subject: string) => void;
   onCherryPick?: (commit: CommitInfo) => void;
+  onRevert?: (commit: CommitInfo) => void;
   onModifyAuthorDate?: (commit: CommitInfo) => void;
   onRestoreFile?: (sha: string, filePath: string) => void;
   theme: Theme;
@@ -41,6 +42,7 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
   onCreateBranchAtCommit,
   onStartInteractiveRebase,
   onCherryPick,
+  onRevert,
   onModifyAuthorDate,
   onRestoreFile,
 }) => {
@@ -131,6 +133,18 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
               >
                 <Cherry className="w-3 h-3" />
                 <span>Cherry-Pick</span>
+              </button>
+            )}
+            {onRevert && (
+              <button
+                type="button"
+                id="commit-detail-revert-button"
+                onClick={() => onRevert(commit)}
+                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium transition-colors"
+                title="Revert this commit (create inverse commit)"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Revert</span>
               </button>
             )}
             {onModifyAuthorDate && (

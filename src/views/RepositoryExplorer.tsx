@@ -69,6 +69,8 @@ import {
   resetHard,
   resolveConflict,
   restoreFileFromCommit,
+  revertSkip,
+  createDemoRevertConflict,
   stageAll,
   stageHunk,
   stagePath,
@@ -91,6 +93,7 @@ import { RestoreFileModal } from '../components/RestoreFileModal';
 import { InteractiveRebaseModal } from '../components/InteractiveRebaseModal';
 import { CommitAuthorDateModal } from '../components/CommitAuthorDateModal';
 import { CherryPickModal } from '../components/CherryPickModal';
+import { RevertModal } from '../components/RevertModal';
 import type { CommitAuthorOptions } from '../components/CommitBox';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
@@ -178,6 +181,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
   // Cherry-pick State (Phase 3 Step 3)
   const [cherryPickModalCommit, setCherryPickModalCommit] = useState<CommitInfo | null>(null);
+
+  // Revert State (Phase 3 Step 4)
+  const [revertModalCommit, setRevertModalCommit] = useState<CommitInfo | null>(null);
 
   useEffect(() => {
     if (!systemToast) return;
@@ -1280,6 +1286,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       let res: OperationResult;
       if (conflictState?.in_cherry_pick) {
         res = await cherryPickSkip(repoPath);
+      } else if (conflictState?.in_revert) {
+        res = await revertSkip(repoPath);
       } else {
         res = await rebaseSkip(repoPath);
       }
@@ -1287,6 +1295,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       setSystemToast({
         message: conflictState?.in_cherry_pick
           ? 'Cherry-pick commit skipped; operation resumed'
+          : conflictState?.in_revert
+          ? 'Revert commit skipped; operation resumed'
           : 'Rebase commit skipped; rebase resumed',
         commandSnippet: res.command_run.join(' '),
       });
@@ -1294,6 +1304,58 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       recordCommand(['skip'], Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  // Revert Handlers (Phase 3 Step 4)
+  const handleRevertSuccess = async (
+    result: OperationResult,
+    commit: CommitInfo,
+    hasConflict?: boolean
+  ) => {
+    recordCommand(
+      result.command_run || ['revert', commit.sha.slice(0, 7)],
+      result.duration_ms || 100,
+      result.success,
+      result.exit_code,
+      result.stderr
+    );
+
+    if (repoPath) {
+      await loadRepositoryData(repoPath);
+    }
+
+    if (hasConflict || result.exit_code === 1) {
+      setSelectedView('working-tree');
+      setSystemToast({
+        message: `Revert paused with conflicts reverting ${commit.sha.slice(0, 7)}. Resolve in Working Tree.`,
+        commandSnippet: result.command_run?.join(' '),
+      });
+    } else {
+      setSystemToast({
+        message: `Successfully reverted commit ${commit.sha.slice(0, 7)}`,
+        commandSnippet: result.command_run?.join(' '),
+      });
+    }
+  };
+
+  const handleCreateDemoRevertConflict = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await createDemoRevertConflict(repoPath);
+      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      setSystemToast({
+        message: 'Simulated revert conflict scenario prepared',
+        commandSnippet: res.command_run.join(' '),
+      });
+      await loadRepositoryData(repoPath);
+      setSelectedView('working-tree');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(['revert', 'demo-conflict'], Math.round(performance.now() - start), false, 1, msg);
       setError(msg);
       throw err;
     }
@@ -1530,6 +1592,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onAbortConflict={handleAbortConflict}
                   onCreateDemoConflict={handleCreateDemoConflict}
                   onCreateDemoCherryPickConflict={handleCreateDemoCherryPickConflict}
+                  onCreateDemoRevertConflict={handleCreateDemoRevertConflict}
                   onRebaseContinue={handleRebaseContinue}
                   onRebaseSkip={handleRebaseSkip}
                   onRebaseAbort={handleRebaseAbort}
@@ -1597,6 +1660,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onSelectCommit={setSelectedSha}
                   onStartInteractiveRebase={handleOpenRebaseModal}
                   onCherryPick={setCherryPickModalCommit}
+                  onRevert={setRevertModalCommit}
                   onModifyAuthorDate={setAuthorDateModalCommit}
                   loading={loading}
                   theme={theme}
@@ -1615,6 +1679,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                     onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
                     onStartInteractiveRebase={handleOpenRebaseModal}
                     onCherryPick={setCherryPickModalCommit}
+                    onRevert={setRevertModalCommit}
                     onModifyAuthorDate={setAuthorDateModalCommit}
                     onRestoreFile={handleOpenRestoreModal}
                     theme={theme}
@@ -1801,6 +1866,23 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onSuccess={(result, hasConflict) => {
             if (cherryPickModalCommit) {
               handleCherryPickSuccess(result, cherryPickModalCommit, hasConflict);
+            }
+          }}
+          theme={theme}
+        />
+      )}
+
+      {/* Revert Modal (Phase 3 Step 4) */}
+      {revertModalCommit && repoPath && (
+        <RevertModal
+          isOpen={Boolean(revertModalCommit)}
+          repoPath={repoPath}
+          commit={revertModalCommit}
+          targetBranch={branches.find((b) => b.is_head)?.name || 'HEAD'}
+          onClose={() => setRevertModalCommit(null)}
+          onSuccess={(result, hasConflict) => {
+            if (revertModalCommit) {
+              handleRevertSuccess(result, revertModalCommit, hasConflict);
             }
           }}
           theme={theme}

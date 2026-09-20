@@ -31,6 +31,7 @@ import type {
   RebaseStatus,
   RebaseTodoItem,
   RemoteInfo,
+  RevertOptions,
   StashDetail,
   StashInfo,
   StatusInfo,
@@ -1529,6 +1530,23 @@ export async function getConflictState(repoPath: string): Promise<ConflictState>
     }
   }
 
+  let revertHead: string | null = null;
+  let revertSubject: string | null = null;
+  if (inRevert) {
+    try {
+      const headFile = path.join(gitDir, 'REVERT_HEAD');
+      if (fs.existsSync(headFile)) {
+        revertHead = fs.readFileSync(headFile, 'utf-8').trim();
+        if (revertHead) {
+          const showRes = await runGit(rootPath, ['log', '-1', '--format=%s', revertHead]);
+          revertSubject = showRes.stdout.trim() || null;
+        }
+      }
+    } catch {
+      // Ignore fallback
+    }
+  }
+
   return {
     in_merge: inMerge,
     in_rebase: inRebase,
@@ -1537,6 +1555,8 @@ export async function getConflictState(repoPath: string): Promise<ConflictState>
     conflicted_files: conflictedFiles,
     cherry_pick_head: cherryPickHead,
     cherry_pick_subject: cherryPickSubject,
+    revert_head: revertHead,
+    revert_subject: revertSubject,
   };
 }
 
@@ -1792,6 +1812,131 @@ export async function createDemoCherryPickConflict(repoPath: string): Promise<Op
     exit_code: cpRes.code,
     command_run: ['cherry-pick', sourceSha],
     duration_ms: cpRes.duration_ms,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 Step 4: Revert Workflow (including mainline selection -m 1)
+// ---------------------------------------------------------------------------
+
+export async function revertCommit(
+  repoPath: string,
+  sha: string,
+  options?: RevertOptions
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedSha = sha.trim();
+  if (!/^[0-9a-fA-F]{4,64}$/.test(trimmedSha)) {
+    throw new Error('Invalid commit SHA for revert');
+  }
+
+  const args = ['revert'];
+  if (options?.noCommit) {
+    args.push('-n');
+  }
+  if (options?.signoff) {
+    args.push('-s');
+  }
+  if (options?.edit === true) {
+    args.push('--edit');
+  } else {
+    // Default to --no-edit in non-interactive GUI mode unless edit is explicitly requested
+    args.push('--no-edit');
+  }
+  if (options?.mainline && Number.isInteger(options.mainline) && options.mainline > 0) {
+    args.push('-m', String(options.mainline));
+  }
+  args.push(trimmedSha);
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function revertContinue(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['revert', '--continue'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function revertSkip(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['revert', '--skip'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function revertAbort(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['revert', '--abort'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function createDemoRevertConflict(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const demoBranch = `revert-demo-${Date.now()}`;
+  const filePath = path.join(rootPath, 'src', 'metrics-revert.txt');
+
+  // Checkout main and establish base file
+  await runGit(rootPath, ['checkout', 'main']);
+  fs.writeFileSync(filePath, 'Section 1: Initial Header\nSection 2: Original Value\nSection 3: Footer\n');
+  await runGit(rootPath, ['add', 'src/metrics-revert.txt']);
+  await runGit(rootPath, ['commit', '-m', 'chore: prepare revert base file']);
+
+  // Create demo branch
+  await runGit(rootPath, ['checkout', '-b', demoBranch]);
+  fs.writeFileSync(filePath, 'Section 1: Initial Header\nSection 2: MODIFIED VALUE TO REVERT\nSection 3: Footer\n');
+  await runGit(rootPath, ['add', 'src/metrics-revert.txt']);
+  await runGit(rootPath, ['commit', '-m', 'feat(metrics): change that will be reverted']);
+
+  // Get SHA of commit to revert
+  const shaRes = await runGit(rootPath, ['rev-parse', 'HEAD']);
+  const revertSha = shaRes.stdout.trim();
+
+  // Introduce conflicting modification on top of it so reverting original line causes conflict
+  fs.writeFileSync(filePath, 'Section 1: Initial Header\nSection 2: CONFLICTING SUBSEQUENT EDIT\nSection 3: Footer\n');
+  await runGit(rootPath, ['add', 'src/metrics-revert.txt']);
+  await runGit(rootPath, ['commit', '-m', 'refactor(metrics): subsequent conflicting line modification']);
+
+  // Trigger revert of the older commit
+  const revRes = await runGit(rootPath, ['revert', '--no-edit', revertSha]);
+
+  return {
+    success: true,
+    stdout: `Revert conflict created against ${revertSha.slice(0, 7)}: ${revRes.stdout || revRes.stderr}`,
+    stderr: revRes.stderr,
+    exit_code: revRes.code,
+    command_run: ['revert', '--no-edit', revertSha],
+    duration_ms: revRes.duration_ms,
   };
 }
 

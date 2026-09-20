@@ -150,6 +150,8 @@ export interface ConflictState {
   conflicted_files: string[];
   cherry_pick_head?: string | null;
   cherry_pick_subject?: string | null;
+  revert_head?: string | null;
+  revert_subject?: string | null;
 }
 
 export interface CherryPickOptions {
@@ -157,6 +159,13 @@ export interface CherryPickOptions {
   recordOrigin?: boolean;
   signoff?: boolean;
   edit?: boolean;
+  mainline?: number;
+}
+
+export interface RevertOptions {
+  noCommit?: boolean;
+  edit?: boolean;
+  signoff?: boolean;
   mainline?: number;
 }
 

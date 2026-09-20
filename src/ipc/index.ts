@@ -22,6 +22,7 @@ import type {
   RebaseStatus,
   RebaseTodoItem,
   RemoteInfo,
+  RevertOptions,
   StashDetail,
   StashInfo,
   StatusInfo,
@@ -1337,6 +1338,124 @@ export async function createDemoCherryPickConflict(repoPath: string): Promise<Op
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to create demo cherry-pick conflict' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 4: Revert a commit with optional mainline parent selection & flags
+ */
+export async function revertCommit(
+  repoPath: string,
+  sha: string,
+  options?: RevertOptions
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('revert_commit', { repoPath, sha, options });
+  }
+
+  const res = await fetch('/api/git/revert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      sha,
+      options,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to revert commit' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 4: Continue revert operation after conflicts resolved
+ */
+export async function revertContinue(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('revert_continue', { repoPath });
+  }
+
+  const res = await fetch('/api/git/revert/continue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to continue revert' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 4: Skip current revert commit
+ */
+export async function revertSkip(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('revert_skip', { repoPath });
+  }
+
+  const res = await fetch('/api/git/revert/skip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to skip revert' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 4: Abort active revert operation
+ */
+export async function revertAbort(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('revert_abort', { repoPath });
+  }
+
+  const res = await fetch('/api/git/revert/abort', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to abort revert' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 3 Step 4: Create intentional revert conflict for testing & demonstration
+ */
+export async function createDemoRevertConflict(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('create_demo_revert_conflict', { repoPath });
+  }
+
+  const res = await fetch('/api/git/revert/create_demo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create demo revert conflict' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 

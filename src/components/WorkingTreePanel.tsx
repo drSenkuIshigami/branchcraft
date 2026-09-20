@@ -46,6 +46,7 @@ interface WorkingTreePanelProps {
   onAbortConflict?: () => Promise<void>;
   onCreateDemoConflict?: () => Promise<void>;
   onCreateDemoCherryPickConflict?: () => Promise<void>;
+  onCreateDemoRevertConflict?: () => Promise<void>;
   onRebaseContinue?: () => Promise<void>;
   onRebaseSkip?: () => Promise<void>;
   onRebaseAbort?: () => Promise<void>;
@@ -74,6 +75,7 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   onAbortConflict,
   onCreateDemoConflict,
   onCreateDemoCherryPickConflict,
+  onCreateDemoRevertConflict,
   onRebaseContinue,
   onRebaseSkip,
   onRebaseAbort,
@@ -259,6 +261,7 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
         onAbort={onAbortConflict || (async () => {})}
         onCreateDemoConflict={onCreateDemoConflict}
         onCreateDemoCherryPickConflict={onCreateDemoCherryPickConflict}
+        onCreateDemoRevertConflict={onCreateDemoRevertConflict}
         loading={loading}
         theme={theme}
       />

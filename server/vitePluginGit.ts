@@ -48,6 +48,11 @@ import {
   resetHard,
   resolveConflict,
   restoreFileFromCommit,
+  revertAbort,
+  revertCommit,
+  revertContinue,
+  revertSkip,
+  createDemoRevertConflict,
   stageAll,
   stageHunk,
   stagePath,
@@ -617,6 +622,50 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await createDemoCherryPickConflict(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/revert' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const sha = typeof body.sha === 'string' ? body.sha : '';
+            const options = body.options && typeof body.options === 'object' ? body.options : undefined;
+            if (!repoPath || !sha) {
+              return sendJson(400, { error: 'repo_path and sha required' });
+            }
+            const resData = await revertCommit(repoPath, sha, options);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/revert/continue' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await revertContinue(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/revert/skip' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await revertSkip(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/revert/abort' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await revertAbort(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/revert/create_demo' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await createDemoRevertConflict(repoPath);
             return sendJson(200, resData);
           }
 
