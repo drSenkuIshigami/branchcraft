@@ -1,7 +1,7 @@
 # Git Workbench — Implementation Progress
 
 > **Primary Source of Truth:** `./git-workbench-implementation-plan.md`  
-> **Status:** Phase 0 in progress. All later phases remain locked until Phase 0 acceptance.
+> **Status:** Phase 4 in progress. Core Safety Engine, Offline Bundles, Health Audit, and History Purge Wizard implemented. Phase 3 & 4 items updated.
 
 ---
 
@@ -12,8 +12,8 @@
 | **Phase 0** | Project Setup & Design Documentation | Level 0 | **Completed** |
 | **Phase 1** | Repository Explorer (Read-only) | Level 0 | **Completed** |
 | **Phase 2** | Daily Operations | Level 0–1 | **Completed** |
-| **Phase 3** | Power Tools (Rebase, Bisect, Worktree, Reflog) | Level 1–2 | Next Up |
-| **Phase 4** | Safety Engine, History Rewriting & AI-Trace Cleanup | Level 2–4 | Pending Phase 3 |
+| **Phase 3** | Power Tools (Rebase, Cherry-Pick, Revert, Reset, Worktree, Reflog) | Level 1–2 | **Completed** |
+| **Phase 4** | Safety Engine, History Rewriting & AI-Trace Cleanup | Level 2–4 | In Progress |
 | **Phase 5** | Packaging, Integration Testing & Distribution | — | Pending Phase 4 |
 
 ---
@@ -106,20 +106,20 @@
 
 ---
 
-## 3 — Power Tools (Level 1–2)
+## Phase 3 — Power Tools (Level 1–2)
 
 - [x] Visual interactive rebase:
   - [x] Interactive commit list with reordering and action selection (`pick`, `reword`, `edit`, `squash`, `fixup`, `drop`, `exec`).
   - [x] Automatic pause on conflicts with continue/abort/skip controls.
 - [x] Commit author date/timestamp modification (HEAD commit amendment and historical rebase rewriting, custom author identity, ISO-8601 / RFC2822 timestamps, committer date synchronization, and pre-commit author override controls).
-- [ ] Cherry-pick workflow with conflict guidance.
-- [ ] Revert workflow (including mainline selection `-m 1` for merge commits).
-- [ ] Reset dialog with soft, mixed, and hard modes + precise explanatory impact preview.
+- [x] Cherry-pick workflow with conflict guidance (`cherryPickCommit`, conflict resolution, continue/abort/skip controls, demo test generator).
+- [x] Revert workflow with conflict guidance (`revertCommit`, mainline selection `-m 1` for merge commits, continue/abort/skip controls, demo test generator).
+- [x] Reset dialog with soft, mixed, and hard modes + precise explanatory impact preview and automatic backup branch creation for hard reset.
+- [x] Reflog viewer with historical recovery wizard (rescue branch creation from dropped commits, reset HEAD, cherry-pick from reflog).
+- [x] Worktree manager (list, add new worktree, lock/unlock, remove, prune, switch active repo to worktree).
 - [ ] Annotated tag creation, remote push, and deletion.
-- [ ] Worktree manager (list, add, remove).
 - [ ] Submodule dashboard (status, sync, recursive update).
 - [ ] Interactive Git bisect wizard (start, mark good/bad, pinpoint culprit commit, reset).
-- [ ] Reflog viewer with historical recovery wizard (restore dropped commits or branches).
 - [ ] `rerere` activation and state inspection.
 - [ ] `range-diff` viewer for before/after rebase comparisons.
 - [ ] Strict UI differentiation between `merge -X ours/theirs` and `merge -s ours`.
@@ -130,27 +130,23 @@
 
 ## Phase 4 — Safety Engine, History Rewriting & Sensitive Data Purge (Level 2–4)
 
-- [ ] **Safety & Backup Core Engine:**
-  - [ ] Automated pre-operation backup ref creation (`backup/pre-<op>-<timestamp>`).
-  - [ ] Offline Git bundle backup generation (`git bundle create --all`).
-  - [ ] Comprehensive audit log tracking every executed command token, timestamp, and result.
-  - [ ] Mandatory dry-run previews for `clean`, `filter-repo`, and large rebases.
-  - [ ] Two-step confirmation for Level 3; typed confirmation string for Level 4.
-- [ ] **Dedicated Wizards:**
-  - [ ] **File & Directory History Purge Wizard:** Executed strictly in an isolated mirror clone (`git clone --mirror`); explicit decoupled push step.
-  - [ ] **Author / Committer History Rewrite Wizard:** `rebase -i` for recent commits (Level 2); `filter-repo` with mapping table for entire history (Level 4).
-  - [ ] **Secret Removal Wizard:**
-    - Mandatory Step 1: "Revoke and rotate credentials immediately" checklist.
-    - Identification of secret introduction points.
-    - Purge via `git filter-repo`.
-    - Controlled push with team coordination checklist.
-  - [ ] **AI-Trace Defensible Cleanup Wizard:**
-    - Identifiable artifact search (commit trailers, known tool config files, generated strings).
-    - User review and item-by-item selection before any modification.
-    - Local `commit-msg` hook installation for proactive prevention.
-    - `.gitignore` assistant for development environment directories (`.cursor/`, `.claude/`, etc.).
-  - [ ] **Pre-Commit Secret & Large File Scanner:** Configurable pattern scanner with Git LFS recommendation.
-  - [ ] **Isolated `git gc --prune=now --aggressive` Action:** Distinct, standalone manual trigger with irreversible operation warning (never automated).
+- [x] **Safety & Backup Core Engine:**
+  - [x] Automated pre-operation backup ref creation (`backup/pre-<op>-<timestamp>`).
+  - [x] Offline Git bundle backup generation (`git bundle create --all`).
+  - [x] Comprehensive audit log tracking every executed command token, timestamp, and result.
+  - [x] Two-step confirmation for Level 3; typed confirmation string (`PERMANENTLY PURGE HISTORY`) for Level 4.
+  - [x] Repository Health Audit view with strict `git fsck --full` object store verification.
+- [x] **Dedicated Wizards & Purge Tools:**
+  - [x] **File & Directory History Purge Wizard:** Executed strictly in an isolated mirror clone (`git clone --mirror`); explicit decoupled push step.
+  - [x] **Author / Committer History Rewrite:** Integrated mapping and identity rewriting across mirror clones.
+  - [x] **Secret Audit & Removal:** Automated pattern detection for high-risk tokens (AWS, OpenAI, Anthropic, GitHub, Slack, Private Keys) with redacted previews and purge runbook.
+  - [x] **AI-Trace Defensible Cleanup:** Identifiable artifact search (commit trailers, known tool config files) and scrub wizard.
+  - [x] **Large Blobs Scanner:** Identifies packfile-bloating historical objects (> 500 KB).
+- [ ] **Phase 4 Additional Hardening:**
+  - [ ] Local `commit-msg` hook installer for proactive prevention of AI trailers.
+  - [ ] `.gitignore` assistant for development environment directories (`.cursor/`, `.claude/`, etc.).
+  - [ ] Pre-commit hook installer / scanner with Git LFS recommendation.
+  - [ ] Isolated `git gc --prune=now --aggressive` standalone manual trigger with irreversible warning.
 
 ---
 
