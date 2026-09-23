@@ -32,6 +32,11 @@ import type {
   SystemOpenResult,
   WorktreeInfo,
   AddWorktreeOptions,
+  BackupRef,
+  FsckResult,
+  RepoAuditReport,
+  MirrorCloneSetupResult,
+  PurgePlanOptions,
 } from '../types';
 
 /**
@@ -1640,6 +1645,179 @@ export async function pruneWorktrees(repoPath: string): Promise<OperationResult>
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to prune worktrees' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+// =========================================================================
+// PHASE 4: Automated Backups, Integrity (Fsck), Audit & History Purging
+// =========================================================================
+
+/**
+ * Creates an automatic safety backup before risky operations (Level 2/3/4).
+ */
+export async function createBackup(
+  repoPath: string,
+  reason: string,
+  kind: 'branch' | 'bundle' = 'branch'
+): Promise<BackupRef> {
+  if (isTauriEnvironment()) {
+    return await invoke<BackupRef>('create_backup', { repoPath, reason, kind });
+  }
+
+  const res = await fetch('/api/git/backups/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, reason, kind }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create backup' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as BackupRef;
+}
+
+/**
+ * Lists existing backup branches and bundle files recorded for this repository.
+ */
+export async function getBackups(repoPath: string): Promise<BackupRef[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<BackupRef[]>('get_backups', { repoPath });
+  }
+
+  const res = await fetch('/api/git/backups/list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get backups' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as BackupRef[];
+}
+
+/**
+ * Runs git fsck --full on the repository to verify object store integrity.
+ */
+export async function runGitFsck(repoPath: string): Promise<FsckResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<FsckResult>('run_git_fsck', { repoPath });
+  }
+
+  const res = await fetch('/api/git/fsck', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to run git fsck' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as FsckResult;
+}
+
+/**
+ * Scans repository history for secrets, large files, and AI trace metadata.
+ */
+export async function auditRepositoryHistory(
+  repoPath: string,
+  limit = 100
+): Promise<RepoAuditReport> {
+  if (isTauriEnvironment()) {
+    return await invoke<RepoAuditReport>('audit_repository_history', { repoPath, limit });
+  }
+
+  const res = await fetch('/api/git/audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, limit }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to audit repository history' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as RepoAuditReport;
+}
+
+/**
+ * Sets up an isolated mirror clone for safe Level 4 history rewrites.
+ */
+export async function setupIsolatedMirrorClone(
+  sourceRepoPath: string
+): Promise<MirrorCloneSetupResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<MirrorCloneSetupResult>('setup_isolated_mirror_clone', { sourceRepoPath });
+  }
+
+  const res = await fetch('/api/git/purge/setup-mirror', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: sourceRepoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to set up mirror clone' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as MirrorCloneSetupResult;
+}
+
+/**
+ * Executes the history purge plan inside the isolated mirror repository.
+ */
+export async function executeHistoryPurge(
+  mirrorPath: string,
+  options: PurgePlanOptions
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('execute_history_purge', { mirrorPath, options });
+  }
+
+  const res = await fetch('/api/git/purge/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mirror_path: mirrorPath, options }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to execute history purge' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Pushes the verified mirror repository back to remote origin.
+ */
+export async function pushMirrorToRemote(
+  mirrorPath: string,
+  remoteUrl: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('push_mirror_to_remote', { mirrorPath, remoteUrl });
+  }
+
+  const res = await fetch('/api/git/purge/push-remote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mirror_path: mirrorPath, remote_url: remoteUrl }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to push mirror repository to remote' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 

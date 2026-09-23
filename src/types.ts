@@ -95,13 +95,6 @@ export interface OperationResult {
   duration_ms: number;
 }
 
-export interface BackupRef {
-  kind: string;
-  identifier: string;
-  created_at: string;
-  reason: string;
-}
-
 export interface StashInfo {
   index: number;
   ref: string;
@@ -255,6 +248,94 @@ export interface AddWorktreeOptions {
   commit_ish?: string;
   lock?: boolean;
   lock_reason?: string;
+}
+
+// Phase 4: Automated Safety, Backups, History Purging & Repository Health
+
+export type RiskLevel = 0 | 1 | 2 | 3 | 4;
+
+export interface BackupRef {
+  id: string;
+  kind: 'branch' | 'tag' | 'bundle';
+  identifier: string; // e.g. "backup/pre-purge-20260923-143000" or file path
+  created_at: string;
+  reason: string;
+  sha?: string;
+  file_size?: number;
+}
+
+export interface SecretFinding {
+  rule_id: string;
+  rule_name: string;
+  file_path: string;
+  commit_sha: string;
+  commit_subject: string;
+  author: string;
+  date: string;
+  line_number?: number;
+  match_preview: string; // Redacted match preview
+  entropy?: number;
+  severity: 'high' | 'critical' | 'medium' | 'low';
+}
+
+export interface LargeFileFinding {
+  path: string;
+  oid: string;
+  size_bytes: number;
+  formatted_size: string;
+  commit_sha: string;
+  commit_subject: string;
+  author: string;
+  date: string;
+}
+
+export interface AITraceFinding {
+  type: 'trailer' | 'metadata' | 'file_marker';
+  marker: string; // e.g., 'Co-authored-by: Claude', 'Generated-by: Cursor', '.cursorrules'
+  file_path?: string;
+  commit_sha?: string;
+  commit_subject?: string;
+  date?: string;
+  details: string;
+}
+
+export interface RepoAuditReport {
+  scanned_at: string;
+  total_commits_scanned: number;
+  secrets: SecretFinding[];
+  large_files: LargeFileFinding[];
+  ai_traces: AITraceFinding[];
+  duration_ms: number;
+}
+
+export interface PurgePlanOptions {
+  paths_to_remove?: string[];
+  patterns_to_remove?: string[];
+  secrets_to_scrub?: string[]; // strings or regex patterns to replace/remove
+  remove_ai_trailers?: boolean;
+  rewrite_authors?: {
+    from_email?: string;
+    from_name?: string;
+    to_name: string;
+    to_email: string;
+  }[];
+}
+
+export interface MirrorCloneSetupResult {
+  source_repo_path: string;
+  mirror_path: string;
+  bundle_backup_path: string;
+  backup_ref: BackupRef;
+  remote_url?: string;
+}
+
+export interface FsckResult {
+  is_healthy: boolean;
+  errors: string[];
+  warnings: string[];
+  dangling_blobs: number;
+  dangling_commits: number;
+  raw_output: string;
 }
 
 

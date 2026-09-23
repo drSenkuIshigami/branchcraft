@@ -68,6 +68,13 @@ import {
   lockWorktree,
   unlockWorktree,
   pruneWorktrees,
+  createBackup,
+  getBackups,
+  runGitFsck,
+  auditRepositoryHistory,
+  setupIsolatedMirrorClone,
+  executeHistoryPurge,
+  pushMirrorToRemote,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -754,6 +761,68 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await pruneWorktrees(repoPath);
+            return sendJson(200, resData);
+          }
+
+          // Phase 4: Safety, Backups, Health & Purging Endpoints
+          if (pathname === '/api/git/backups/create' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const reason = typeof body.reason === 'string' ? body.reason : 'Manual safety backup';
+            const kind = body.kind === 'bundle' ? 'bundle' : 'branch';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await createBackup(repoPath, reason, kind);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/backups/list' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getBackups(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/fsck' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await runGitFsck(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/audit' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const limit = typeof body.limit === 'number' ? body.limit : 100;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await auditRepositoryHistory(repoPath, limit);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/purge/setup-mirror' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await setupIsolatedMirrorClone(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/purge/execute' && req.method === 'POST') {
+            const body = await readBody();
+            const mirrorPath = typeof body.mirror_path === 'string' ? body.mirror_path : '';
+            const options = body.options || {};
+            if (!mirrorPath) return sendJson(400, { error: 'mirror_path required' });
+            const resData = await executeHistoryPurge(mirrorPath, options);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/purge/push-remote' && req.method === 'POST') {
+            const body = await readBody();
+            const mirrorPath = typeof body.mirror_path === 'string' ? body.mirror_path : '';
+            const remoteUrl = typeof body.remote_url === 'string' ? body.remote_url : '';
+            if (!mirrorPath || !remoteUrl) return sendJson(400, { error: 'mirror_path and remote_url required' });
+            const resData = await pushMirrorToRemote(mirrorPath, remoteUrl);
             return sendJson(200, resData);
           }
 

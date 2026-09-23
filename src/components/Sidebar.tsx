@@ -20,6 +20,7 @@ import {
   RotateCcw,
   History,
   FolderTree,
+  ShieldAlert,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -30,8 +31,8 @@ interface SidebarProps {
   remotes?: RemoteInfo[];
   reflogCount?: number;
   worktreesCount?: number;
-  selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees';
-  onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees') => void;
+  selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health';
+  onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health') => void;
   onOpenRepoDialog: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
@@ -304,6 +305,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Safety & Health Navigation (Phase 4) */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onSelectView('health')}
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors ${
+              selectedView === 'health'
+                ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 font-medium'
+                : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+              <span>Safety & Health</span>
+            </div>
+            <span className="font-mono text-[9px] px-1.5 py-0.2 rounded font-bold uppercase bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              Level 4
+            </span>
+          </button>
         </div>
 
 

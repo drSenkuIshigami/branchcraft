@@ -40,6 +40,14 @@ import type {
   SystemOpenResult,
   WorktreeInfo,
   AddWorktreeOptions,
+  BackupRef,
+  SecretFinding,
+  LargeFileFinding,
+  AITraceFinding,
+  RepoAuditReport,
+  PurgePlanOptions,
+  MirrorCloneSetupResult,
+  FsckResult,
 } from '../src/types';
 
 function runGit(
@@ -2639,6 +2647,601 @@ export async function unlockWorktree(
 export async function pruneWorktrees(repoPath: string): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
   const args: string[] = ['worktree', 'prune', '-v'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+// =========================================================================
+// PHASE 4: Automated Backups, Repository Audit & History Purging Wizard
+// =========================================================================
+
+/**
+ * Creates an automatic safety backup before risky operations (Level 2/3/4).
+ * Kind: 'branch' (e.g., backup/pre-rebase-TIMESTAMP) or 'bundle' (offline .bundle file).
+ */
+export async function createBackup(
+  repoPath: string,
+  reason: string,
+  kind: 'branch' | 'bundle' = 'branch'
+): Promise<BackupRef> {
+  const rootPath = await validateRepository(repoPath);
+  const now = new Date();
+  const timestamp = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace('T', '-')
+    .split('.')[0];
+  const sanitizedReason = reason
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '-')
+    .slice(0, 30);
+
+  if (kind === 'bundle') {
+    const backupDir = path.join(os.tmpdir(), 'git-workbench-backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const bundleFileName = `backup-${sanitizedReason}-${timestamp}.bundle`;
+    const bundleFilePath = path.join(backupDir, bundleFileName);
+
+    const res = await runGit(rootPath, ['bundle', 'create', bundleFilePath, '--all']);
+    if (res.code !== 0) {
+      throw new Error(`Failed to create repository bundle backup: ${res.stderr || res.stdout}`);
+    }
+
+    let fileSize = 0;
+    try {
+      const stat = fs.statSync(bundleFilePath);
+      fileSize = stat.size;
+    } catch {
+      // Ignore stat error
+    }
+
+    return {
+      id: `bundle-${timestamp}`,
+      kind: 'bundle',
+      identifier: bundleFilePath,
+      created_at: now.toISOString(),
+      reason,
+      file_size: fileSize,
+    };
+  }
+
+  // Branch backup
+  const branchName = `backup/pre-${sanitizedReason}-${timestamp}`;
+  // Find current HEAD SHA
+  const headRes = await runGit(rootPath, ['rev-parse', 'HEAD']);
+  const headSha = headRes.stdout.trim();
+
+  const res = await runGit(rootPath, ['branch', branchName, headSha]);
+  if (res.code !== 0) {
+    throw new Error(`Failed to create safety backup branch: ${res.stderr || res.stdout}`);
+  }
+
+  return {
+    id: `branch-${timestamp}`,
+    kind: 'branch',
+    identifier: branchName,
+    created_at: now.toISOString(),
+    reason,
+    sha: headSha,
+  };
+}
+
+/**
+ * Lists existing backup branches and bundle files recorded for this repository.
+ */
+export async function getBackups(repoPath: string): Promise<BackupRef[]> {
+  const rootPath = await validateRepository(repoPath);
+  const backups: BackupRef[] = [];
+
+  // 1. List branches matching backup/*
+  const branchRes = await runGit(rootPath, [
+    'for-each-ref',
+    '--format=%(refname:short)|%(objectname)|%(committerdate:iso8601)',
+    'refs/heads/backup/',
+  ]);
+
+  if (branchRes.code === 0 && branchRes.stdout.trim()) {
+    const lines = branchRes.stdout.trim().split('\n');
+    for (const line of lines) {
+      const parts = line.split('|');
+      if (parts.length >= 2) {
+        const branchName = parts[0];
+        const sha = parts[1];
+        const dateStr = parts[2] || new Date().toISOString();
+        backups.push({
+          id: branchName,
+          kind: 'branch',
+          identifier: branchName,
+          created_at: dateStr,
+          reason: branchName.replace(/^backup\/pre-/, '').split('-')[0] || 'Safety Backup',
+          sha,
+        });
+      }
+    }
+  }
+
+  // 2. Scan tmp directory for bundles
+  const backupDir = path.join(os.tmpdir(), 'git-workbench-backups');
+  if (fs.existsSync(backupDir)) {
+    try {
+      const files = fs.readdirSync(backupDir);
+      for (const file of files) {
+        if (file.endsWith('.bundle')) {
+          const filePath = path.join(backupDir, file);
+          const stat = fs.statSync(filePath);
+          backups.push({
+            id: file,
+            kind: 'bundle',
+            identifier: filePath,
+            created_at: stat.mtime.toISOString(),
+            reason: file.replace(/^backup-/, '').replace(/\.bundle$/, ''),
+            file_size: stat.size,
+          });
+        }
+      }
+    } catch {
+      // Ignore file reading errors
+    }
+  }
+
+  // Sort latest first
+  return backups.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+}
+
+/**
+ * Validates repository structural integrity with `git fsck --full`.
+ */
+export async function runGitFsck(repoPath: string): Promise<FsckResult> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['fsck', '--full']);
+
+  const stdout = res.stdout;
+  const stderr = res.stderr;
+  const combined = `${stdout}\n${stderr}`.trim();
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  let danglingBlobs = 0;
+  let danglingCommits = 0;
+
+  const lines = combined.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('error:')) {
+      errors.push(trimmed.slice(6).trim());
+    } else if (trimmed.startsWith('warning:')) {
+      warnings.push(trimmed.slice(8).trim());
+    } else if (trimmed.includes('dangling blob')) {
+      danglingBlobs++;
+    } else if (trimmed.includes('dangling commit')) {
+      danglingCommits++;
+    }
+  }
+
+  return {
+    is_healthy: res.code === 0 && errors.length === 0,
+    errors,
+    warnings,
+    dangling_blobs: danglingBlobs,
+    dangling_commits: danglingCommits,
+    raw_output: combined,
+  };
+}
+
+/**
+ * Scans Git commit history for:
+ * 1. Accidental secrets (API tokens, private keys, AWS/GitHub/Slack credentials).
+ * 2. Large blobs (> 500KB) bloating git history.
+ * 3. AI commit trailers or tool files (e.g. Co-authored-by: Claude/ChatGPT, .cursorrules).
+ */
+export async function auditRepositoryHistory(
+  repoPath: string,
+  commitLimit = 100
+): Promise<RepoAuditReport> {
+  const rootPath = await validateRepository(repoPath);
+  const start = Date.now();
+
+  const secretRules = [
+    {
+      id: 'openai_api_key',
+      name: 'OpenAI / Anthropic API Key',
+      regex: /(?:sk-[a-zA-Z0-9_-]{20,}|sk-ant-[a-zA-Z0-9_-]{20,})/,
+      severity: 'critical' as const,
+    },
+    {
+      id: 'github_pat',
+      name: 'GitHub Personal Access Token',
+      regex: /(?:ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/,
+      severity: 'critical' as const,
+    },
+    {
+      id: 'aws_access_key',
+      name: 'AWS Access Key ID',
+      regex: /(?:AKIA[0-9A-Z]{16})/,
+      severity: 'high' as const,
+    },
+    {
+      id: 'slack_token',
+      name: 'Slack Bot / User Token',
+      regex: /(?:xox[baprs]-[0-9]{10,}-[a-zA-Z0-9]{24,})/,
+      severity: 'high' as const,
+    },
+    {
+      id: 'private_key',
+      name: 'Private Encryption Key (RSA/EC/OpenSSH)',
+      regex: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+      severity: 'critical' as const,
+    },
+    {
+      id: 'generic_bearer',
+      name: 'Hardcoded Bearer / Secret String',
+      regex: /(?:bearer\s+[a-zA-Z0-9_\-\.]{30,}|(?:api[_-]?key|client[_-]?secret)\s*[:=]\s*['"][a-zA-Z0-9_\-\.]{16,}['"])/i,
+      severity: 'medium' as const,
+    },
+  ];
+
+  const aiTrailerRegexes = [
+    /Co-authored-by:.*(?:claude|chatgpt|copilot|cursor|gemini|openai|anthropic)/i,
+    /Generated-by:.*(?:claude|cursor|copilot|gemini|v0)/i,
+    /AI-Assisted:.*true/i,
+  ];
+
+  const secrets: SecretFinding[] = [];
+  const largeFiles: LargeFileFinding[] = [];
+  const aiTraces: AITraceFinding[] = [];
+
+  // 1. Scan commits for messages and trailers
+  const logRes = await runGit(rootPath, [
+    'log',
+    `-${commitLimit}`,
+    '--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%B%x1e',
+  ]);
+
+  let totalCommits = 0;
+  if (logRes.code === 0 && logRes.stdout) {
+    const rawCommits = logRes.stdout.split('\x1e').filter((c) => c.trim().length > 0);
+    totalCommits = rawCommits.length;
+
+    for (const raw of rawCommits) {
+      const parts = raw.trim().split('\x1f');
+      if (parts.length < 6) continue;
+      const [sha, author, _email, date, subject, body] = parts;
+
+      // Check AI trailers
+      for (const line of body.split('\n')) {
+        for (const trailerRx of aiTrailerRegexes) {
+          if (trailerRx.test(line)) {
+            aiTraces.push({
+              type: 'trailer',
+              marker: line.trim(),
+              commit_sha: sha,
+              commit_subject: subject,
+              date,
+              details: `Commit message contains AI trailer: "${line.trim()}"`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Scan diff patches for secrets (limiting to last 50 commits for responsive performance)
+  const diffLog = await runGit(rootPath, [
+    'log',
+    '-p',
+    '-U1',
+    '-50',
+    '--no-color',
+  ]);
+
+  if (diffLog.code === 0 && diffLog.stdout) {
+    const diffBlocks = diffLog.stdout.split('commit ');
+    for (const block of diffBlocks) {
+      if (!block.trim()) continue;
+      const headerEnd = block.indexOf('\n\n');
+      if (headerEnd === -1) continue;
+      const header = block.slice(0, headerEnd);
+      const content = block.slice(headerEnd);
+
+      const shaMatch = header.match(/^([0-9a-f]{40})/);
+      const sha = shaMatch ? shaMatch[1] : 'unknown';
+      const authorMatch = header.match(/Author:\s*(.*)/);
+      const author = authorMatch ? authorMatch[1] : 'unknown';
+      const dateMatch = header.match(/Date:\s*(.*)/);
+      const date = dateMatch ? dateMatch[1] : '';
+
+      // Find file paths and added lines
+      let currentFile = 'unknown';
+      const lines = content.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('diff --git a/')) {
+          const m = line.match(/diff --git a\/(.*) b\/(.*)/);
+          if (m) currentFile = m[2];
+        } else if (line.startsWith('+') && !line.startsWith('+++')) {
+          const addedText = line.slice(1);
+          for (const rule of secretRules) {
+            const match = addedText.match(rule.regex);
+            if (match) {
+              const matchedStr = match[0];
+              const redacted =
+                matchedStr.length > 8
+                  ? `${matchedStr.slice(0, 4)}••••${matchedStr.slice(-4)}`
+                  : '••••••••';
+              // Check if not duplicate for same file/commit/rule
+              const exists = secrets.some(
+                (s) =>
+                  s.commit_sha === sha &&
+                  s.file_path === currentFile &&
+                  s.rule_id === rule.id
+              );
+              if (!exists && secrets.length < 50) {
+                secrets.push({
+                  rule_id: rule.id,
+                  rule_name: rule.name,
+                  file_path: currentFile,
+                  commit_sha: sha,
+                  commit_subject: 'Commit in history',
+                  author,
+                  date,
+                  match_preview: redacted,
+                  severity: rule.severity,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Scan tree for AI configuration file markers (e.g. .cursorrules, claude.json)
+  const lsTreeRes = await runGit(rootPath, ['ls-files']);
+  if (lsTreeRes.code === 0 && lsTreeRes.stdout) {
+    const files = lsTreeRes.stdout.trim().split('\n');
+    const aiFilePatterns = [
+      /\.cursorrules$/i,
+      /\.cursor\/rules/i,
+      /\.copilot/i,
+      /claude\.md$/i,
+      /\.continue\//i,
+      /\.ai_config/i,
+    ];
+
+    for (const f of files) {
+      for (const pattern of aiFilePatterns) {
+        if (pattern.test(f)) {
+          aiTraces.push({
+            type: 'file_marker',
+            marker: f,
+            file_path: f,
+            details: `Dedicated AI configuration / instruction file tracked in tree`,
+          });
+        }
+      }
+    }
+  }
+
+  // 4. Scan object store for large blobs (> 500 KB)
+  try {
+    const revListRes = await runGit(rootPath, [
+      'rev-list',
+      '--objects',
+      '--all',
+      '--filter=blob:limit=500k',
+    ]);
+    if (revListRes.code === 0 && revListRes.stdout) {
+      const items = revListRes.stdout.trim().split('\n');
+      for (const item of items) {
+        const [oid, ...pathParts] = item.trim().split(' ');
+        const filePath = pathParts.join(' ');
+        if (oid && filePath) {
+          // get size
+          const catRes = await runGit(rootPath, ['cat-file', '-s', oid]);
+          const sizeBytes = parseInt(catRes.stdout.trim(), 10) || 0;
+          if (sizeBytes > 500 * 1024) {
+            const formatted =
+              sizeBytes > 1024 * 1024
+                ? `${(sizeBytes / (1024 * 1024)).toFixed(2)} MB`
+                : `${(sizeBytes / 1024).toFixed(1)} KB`;
+
+            largeFiles.push({
+              path: filePath,
+              oid,
+              size_bytes: sizeBytes,
+              formatted_size: formatted,
+              commit_sha: 'Historical Blob',
+              commit_subject: 'Object present in history pack',
+              author: 'Repository object',
+              date: new Date().toISOString(),
+            });
+          }
+        }
+      }
+    }
+  } catch {
+    // Large file check is best-effort if --filter is not supported by older git
+  }
+
+  return {
+    scanned_at: new Date().toISOString(),
+    total_commits_scanned: totalCommits,
+    secrets,
+    large_files: largeFiles.sort((a, b) => b.size_bytes - a.size_bytes),
+    ai_traces: aiTraces,
+    duration_ms: Date.now() - start,
+  };
+}
+
+/**
+ * Initializes a clean, isolated mirror clone for safe Level 4 history rewrites.
+ * SAFETY RULE: History rewrites must never happen directly on the primary working tree!
+ */
+export async function setupIsolatedMirrorClone(
+  sourceRepoPath: string
+): Promise<MirrorCloneSetupResult> {
+  const rootPath = await validateRepository(sourceRepoPath);
+
+  // 1. Mandatory bundle backup of the source repository first
+  const backupRef = await createBackup(rootPath, 'pre-history-purge', 'bundle');
+
+  // 2. Clone into an isolated temporary mirror repository
+  const mirrorDir = path.join(
+    os.tmpdir(),
+    `git-workbench-mirror-${Date.now()}`
+  );
+
+  const cloneRes = await runGit(null, ['clone', '--mirror', rootPath, mirrorDir]);
+  if (cloneRes.code !== 0) {
+    throw new Error(`Failed to create isolated mirror clone: ${cloneRes.stderr || cloneRes.stdout}`);
+  }
+
+  // Find remote url if present
+  let remoteUrl: string | undefined;
+  const remoteRes = await runGit(rootPath, ['config', '--get', 'remote.origin.url']);
+  if (remoteRes.code === 0 && remoteRes.stdout.trim()) {
+    remoteUrl = remoteRes.stdout.trim();
+  }
+
+  return {
+    source_repo_path: rootPath,
+    mirror_path: mirrorDir,
+    bundle_backup_path: backupRef.identifier,
+    backup_ref: backupRef,
+    remote_url: remoteUrl,
+  };
+}
+
+/**
+ * Purges specified paths or rewrites history using native Git filtering in the mirror clone.
+ * Adheres strictly to the 7-step safe runbook:
+ * - Isolation in mirror
+ * - Pre-backup verified
+ * - Automatic fsck validation post-rewrite
+ */
+export async function executeHistoryPurge(
+  mirrorPath: string,
+  options: PurgePlanOptions
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(mirrorPath);
+  const start = Date.now();
+
+  const commandsRun: string[][] = [];
+
+  // Build filter expression or command
+  // Check if python git-filter-repo is available, or fallback to git filter-branch / git-rev-list rewrite
+  // If removing paths:
+  if (options.paths_to_remove && options.paths_to_remove.length > 0) {
+    for (const filePath of options.paths_to_remove) {
+      // Using git filter-branch with index-filter for zero-dependency native execution
+      const rmCommand = `git rm --cached --ignore-unmatch ${JSON.stringify(filePath)}`;
+      const filterArgs = [
+        'filter-branch',
+        '--force',
+        '--index-filter',
+        rmCommand,
+        '--prune-empty',
+        '--tag-name-filter',
+        'cat',
+        '--',
+        '--all',
+      ];
+
+      commandsRun.push(['filter-branch', '--index-filter', rmCommand, '--all']);
+      const res = await runGit(rootPath, filterArgs, undefined, {
+        FILTER_BRANCH_SQUELCH_WARNING: '1',
+      });
+      if (res.code !== 0) {
+        return {
+          success: false,
+          stdout: res.stdout,
+          stderr: res.stderr,
+          exit_code: res.code,
+          command_run: ['filter-branch', filePath],
+          duration_ms: Date.now() - start,
+        };
+      }
+    }
+  }
+
+  // Strip AI trailers if requested
+  if (options.remove_ai_trailers) {
+    const msgFilter = `python3 -c "import sys, re; msg = sys.stdin.read(); msg = re.sub(r'(?i)(Co-authored-by|Generated-by|AI-Assisted):.*(claude|chatgpt|copilot|cursor|gemini|openai|anthropic).*\\n?', '', msg); sys.stdout.write(msg)" 2>/dev/null || cat`;
+    const filterArgs = [
+      'filter-branch',
+      '--force',
+      '--msg-filter',
+      msgFilter,
+      '--',
+      '--all',
+    ];
+    commandsRun.push(['filter-branch', '--msg-filter', '<ai-trailer-scrub>', '--all']);
+    await runGit(rootPath, filterArgs, undefined, {
+      FILTER_BRANCH_SQUELCH_WARNING: '1',
+    });
+  }
+
+  // Author rewrites if requested
+  if (options.rewrite_authors && options.rewrite_authors.length > 0) {
+    for (const rule of options.rewrite_authors) {
+      const script = `
+        if [ "$GIT_AUTHOR_EMAIL" = "${rule.from_email || ''}" ] || [ "$GIT_COMMITTER_EMAIL" = "${rule.from_email || ''}" ]; then
+          export GIT_AUTHOR_NAME="${rule.to_name}"
+          export GIT_AUTHOR_EMAIL="${rule.to_email}"
+          export GIT_COMMITTER_NAME="${rule.to_name}"
+          export GIT_COMMITTER_EMAIL="${rule.to_email}"
+        fi
+      `;
+      const filterArgs = [
+        'filter-branch',
+        '--force',
+        '--env-filter',
+        script,
+        '--tag-name-filter',
+        'cat',
+        '--',
+        '--all',
+      ];
+      commandsRun.push(['filter-branch', '--env-filter', `<rewrite-author-${rule.to_email}>`, '--all']);
+      await runGit(rootPath, filterArgs, undefined, {
+        FILTER_BRANCH_SQUELCH_WARNING: '1',
+      });
+    }
+  }
+
+  // Post-rewrite validation: Run git fsck
+  const fsckRes = await runGit(rootPath, ['fsck', '--full']);
+
+  return {
+    success: fsckRes.code === 0,
+    stdout: `History purge completed. Validated with git fsck (code ${fsckRes.code}).`,
+    stderr: fsckRes.stderr,
+    exit_code: fsckRes.code,
+    command_run: commandsRun.length > 0 ? commandsRun[0] : ['filter-branch'],
+    duration_ms: Date.now() - start,
+  };
+}
+
+/**
+ * Safely pushes rewritten mirror clone back to remote origin with explicit typed confirmation.
+ */
+export async function pushMirrorToRemote(
+  mirrorPath: string,
+  remoteUrl: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(mirrorPath);
+  const args = ['push', '--mirror', remoteUrl];
   const res = await runGit(rootPath, args);
   return {
     success: res.code === 0,

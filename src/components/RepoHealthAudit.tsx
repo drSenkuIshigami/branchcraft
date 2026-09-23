@@ -1,0 +1,722 @@
+import React, { useState, useEffect } from 'react';
+import {
+  ShieldAlert,
+  Key,
+  FileCode,
+  Sparkles,
+  RefreshCw,
+  Search,
+  CheckCircle2,
+  AlertTriangle,
+  FolderLock,
+  Layers,
+  Zap,
+  ArrowRight,
+  HardDrive,
+  Copy,
+  Check,
+  Filter,
+} from 'lucide-react';
+import type {
+  RepoAuditReport,
+  SecretFinding,
+  LargeFileFinding,
+  AITraceFinding,
+  BackupRef,
+  FsckResult,
+  Theme,
+} from '../types';
+import {
+  auditRepositoryHistory,
+  runGitFsck,
+  getBackups,
+  createBackup,
+} from '../ipc';
+
+interface RepoHealthAuditProps {
+  repoPath: string;
+  onOpenPurgeWizard: () => void;
+  theme: Theme;
+}
+
+export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
+  repoPath,
+  onOpenPurgeWizard,
+  theme: _theme,
+}) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'secrets' | 'large_files' | 'ai_traces' | 'backups'>('overview');
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] = useState<RepoAuditReport | null>(null);
+  const [fsck, setFsck] = useState<FsckResult | null>(null);
+  const [backups, setBackups] = useState<BackupRef[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Backup creation in panel
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [backupReason, setBackupReason] = useState('');
+  const [backupKind, setBackupKind] = useState<'branch' | 'bundle'>('branch');
+  const [backupSuccessMsg, setBackupSuccessMsg] = useState<string | null>(null);
+
+  // Search filter inside findings
+  const [filterQuery, setFilterQuery] = useState('');
+
+  const loadHealthData = async () => {
+    if (!repoPath) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const [auditRes, fsckRes, backupsRes] = await Promise.all([
+        auditRepositoryHistory(repoPath, 100),
+        runGitFsck(repoPath),
+        getBackups(repoPath),
+      ]);
+      setReport(auditRes);
+      setFsck(fsckRes);
+      setBackups(backupsRes);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to perform repository health audit: ${msg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHealthData();
+  }, [repoPath]);
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  const handleManualBackup = async () => {
+    if (!repoPath) return;
+    setCreatingBackup(true);
+    setBackupSuccessMsg(null);
+    try {
+      const reason = backupReason.trim() || 'Manual user safety backup';
+      const res = await createBackup(repoPath, reason, backupKind);
+      setBackupSuccessMsg(`Created ${res.kind} backup: ${res.identifier}`);
+      setBackupReason('');
+      const updatedBackups = await getBackups(repoPath);
+      setBackups(updatedBackups);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to create backup: ${msg}`);
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const totalSecrets = report?.secrets.length || 0;
+  const totalLargeFiles = report?.large_files.length || 0;
+  const totalAITraces = report?.ai_traces.length || 0;
+  const isHealthy = (fsck?.is_healthy ?? true) && totalSecrets === 0;
+
+  // Filtered lists
+  const filteredSecrets = (report?.secrets || []).filter(
+    (s) =>
+      s.file_path.toLowerCase().includes(filterQuery.toLowerCase()) ||
+      s.rule_name.toLowerCase().includes(filterQuery.toLowerCase()) ||
+      s.commit_sha.toLowerCase().includes(filterQuery.toLowerCase())
+  );
+
+  const filteredLargeFiles = (report?.large_files || []).filter(
+    (f) =>
+      f.path.toLowerCase().includes(filterQuery.toLowerCase()) ||
+      f.oid.toLowerCase().includes(filterQuery.toLowerCase())
+  );
+
+  const filteredAITraces = (report?.ai_traces || []).filter(
+    (t) =>
+      t.marker.toLowerCase().includes(filterQuery.toLowerCase()) ||
+      (t.file_path && t.file_path.toLowerCase().includes(filterQuery.toLowerCase())) ||
+      (t.commit_subject && t.commit_subject.toLowerCase().includes(filterQuery.toLowerCase()))
+  );
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden bg-zinc-50/50 dark:bg-zinc-900/30">
+      {/* Top Header */}
+      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <ShieldAlert className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                Safety Engine & Repository Health
+              </h1>
+              <span
+                className={`px-2 py-0.5 rounded-full font-mono text-[11px] font-medium border ${
+                  isHealthy
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                }`}
+              >
+                {isHealthy ? 'Healthy Object Store' : 'Issues Detected'}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Audit committed secrets, history-bloating blobs, AI trace metadata, and offline safety backups
+            </p>
+          </div>
+        </div>
+
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={loadHealthData}
+            disabled={loading}
+            className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+            title="Refresh repository health check"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenPurgeWizard}
+            className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>History Purge Wizard</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="p-3 mx-4 mt-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-rose-500 hover:text-rose-700 font-bold ml-2 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Tabs Navigation */}
+      <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 px-4 bg-white dark:bg-zinc-900 shrink-0 gap-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setActiveTab('overview')}
+          className={`px-3 py-2.5 font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'overview'
+              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>Audit Overview</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('secrets')}
+          className={`px-3 py-2.5 font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'secrets'
+              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <Key className="w-3.5 h-3.5" />
+          <span>Secret Leaks</span>
+          {totalSecrets > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-bold">
+              {totalSecrets}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('large_files')}
+          className={`px-3 py-2.5 font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'large_files'
+              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <HardDrive className="w-3.5 h-3.5" />
+          <span>Large Blobs</span>
+          {totalLargeFiles > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              {totalLargeFiles}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('ai_traces')}
+          className={`px-3 py-2.5 font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'ai_traces'
+              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>AI Traces & Metadata</span>
+          {totalAITraces > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+              {totalAITraces}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('backups')}
+          className={`px-3 py-2.5 font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'backups'
+              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <FolderLock className="w-3.5 h-3.5" />
+          <span>Restore Points & Bundles</span>
+          <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+            {backups.length}
+          </span>
+        </button>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* OVERVIEW TAB */}
+        {activeTab === 'overview' && (
+          <div className="space-y-4">
+            {/* Health KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Card 1: Object store integrity */}
+              <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
+                  <span>Git fsck Integrity</span>
+                  {fsck?.is_healthy ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-500" />
+                  )}
+                </div>
+                <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {fsck?.is_healthy ? 'Clean & Valid' : 'Corruptions'}
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  {fsck?.dangling_blobs || 0} dangling blobs, {fsck?.dangling_commits || 0} unreferenced commits
+                </p>
+              </div>
+
+              {/* Card 2: Secrets */}
+              <div
+                onClick={() => setActiveTab('secrets')}
+                className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              >
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
+                  <span>Secret Leaks</span>
+                  <Key className="w-4 h-4 text-rose-500" />
+                </div>
+                <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {totalSecrets}
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  {totalSecrets > 0 ? 'High-risk credentials in commits' : 'No credential patterns detected'}
+                </p>
+              </div>
+
+              {/* Card 3: Large files */}
+              <div
+                onClick={() => setActiveTab('large_files')}
+                className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              >
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
+                  <span>Large Historical Blobs</span>
+                  <HardDrive className="w-4 h-4 text-amber-500" />
+                </div>
+                <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {totalLargeFiles}
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Objects &gt; 500 KB bloating packfiles
+                </p>
+              </div>
+
+              {/* Card 4: AI Traces */}
+              <div
+                onClick={() => setActiveTab('ai_traces')}
+                className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              >
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
+                  <span>AI Commit Metadata</span>
+                  <Sparkles className="w-4 h-4 text-blue-500" />
+                </div>
+                <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {totalAITraces}
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1">
+                  Verifiable trailers & tool config files
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Safety Actions Callout */}
+            <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1 max-w-xl">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-rose-500" />
+                  <span>Level 4 History Purge & Sanitization Runbook</span>
+                </h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Need to eradicate hardcoded API credentials, purge huge video or binary assets from past commits,
+                  or rewrite co-authors? Use the automated 7-step isolated mirror wizard.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPurgeWizard}
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs flex items-center gap-2 shadow-xs transition-colors shrink-0 cursor-pointer"
+              >
+                <span>Launch Purge Wizard</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Fsck Raw Output Card */}
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Git Object Store Verification (`git fsck --full`)</span>
+                </h3>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  Scanned {report?.total_commits_scanned || 0} commits in {report?.duration_ms || 0}ms
+                </span>
+              </div>
+              <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-300 font-mono text-[11px] overflow-x-auto max-h-40 leading-relaxed">
+                {fsck?.raw_output || 'git fsck completed with no errors.'}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {/* SECRETS TAB */}
+        {activeTab === 'secrets' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-400" />
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Filter secrets by rule or path..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPurgeWizard}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Purge Leaked Secrets</span>
+              </button>
+            </div>
+
+            {filteredSecrets.length === 0 ? (
+              <div className="p-8 text-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  No Secret Leaks Found
+                </h4>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  No API tokens, private keys, AWS credentials, or hardcoded tokens were detected in the sampled commit history.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {filteredSecrets.map((secret, idx) => (
+                  <div
+                    key={`${secret.commit_sha}-${secret.file_path}-${idx}`}
+                    className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/5 dark:bg-rose-500/10 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-600 text-white">
+                          {secret.severity}
+                        </span>
+                        <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                          {secret.rule_name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
+                        <span>Commit {secret.commit_sha.slice(0, 8)}</span>
+                        <span>•</span>
+                        <span>{secret.author}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 text-xs font-mono bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                      <div className="flex items-center gap-2 truncate">
+                        <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span className="text-zinc-800 dark:text-zinc-200 truncate">{secret.file_path}</span>
+                      </div>
+                      <span className="text-rose-600 dark:text-rose-400 font-bold px-2 py-0.5 bg-rose-50 dark:bg-rose-950/50 rounded shrink-0">
+                        {secret.match_preview}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* LARGE FILES TAB */}
+        {activeTab === 'large_files' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-400" />
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Filter large files by name or blob..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPurgeWizard}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Purge Large Files</span>
+              </button>
+            </div>
+
+            {filteredLargeFiles.length === 0 ? (
+              <div className="p-8 text-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  No Heavy Blobs Found
+                </h4>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  No files over 500 KB were found in repository history. Object database is lean.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {filteredLargeFiles.map((file) => (
+                  <div
+                    key={file.oid}
+                    className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <FileCode className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span className="font-mono text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {file.path}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-400 font-mono">
+                        SHA-1: {file.oid.slice(0, 10)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="px-2.5 py-1 rounded-md font-mono text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        {file.formatted_size}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI TRACES TAB */}
+        {activeTab === 'ai_traces' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-zinc-400" />
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder="Filter AI trailers or files..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onOpenPurgeWizard}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>Scrub AI Trailers</span>
+              </button>
+            </div>
+
+            {filteredAITraces.length === 0 ? (
+              <div className="p-8 text-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 space-y-2">
+                <Sparkles className="w-8 h-8 text-zinc-400 mx-auto" />
+                <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  No Verifiable AI Traces Found
+                </h4>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  No identifiable AI co-author commit trailers or tool configuration files were found.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {filteredAITraces.map((trace, idx) => (
+                  <div
+                    key={`${trace.marker}-${idx}`}
+                    className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 dark:bg-blue-500/10 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        {trace.type === 'trailer' ? 'Commit Trailer' : 'Tracked Config File'}
+                      </span>
+                      {trace.commit_sha && (
+                        <span className="text-[11px] font-mono text-zinc-400">
+                          {trace.commit_sha.slice(0, 8)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                      {trace.marker}
+                    </div>
+                    <div className="text-[11px] text-zinc-500">
+                      {trace.details}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* BACKUPS & RESTORE POINTS TAB */}
+        {activeTab === 'backups' && (
+          <div className="space-y-4">
+            {/* Create backup widget */}
+            <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-3">
+              <h3 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <FolderLock className="w-4 h-4 text-emerald-500" />
+                <span>Create Instant Safety Restore Point</span>
+              </h3>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                Take an automatic safety snapshot before initiating manual or complex Git procedures.
+              </p>
+
+              {backupSuccessMsg && (
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{backupSuccessMsg}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={backupReason}
+                  onChange={(e) => setBackupReason(e.target.value)}
+                  placeholder="Reason (e.g., pre-experiment-cleanup, release-v2)"
+                  className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+
+                <select
+                  value={backupKind}
+                  onChange={(e) => setBackupKind(e.target.value as 'branch' | 'bundle')}
+                  className="px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="branch">Branch (backup/pre-...)</option>
+                  <option value="bundle">Bundle File (.bundle)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleManualBackup}
+                  disabled={creatingBackup}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shrink-0 cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <FolderLock className="w-3.5 h-3.5" />
+                  <span>{creatingBackup ? 'Creating...' : 'Snapshot'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Backups List */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                Existing Snapshots ({backups.length})
+              </h4>
+
+              {backups.length === 0 ? (
+                <div className="p-6 text-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 text-xs text-zinc-500">
+                  No safety branches or bundle backups created yet.
+                </div>
+              ) : (
+                backups.map((bk) => (
+                  <div
+                    key={bk.id}
+                    className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            bk.kind === 'bundle'
+                              ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                          }`}
+                        >
+                          {bk.kind}
+                        </span>
+                        <span className="text-xs font-mono font-medium text-zinc-900 dark:text-zinc-100 truncate">
+                          {bk.identifier}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-500">
+                        Reason: {bk.reason} • Created {new Date(bk.created_at).toLocaleString()}
+                        {bk.file_size ? ` • ${(bk.file_size / (1024 * 1024)).toFixed(2)} MB` : ''}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(bk.identifier)}
+                      className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 text-xs transition-colors cursor-pointer self-end sm:self-center"
+                      title="Copy identifier / path"
+                    >
+                      {copiedText === bk.identifier ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

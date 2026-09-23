@@ -104,6 +104,8 @@ import { ReflogViewer } from '../components/ReflogViewer';
 import { ResetConfirmModal } from '../components/ResetConfirmModal';
 import { WorktreeManager } from '../components/WorktreeManager';
 import { AddWorktreeModal } from '../components/AddWorktreeModal';
+import { RepoHealthAudit } from '../components/RepoHealthAudit';
+import { HistoryPurgeWizard } from '../components/HistoryPurgeWizard';
 import type { CommitAuthorOptions } from '../components/CommitBox';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
@@ -131,7 +133,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
 
-  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees'>('graph');
+  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health'>('graph');
+  const [isPurgeWizardOpen, setIsPurgeWizardOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -1849,6 +1852,15 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                 theme={theme}
               />
             </div>
+          ) : selectedView === 'health' ? (
+            /* Health mode: Object store fsck, secret leak audit, and safety backups */
+            <div className="flex-1 overflow-hidden h-full">
+              <RepoHealthAudit
+                repoPath={repoPath || ''}
+                onOpenPurgeWizard={() => setIsPurgeWizardOpen(true)}
+                theme={theme}
+              />
+            </div>
           ) : (
             /* Graph mode: Commit Graph on top, Commit details & Monaco diff below */
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -2119,6 +2131,25 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             handleRefreshWorktrees();
             setSystemToast({
               message: `Worktree created successfully at ${newPath}`,
+            });
+          }}
+          theme={theme}
+        />
+      )}
+
+      {/* History Purge Wizard Modal (Phase 4) */}
+      {isPurgeWizardOpen && repoPath && (
+        <HistoryPurgeWizard
+          isOpen={isPurgeWizardOpen}
+          repoPath={repoPath}
+          onClose={() => setIsPurgeWizardOpen(false)}
+          onSuccess={(result) => {
+            if (result.command_run) {
+              recordCommand(result.command_run, result.duration_ms || 500);
+            }
+            loadRepositoryData(repoPath);
+            setSystemToast({
+              message: 'History purge complete. Repository reloaded.',
             });
           }}
           theme={theme}

@@ -43,6 +43,33 @@
 
 ---
 
+## 3. Phase 4 Test Checklist (Automated Safety, Backups & History Purging)
+
+### 3.1 Repository Integrity & Fsck
+- [x] `runGitFsck` executes strict `git fsck --full`.
+- [x] Accurately parses error counts, warnings, dangling blobs, and unreferenced commits.
+- [x] Presents object store health status badge with raw output inspection.
+
+### 3.2 Automated Backups & Offline Bundles
+- [x] `createBackup` supports lightweight branch restore points (`backup/pre-<reason>-<timestamp>`).
+- [x] `createBackup` supports full offline repository bundles (`git bundle create --all`).
+- [x] Bundles and restore points listed in UI with one-click path copying and size metadata.
+
+### 3.3 Security & Secret Audit
+- [x] Automated scanning of commit diffs for high-risk tokens (OpenAI, Anthropic, GitHub PAT, AWS keys, Slack tokens, private keys).
+- [x] Redacted match previews preventing secret disclosure in the UI.
+- [x] Scan object store for large blobs (> 500 KB) bloating git history.
+- [x] Detect verifiable AI commit trailers (`Co-authored-by: Claude/ChatGPT/Copilot`, `.cursorrules`).
+
+### 3.4 Seven-Step Safe History Purge Wizard (Level 4)
+- [x] Enforces strict isolation: rewrites take place exclusively in an isolated temporary mirror clone (`git clone --mirror`).
+- [x] Automatically generates an offline `.bundle` backup before initiating any history purge.
+- [x] Requires typed confirmation (`PERMANENTLY PURGE HISTORY`) to prevent accidental clicks.
+- [x] Runs `git fsck --full` automatically post-rewrite to verify repository structural integrity.
+- [x] Provides an independent, explicit, user-initiated push step with team coordination guidelines.
+
+---
+
 ## 3. Future Automated Test Plan (Phase 5 Readiness)
 
 ### Rust Backend Tests (`cargo test`)
