@@ -75,6 +75,11 @@ import {
   setupIsolatedMirrorClone,
   executeHistoryPurge,
   pushMirrorToRemote,
+  runManualAggressiveGC,
+  getGitHooksStatus,
+  installCommitMsgHook,
+  installPreCommitHook,
+  updateGitignoreAIDirectories,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -825,6 +830,50 @@ export function gitApiPlugin(): Plugin {
             const resData = await pushMirrorToRemote(mirrorPath, remoteUrl);
             return sendJson(200, resData);
           }
+
+          // Phase 4 Hardening: Isolated manual git gc
+          if (pathname === '/api/git/maintenance/gc' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await runManualAggressiveGC(repoPath);
+            return sendJson(200, resData);
+          }
+
+          // Phase 4 Hardening: Hooks and gitignore inspection
+          if (pathname === '/api/git/hooks/status' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getGitHooksStatus(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/hooks/install-commit-msg' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const mode = body.mode === 'reject' ? 'reject' : 'strip';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await installCommitMsgHook(repoPath, mode);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/hooks/install-pre-commit' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await installPreCommitHook(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/gitignore/add-ai-rules' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await updateGitignoreAIDirectories(repoPath);
+            return sendJson(200, resData);
+          }
+
 
 
           next();

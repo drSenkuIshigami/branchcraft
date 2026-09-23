@@ -37,6 +37,7 @@ import type {
   RepoAuditReport,
   MirrorCloneSetupResult,
   PurgePlanOptions,
+  GitHooksStatus,
 } from '../types';
 
 /**
@@ -1823,5 +1824,126 @@ export async function pushMirrorToRemote(
 
   return (await res.json()) as OperationResult;
 }
+
+/**
+ * Phase 4 Additional Hardening:
+ * Standalone manual execution of `git gc --prune=now --aggressive`.
+ * As specified in SAFETY_POLICY.md:
+ * Must never run automatically inside any wizard or cleanup loop.
+ * It is always an independent, explicitly labeled action warning that unreferenced commits become unrecoverable.
+ */
+export async function runManualAggressiveGC(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('run_manual_aggressive_gc', { repoPath });
+  }
+
+  const res = await fetch('/api/git/maintenance/gc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to run git gc' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 4 Additional Hardening:
+ * Fetches current configuration and installation status of local hooks and .gitignore AI directory rules.
+ */
+export async function getGitHooksStatus(repoPath: string): Promise<GitHooksStatus> {
+  if (isTauriEnvironment()) {
+    return await invoke<GitHooksStatus>('get_git_hooks_status', { repoPath });
+  }
+
+  const res = await fetch('/api/git/hooks/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get git hooks status' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as GitHooksStatus;
+}
+
+/**
+ * Phase 4: Installs a local defense-in-depth commit-msg hook that automatically strips
+ * or rejects unwanted AI attribution trailers (e.g. Co-authored-by: Claude, Claude-Session).
+ */
+export async function installCommitMsgHook(
+  repoPath: string,
+  mode: 'strip' | 'reject' = 'strip'
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('install_commit_msg_hook', { repoPath, mode });
+  }
+
+  const res = await fetch('/api/git/hooks/install-commit-msg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, mode }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to install commit-msg hook' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 4: Installs a local pre-commit hook that scans staged files for uncommitted secrets
+ * and flags large files (> 500 KB) with a Git LFS recommendation.
+ */
+export async function installPreCommitHook(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('install_pre_commit_hook', { repoPath });
+  }
+
+  const res = await fetch('/api/git/hooks/install-pre-commit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to install pre-commit hook' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Phase 4: Adds common AI development directories (.cursor, .claude, etc.) to .gitignore.
+ */
+export async function updateGitignoreAIDirectories(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('update_gitignore_ai_directories', { repoPath });
+  }
+
+  const res = await fetch('/api/git/gitignore/add-ai-rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to update .gitignore' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
 
 

@@ -48,6 +48,7 @@ import type {
   PurgePlanOptions,
   MirrorCloneSetupResult,
   FsckResult,
+  GitHooksStatus,
 } from '../src/types';
 
 function runGit(
@@ -3252,4 +3253,272 @@ export async function pushMirrorToRemote(
     duration_ms: res.duration_ms,
   };
 }
+
+/**
+ * Phase 4 Additional Hardening:
+ * Standalone manual execution of `git gc --prune=now --aggressive`.
+ * As specified in SAFETY_POLICY.md:
+ * Must never run automatically inside any wizard or cleanup loop.
+ * It is always an independent, explicitly labeled action warning that unreferenced commits become unrecoverable.
+ */
+export async function runManualAggressiveGC(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['gc', '--prune=now', '--aggressive'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || 'Garbage collection completed. Loose objects pruned and packfiles repacked.',
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+/**
+ * Phase 4 Additional Hardening:
+ * Inspect status of local commit-msg and pre-commit hooks and .gitignore AI directory rules.
+ */
+export async function getGitHooksStatus(repoPath: string): Promise<GitHooksStatus> {
+  const rootPath = await validateRepository(repoPath);
+  const hooksDir = path.join(rootPath, '.git', 'hooks');
+  const commitMsgPath = path.join(hooksDir, 'commit-msg');
+  const preCommitPath = path.join(hooksDir, 'pre-commit');
+  const gitignorePath = path.join(rootPath, '.gitignore');
+
+  let commit_msg_installed = false;
+  let commit_msg_blocks_ai_trailers = false;
+  if (fs.existsSync(commitMsgPath)) {
+    commit_msg_installed = true;
+    try {
+      const content = fs.readFileSync(commitMsgPath, 'utf8');
+      if (content.includes('Co-authored-by') || content.includes('AI-Assisted') || content.includes('Claude') || content.includes('Cursor')) {
+        commit_msg_blocks_ai_trailers = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  let pre_commit_installed = false;
+  let pre_commit_blocks_secrets = false;
+  if (fs.existsSync(preCommitPath)) {
+    pre_commit_installed = true;
+    try {
+      const content = fs.readFileSync(preCommitPath, 'utf8');
+      if (content.includes('AKIA') || content.includes('sk-') || content.includes('ghp_')) {
+        pre_commit_blocks_secrets = true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const aiDirs = ['.cursor', '.cursorrules', '.claude', '.cline', '.ai'];
+  const missing_ai_dirs: string[] = [];
+  let gitignore_has_ai_dirs = false;
+
+  if (fs.existsSync(gitignorePath)) {
+    try {
+      const content = fs.readFileSync(gitignorePath, 'utf8');
+      for (const d of aiDirs) {
+        if (!content.includes(d)) {
+          missing_ai_dirs.push(d);
+        }
+      }
+      gitignore_has_ai_dirs = missing_ai_dirs.length === 0;
+    } catch {
+      missing_ai_dirs.push(...aiDirs);
+    }
+  } else {
+    missing_ai_dirs.push(...aiDirs);
+  }
+
+  return {
+    commit_msg_installed,
+    pre_commit_installed,
+    commit_msg_blocks_ai_trailers,
+    pre_commit_blocks_secrets,
+    gitignore_has_ai_dirs,
+    missing_ai_dirs,
+  };
+}
+
+/**
+ * Phase 4: Installs a local defense-in-depth commit-msg hook that automatically strips
+ * or rejects unwanted AI attribution trailers (e.g. Co-authored-by: Claude, Claude-Session).
+ */
+export async function installCommitMsgHook(
+  repoPath: string,
+  mode: 'strip' | 'reject' = 'strip'
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const hooksDir = path.join(rootPath, '.git', 'hooks');
+  if (!fs.existsSync(hooksDir)) {
+    fs.mkdirSync(hooksDir, { recursive: true });
+  }
+
+  const commitMsgPath = path.join(hooksDir, 'commit-msg');
+
+  const hookScript = mode === 'strip'
+    ? `#!/usr/bin/env bash
+# Git Workbench AI-Trailer Defense-In-Depth Hook (Strip Mode)
+COMMIT_MSG_FILE="$1"
+if [ -f "$COMMIT_MSG_FILE" ]; then
+  # Strip known AI trailers
+  sed -i -E '/(?i)(Co-authored-by|Generated-by|AI-Assisted|Claude-Session):.*(claude|chatgpt|copilot|cursor|gemini|openai|anthropic)/d' "$COMMIT_MSG_FILE"
+fi
+exit 0
+`
+    : `#!/usr/bin/env bash
+# Git Workbench AI-Trailer Defense-In-Depth Hook (Reject Mode)
+COMMIT_MSG_FILE="$1"
+if [ -f "$COMMIT_MSG_FILE" ]; then
+  if grep -Eiq '(Co-authored-by|Generated-by|AI-Assisted|Claude-Session):.*(claude|chatgpt|copilot|cursor|gemini|openai|anthropic)' "$COMMIT_MSG_FILE"; then
+    echo "ERROR: [Git Workbench] Commit blocked due to detected AI trailer." >&2
+    echo "Remove Co-authored-by / Claude-Session trailer before committing." >&2
+    exit 1
+  fi
+fi
+exit 0
+`;
+
+  const start = Date.now();
+  try {
+    fs.writeFileSync(commitMsgPath, hookScript, { mode: 0o755 });
+    return {
+      success: true,
+      stdout: `commit-msg hook successfully installed in ${mode} mode.`,
+      stderr: '',
+      exit_code: 0,
+      command_run: ['hooks', 'install', 'commit-msg', mode],
+      duration_ms: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      stdout: '',
+      stderr: `Failed to install commit-msg hook: ${msg}`,
+      exit_code: 1,
+      command_run: ['hooks', 'install', 'commit-msg'],
+      duration_ms: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Phase 4: Installs a local pre-commit hook that scans staged files for uncommitted secrets
+ * and flags large files (> 500 KB) with a Git LFS recommendation.
+ */
+export async function installPreCommitHook(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const hooksDir = path.join(rootPath, '.git', 'hooks');
+  if (!fs.existsSync(hooksDir)) {
+    fs.mkdirSync(hooksDir, { recursive: true });
+  }
+
+  const preCommitPath = path.join(hooksDir, 'pre-commit');
+
+  const hookScript = `#!/usr/bin/env bash
+# Git Workbench Pre-Commit Security & Large File Guard
+# Scans staged files for high-risk token signatures & large binaries
+
+BLOCKED=0
+
+# Check staged secrets
+if git diff --cached --unified=0 | grep -E -q '(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|xoxb-[0-9]{10,}-[a-zA-Z0-9]+|-----BEGIN [A-Z ]*PRIVATE KEY-----)'; then
+  echo "ERROR: [Git Workbench] High-risk secret detected in staged changes!" >&2
+  echo "Commit rejected to protect credentials. Unstage or remove secrets before committing." >&2
+  BLOCKED=1
+fi
+
+# Check large files (> 500KB)
+for file in $(git diff --cached --name-only --diff-filter=ACM); do
+  if [ -f "$file" ]; then
+    size=$(wc -c < "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+    if [ "$size" -gt 524288 ]; then
+      echo "WARNING: [Git Workbench] Staged file '$file' is > 500KB ($size bytes)." >&2
+      echo "Consider using Git LFS to keep repository history lean." >&2
+    fi
+  fi
+done
+
+if [ "$BLOCKED" -eq 1 ]; then
+  exit 1
+fi
+
+exit 0
+`;
+
+  const start = Date.now();
+  try {
+    fs.writeFileSync(preCommitPath, hookScript, { mode: 0o755 });
+    return {
+      success: true,
+      stdout: 'pre-commit hook installed successfully with secret scanner and large file warning.',
+      stderr: '',
+      exit_code: 0,
+      command_run: ['hooks', 'install', 'pre-commit'],
+      duration_ms: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      stdout: '',
+      stderr: `Failed to install pre-commit hook: ${msg}`,
+      exit_code: 1,
+      command_run: ['hooks', 'install', 'pre-commit'],
+      duration_ms: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Phase 4: Adds common AI directories (.cursor, .claude, etc.) to .gitignore.
+ */
+export async function updateGitignoreAIDirectories(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const gitignorePath = path.join(rootPath, '.gitignore');
+  const aiEntries = [
+    '',
+    '# AI coding tool workspaces & local settings (Git Workbench guard)',
+    '.cursor/',
+    '.cursorrules',
+    '.claude/',
+    '.cline/',
+    '',
+  ].join('\n');
+
+  const start = Date.now();
+  try {
+    if (fs.existsSync(gitignorePath)) {
+      const existing = fs.readFileSync(gitignorePath, 'utf8');
+      fs.writeFileSync(gitignorePath, existing.endsWith('\n') ? `${existing}${aiEntries}` : `${existing}\n${aiEntries}`);
+    } else {
+      fs.writeFileSync(gitignorePath, aiEntries);
+    }
+
+    return {
+      success: true,
+      stdout: '.gitignore updated with AI development directories.',
+      stderr: '',
+      exit_code: 0,
+      command_run: ['gitignore', 'add', '.cursor/', '.claude/', '.cursorrules'],
+      duration_ms: Date.now() - start,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      stdout: '',
+      stderr: `Failed to update .gitignore: ${msg}`,
+      exit_code: 1,
+      command_run: ['gitignore', 'add'],
+      duration_ms: Date.now() - start,
+    };
+  }
+}
+
 

@@ -13,8 +13,8 @@
 | **Phase 1** | Repository Explorer (Read-only) | Level 0 | **Completed** |
 | **Phase 2** | Daily Operations | Level 0–1 | **Completed** |
 | **Phase 3** | Power Tools (Rebase, Cherry-Pick, Revert, Reset, Worktree, Reflog) | Level 1–2 | **Completed** |
-| **Phase 4** | Safety Engine, History Rewriting & AI-Trace Cleanup | Level 2–4 | In Progress |
-| **Phase 5** | Packaging, Integration Testing & Distribution | — | Pending Phase 4 |
+| **Phase 4** | Safety Engine, History Rewriting & AI-Trace Cleanup | Level 2–4 | **Completed** |
+| **Phase 5** | Packaging, Integration Testing & Distribution | — | **Next Up** |
 
 ---
 
@@ -142,11 +142,11 @@
   - [x] **Secret Audit & Removal:** Automated pattern detection for high-risk tokens (AWS, OpenAI, Anthropic, GitHub, Slack, Private Keys) with redacted previews and purge runbook.
   - [x] **AI-Trace Defensible Cleanup:** Identifiable artifact search (commit trailers, known tool config files) and scrub wizard.
   - [x] **Large Blobs Scanner:** Identifies packfile-bloating historical objects (> 500 KB).
-- [ ] **Phase 4 Additional Hardening:**
-  - [ ] Local `commit-msg` hook installer for proactive prevention of AI trailers.
-  - [ ] `.gitignore` assistant for development environment directories (`.cursor/`, `.claude/`, etc.).
-  - [ ] Pre-commit hook installer / scanner with Git LFS recommendation.
-  - [ ] Isolated `git gc --prune=now --aggressive` standalone manual trigger with irreversible warning.
+- [x] **Phase 4 Additional Hardening:**
+  - [x] Local `commit-msg` hook installer for proactive prevention of AI trailers (strip or reject mode).
+  - [x] `.gitignore` assistant for development environment directories (`.cursor/`, `.claude/`, etc.).
+  - [x] Pre-commit hook installer / scanner with Git LFS recommendation.
+  - [x] Isolated `git gc --prune=now --aggressive` standalone manual trigger with irreversible warning and typed confirmation string.
 
 ---
 

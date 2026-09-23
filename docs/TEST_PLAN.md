@@ -68,6 +68,12 @@
 - [x] Runs `git fsck --full` automatically post-rewrite to verify repository structural integrity.
 - [x] Provides an independent, explicit, user-initiated push step with team coordination guidelines.
 
+### 3.5 Proactive Guard Rails & Maintenance (Phase 4 Hardening)
+- [x] Defense-in-depth `commit-msg` hook installation supporting auto-strip or strict reject of AI commit trailers.
+- [x] Pre-commit hook installation preventing staged high-risk secrets and warning on &gt; 500 KB blobs.
+- [x] `.gitignore` assistant adding `.cursor/`, `.cursorrules`, `.claude/`, `.cline/` to protect local workspace trees.
+- [x] Isolated manual trigger for `git gc --prune=now --aggressive` with typed confirmation string `PRUNE NOW` (never automated per SAFETY_POLICY.md).
+
 ---
 
 ## 3. Future Automated Test Plan (Phase 5 Readiness)

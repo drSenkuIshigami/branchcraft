@@ -16,6 +16,9 @@ import {
   Copy,
   Check,
   Filter,
+  Wrench,
+  Trash2,
+  GitBranch,
 } from 'lucide-react';
 import type {
   RepoAuditReport,
@@ -24,6 +27,7 @@ import type {
   AITraceFinding,
   BackupRef,
   FsckResult,
+  GitHooksStatus,
   Theme,
 } from '../types';
 import {
@@ -31,6 +35,11 @@ import {
   runGitFsck,
   getBackups,
   createBackup,
+  runManualAggressiveGC,
+  getGitHooksStatus,
+  installCommitMsgHook,
+  installPreCommitHook,
+  updateGitignoreAIDirectories,
 } from '../ipc';
 
 interface RepoHealthAuditProps {
@@ -44,11 +53,12 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
   onOpenPurgeWizard,
   theme: _theme,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'secrets' | 'large_files' | 'ai_traces' | 'backups'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'secrets' | 'large_files' | 'ai_traces' | 'backups' | 'maintenance'>('overview');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RepoAuditReport | null>(null);
   const [fsck, setFsck] = useState<FsckResult | null>(null);
   const [backups, setBackups] = useState<BackupRef[]>([]);
+  const [hooksStatus, setHooksStatus] = useState<GitHooksStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
@@ -58,6 +68,15 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
   const [backupKind, setBackupKind] = useState<'branch' | 'bundle'>('branch');
   const [backupSuccessMsg, setBackupSuccessMsg] = useState<string | null>(null);
 
+  // Manual GC state (Isolated, explicit trigger)
+  const [isGcRunning, setIsGcRunning] = useState(false);
+  const [gcConfirmationInput, setGcConfirmationInput] = useState('');
+  const [gcResultMsg, setGcResultMsg] = useState<string | null>(null);
+
+  // Hooks & Gitignore installation state
+  const [hookSuccessMsg, setHookSuccessMsg] = useState<string | null>(null);
+  const [installingAction, setInstallingAction] = useState<string | null>(null);
+
   // Search filter inside findings
   const [filterQuery, setFilterQuery] = useState('');
 
@@ -66,19 +85,90 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const [auditRes, fsckRes, backupsRes] = await Promise.all([
+      const [auditRes, fsckRes, backupsRes, hooksRes] = await Promise.all([
         auditRepositoryHistory(repoPath, 100),
         runGitFsck(repoPath),
         getBackups(repoPath),
+        getGitHooksStatus(repoPath),
       ]);
       setReport(auditRes);
       setFsck(fsckRes);
       setBackups(backupsRes);
+      setHooksStatus(hooksRes);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Failed to perform repository health audit: ${msg}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInstallCommitMsgHook = async (mode: 'strip' | 'reject') => {
+    if (!repoPath) return;
+    setInstallingAction(`commit-msg-${mode}`);
+    setHookSuccessMsg(null);
+    try {
+      const res = await installCommitMsgHook(repoPath, mode);
+      setHookSuccessMsg(res.stdout || `Installed commit-msg hook (${mode} mode).`);
+      const updated = await getGitHooksStatus(repoPath);
+      setHooksStatus(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to install commit-msg hook: ${msg}`);
+    } finally {
+      setInstallingAction(null);
+    }
+  };
+
+  const handleInstallPreCommitHook = async () => {
+    if (!repoPath) return;
+    setInstallingAction('pre-commit');
+    setHookSuccessMsg(null);
+    try {
+      const res = await installPreCommitHook(repoPath);
+      setHookSuccessMsg(res.stdout || 'Installed pre-commit hook with secret scanner and large file guard.');
+      const updated = await getGitHooksStatus(repoPath);
+      setHooksStatus(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to install pre-commit hook: ${msg}`);
+    } finally {
+      setInstallingAction(null);
+    }
+  };
+
+  const handleAddAIDirectoriesToGitignore = async () => {
+    if (!repoPath) return;
+    setInstallingAction('gitignore');
+    setHookSuccessMsg(null);
+    try {
+      const res = await updateGitignoreAIDirectories(repoPath);
+      setHookSuccessMsg(res.stdout || 'Added AI tool workspace directories to .gitignore.');
+      const updated = await getGitHooksStatus(repoPath);
+      setHooksStatus(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to update .gitignore: ${msg}`);
+    } finally {
+      setInstallingAction(null);
+    }
+  };
+
+  const handleRunAggressiveGC = async () => {
+    if (!repoPath || gcConfirmationInput.trim() !== 'PRUNE NOW') return;
+    setIsGcRunning(true);
+    setGcResultMsg(null);
+    try {
+      const res = await runManualAggressiveGC(repoPath);
+      setGcResultMsg(res.stdout);
+      setGcConfirmationInput('');
+      // Refresh fsck and report
+      await loadHealthData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to execute aggressive GC: ${msg}`);
+    } finally {
+      setIsGcRunning(false);
     }
   };
 
@@ -289,6 +379,22 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
           <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
             {backups.length}
           </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('maintenance')}
+          className={`px-3 py-2.5 font-medium border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'maintenance'
+              ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400'
+              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <Wrench className="w-3.5 h-3.5" />
+          <span>Hooks & Guard Rails</span>
+          {hooksStatus && (!hooksStatus.commit_msg_installed || !hooksStatus.pre_commit_installed || !hooksStatus.gitignore_has_ai_dirs) && (
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+          )}
         </button>
       </div>
 
@@ -713,6 +819,223 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {/* MAINTENANCE & GUARDS TAB (Phase 4 Hardening) */}
+        {activeTab === 'maintenance' && (
+          <div className="space-y-4">
+            {/* Status alerts */}
+            {hookSuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{hookSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHookSuccessMsg(null)}
+                  className="text-emerald-500 hover:text-emerald-700 font-bold ml-2 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {gcResultMsg && (
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{gcResultMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGcResultMsg(null)}
+                  className="text-purple-500 hover:text-purple-700 font-bold ml-2 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Section 1: Defense-in-depth Git Hooks */}
+            <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-4 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-blue-500" />
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    Proactive Git Hooks & Guard Rails
+                  </h3>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-400">
+                  Local-only `.git/hooks`
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                Install local defense-in-depth hooks that intercept commits before they are finalized.
+                This prevents accidental attribution leakage or credential exposure regardless of IDE or agent behavior.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                {/* Hook Card 1: commit-msg */}
+                <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                      commit-msg hook
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                        hooksStatus?.commit_msg_blocks_ai_trailers
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-zinc-200/50 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300 dark:border-zinc-600'
+                      }`}
+                    >
+                      {hooksStatus?.commit_msg_blocks_ai_trailers ? 'Active (Guarded)' : 'Not Configured'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500">
+                    Defense-in-depth against AI trailers (e.g., <code>Co-authored-by: Claude</code>, <code>Claude-Session: &lt;url&gt;</code>).
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleInstallCommitMsgHook('strip')}
+                      disabled={installingAction !== null}
+                      className="px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      {installingAction === 'commit-msg-strip' ? 'Installing...' : 'Install (Auto-Strip)'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInstallCommitMsgHook('reject')}
+                      disabled={installingAction !== null}
+                      className="px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      {installingAction === 'commit-msg-reject' ? 'Installing...' : 'Install (Strict Reject)'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Hook Card 2: pre-commit scanner */}
+                <div className="p-3.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                      pre-commit scanner
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                        hooksStatus?.pre_commit_blocks_secrets
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-zinc-200/50 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300 dark:border-zinc-600'
+                      }`}
+                    >
+                      {hooksStatus?.pre_commit_blocks_secrets ? 'Active (Scanning)' : 'Not Configured'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500">
+                    Blocks commits with staged secrets (AWS, OpenAI, Anthropic, SSH keys) and warns on blobs &gt; 500 KB.
+                  </p>
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={handleInstallPreCommitHook}
+                      disabled={installingAction !== null}
+                      className="px-2.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      {installingAction === 'pre-commit' ? 'Installing...' : 'Install Pre-Commit Scanner'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: .gitignore Guard */}
+            <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    Development Environment & AI Workspaces (.gitignore)
+                  </h3>
+                </div>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                    hooksStatus?.gitignore_has_ai_dirs
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                  }`}
+                >
+                  {hooksStatus?.gitignore_has_ai_dirs ? 'Protected' : 'Unprotected Folders'}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                Prevents accidental tracking of developer-local IDE configurations and AI workspaces:
+                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.cursor/</code>,
+                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.cursorrules</code>,
+                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.claude/</code>,
+                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.cline/</code>.
+              </p>
+              {hooksStatus?.missing_ai_dirs && hooksStatus.missing_ai_dirs.length > 0 && (
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-mono">
+                  Currently missing from .gitignore: {hooksStatus.missing_ai_dirs.join(', ')}
+                </div>
+              )}
+              <div>
+                <button
+                  type="button"
+                  onClick={handleAddAIDirectoriesToGitignore}
+                  disabled={installingAction !== null}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-xs font-medium cursor-pointer transition-colors"
+                >
+                  {installingAction === 'gitignore' ? 'Updating .gitignore...' : 'Add AI Tool Rules to .gitignore'}
+                </button>
+              </div>
+            </div>
+
+            {/* Section 3: Isolated Manual Aggressive GC (Strict Safety Policy Compliance) */}
+            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10 space-y-3">
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <h3 className="text-sm font-semibold">
+                  Isolated Repository Compaction &amp; Prune (`git gc --prune=now --aggressive`)
+                </h3>
+              </div>
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs space-y-1.5">
+                <div className="font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Strict Safety Warning: Irreversible Garbage Collection</span>
+                </div>
+                <p className="leading-relaxed">
+                  In accordance with <code>SAFETY_POLICY.md</code>, aggressive garbage collection is <strong>never</strong> automated
+                  inside any wizard. Running this command permanently prunes all unreferenced, dangling commits and repacks loose objects.
+                  Once pruned, orphan commits cannot be rescued via reflog!
+                </p>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Type <span className="font-mono font-bold text-rose-600 dark:text-rose-400">PRUNE NOW</span> to confirm manual garbage collection:
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={gcConfirmationInput}
+                    onChange={(e) => setGcConfirmationInput(e.target.value)}
+                    placeholder="PRUNE NOW"
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRunAggressiveGC}
+                    disabled={isGcRunning || gcConfirmationInput.trim() !== 'PRUNE NOW'}
+                    className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shrink-0 cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isGcRunning ? 'Compacting & Pruning...' : 'Run Aggressive GC'}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

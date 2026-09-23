@@ -338,4 +338,13 @@ export interface FsckResult {
   raw_output: string;
 }
 
+export interface GitHooksStatus {
+  commit_msg_installed: boolean;
+  pre_commit_installed: boolean;
+  commit_msg_blocks_ai_trailers: boolean;
+  pre_commit_blocks_secrets: boolean;
+  gitignore_has_ai_dirs: boolean;
+  missing_ai_dirs: string[];
+}
+
 
