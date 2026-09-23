@@ -38,6 +38,12 @@ import type {
   MirrorCloneSetupResult,
   PurgePlanOptions,
   GitHooksStatus,
+  TagInfo,
+  CreateTagOptions,
+  SubmoduleInfo,
+  BisectStatus,
+  RerereStatus,
+  LfsDiagnostics,
 } from '../types';
 
 /**
@@ -1944,6 +1950,160 @@ export async function updateGitignoreAIDirectories(repoPath: string): Promise<Op
 
   return (await res.json()) as OperationResult;
 }
+
+/**
+ * Phase 3 Power Tools Extensions: Tags, Submodules, Bisect, Rerere, and LFS
+ */
+
+export async function getTags(repoPath: string): Promise<TagInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<TagInfo[]>('get_tags', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/tags?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) return [];
+  return (await res.json()) as TagInfo[];
+}
+
+export async function createTag(repoPath: string, options: CreateTagOptions): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('create_tag', { repoPath, options });
+  }
+
+  const res = await fetch('/api/git/tags/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, ...options }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to create tag' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function deleteTag(repoPath: string, tagName: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('delete_tag', { repoPath, tagName });
+  }
+
+  const res = await fetch('/api/git/tags/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, tag_name: tagName }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete tag' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function getSubmodules(repoPath: string): Promise<SubmoduleInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<SubmoduleInfo[]>('get_submodules', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/submodules?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) return [];
+  return (await res.json()) as SubmoduleInfo[];
+}
+
+export async function updateSubmodules(repoPath: string, recursive = true): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('update_submodules', { repoPath, recursive });
+  }
+
+  const res = await fetch('/api/git/submodules/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, recursive }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to update submodules' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function getBisectStatus(repoPath: string): Promise<BisectStatus> {
+  if (isTauriEnvironment()) {
+    return await invoke<BisectStatus>('get_bisect_status', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/bisect/status?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) return { in_bisect: false };
+  return (await res.json()) as BisectStatus;
+}
+
+export async function runBisectCommand(
+  repoPath: string,
+  action: 'start' | 'good' | 'bad' | 'reset' | 'skip',
+  commitSha?: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('run_bisect_command', { repoPath, action, commitSha });
+  }
+
+  const res = await fetch('/api/git/bisect/command', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, action, commit_sha: commitSha }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to execute bisect command' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function getRerereStatus(repoPath: string): Promise<RerereStatus> {
+  if (isTauriEnvironment()) {
+    return await invoke<RerereStatus>('get_rerere_status', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/rerere/status?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) return { enabled: false, resolved_recorded: 0 };
+  return (await res.json()) as RerereStatus;
+}
+
+export async function toggleRerere(repoPath: string, enable: boolean): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('toggle_rerere', { repoPath, enable });
+  }
+
+  const res = await fetch('/api/git/rerere/toggle', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, enable }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to update rerere' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function getLfsDiagnostics(repoPath: string): Promise<LfsDiagnostics> {
+  if (isTauriEnvironment()) {
+    return await invoke<LfsDiagnostics>('get_lfs_diagnostics', { repoPath });
+  }
+
+  const res = await fetch(`/api/git/lfs/diagnostics?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) return { is_installed: false, tracked_patterns: [], locked_files: [] };
+  return (await res.json()) as LfsDiagnostics;
+}
+
 
 
 

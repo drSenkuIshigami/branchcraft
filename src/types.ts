@@ -347,4 +347,50 @@ export interface GitHooksStatus {
   missing_ai_dirs: string[];
 }
 
+export interface TagInfo {
+  name: string;
+  sha: string;
+  short_sha: string;
+  is_annotated: boolean;
+  message?: string | null;
+  tagger_name?: string | null;
+  tagger_email?: string | null;
+  tagger_date?: string | null;
+}
+
+export interface CreateTagOptions {
+  name: string;
+  target_sha?: string;
+  message?: string;
+  force?: boolean;
+}
+
+export interface SubmoduleInfo {
+  name: string;
+  path: string;
+  head_sha: string;
+  short_head: string;
+  url: string;
+  status: 'clean' | 'modified' | 'uninitialized' | 'conflict';
+}
+
+export interface BisectStatus {
+  in_bisect: boolean;
+  current_commit?: string | null;
+  steps_remaining?: number;
+  output?: string;
+  culprit?: CommitInfo | null;
+}
+
+export interface RerereStatus {
+  enabled: boolean;
+  resolved_recorded: number;
+}
+
+export interface LfsDiagnostics {
+  is_installed: boolean;
+  tracked_patterns: string[];
+  locked_files: string[];
+}
+
 

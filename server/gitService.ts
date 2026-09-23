@@ -49,6 +49,12 @@ import type {
   MirrorCloneSetupResult,
   FsckResult,
   GitHooksStatus,
+  TagInfo,
+  CreateTagOptions,
+  SubmoduleInfo,
+  BisectStatus,
+  RerereStatus,
+  LfsDiagnostics,
 } from '../src/types';
 
 function runGit(
@@ -3520,5 +3526,226 @@ export async function updateGitignoreAIDirectories(repoPath: string): Promise<Op
     };
   }
 }
+
+/**
+ * Phase 3 Power Tools Extensions: Tags, Submodules, Bisect, Rerere, and LFS
+ */
+
+export async function getTags(repoPath: string): Promise<TagInfo[]> {
+  const rootPath = await validateRepository(repoPath);
+  const format = '%(refname:short)%00%(objectname)%00%(objecttype)%00%(subject)%00%(taggername)%00%(taggeremail)%00%(taggerdate:iso)';
+  const res = await runGit(rootPath, ['for-each-ref', `--format=${format}`, 'refs/tags/']);
+  if (res.code !== 0) return [];
+
+  const lines = res.stdout.split('\n').filter(Boolean);
+  return lines.map((line) => {
+    const [name, sha, type, subject, taggerName, taggerEmail, taggerDate] = line.split('\0');
+    return {
+      name: name || '',
+      sha: sha || '',
+      short_sha: (sha || '').slice(0, 7),
+      is_annotated: type === 'tag',
+      message: subject || undefined,
+      tagger_name: taggerName || undefined,
+      tagger_email: taggerEmail || undefined,
+      tagger_date: taggerDate || undefined,
+    };
+  });
+}
+
+export async function createTag(repoPath: string, options: CreateTagOptions): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const tagName = options.name.trim();
+  if (!tagName || !/^[\w./-]+$/.test(tagName)) {
+    throw new Error('Invalid tag name.');
+  }
+
+  const args = ['tag'];
+  if (options.force) args.push('-f');
+  if (options.message?.trim()) {
+    args.push('-a', '-m', options.message.trim());
+  }
+  args.push(tagName);
+  if (options.target_sha?.trim()) {
+    args.push(options.target_sha.trim());
+  }
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || `Created tag ${tagName}`,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function deleteTag(repoPath: string, tagName: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!tagName.trim() || !/^[\w./-]+$/.test(tagName.trim())) {
+    throw new Error('Invalid tag name.');
+  }
+
+  const args = ['tag', '-d', tagName.trim()];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || `Deleted tag ${tagName}`,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function getSubmodules(repoPath: string): Promise<SubmoduleInfo[]> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['submodule', 'status']);
+  if (res.code !== 0) return [];
+
+  const submodules: SubmoduleInfo[] = [];
+  const lines = res.stdout.split('\n').filter(Boolean);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const prefix = trimmed.charAt(0);
+    const parts = trimmed.substring(1).trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const sha = parts[0];
+      const subPath = parts[1];
+      let status: 'clean' | 'modified' | 'uninitialized' | 'conflict' = 'clean';
+      if (prefix === '-') status = 'uninitialized';
+      else if (prefix === '+') status = 'modified';
+      else if (prefix === 'U') status = 'conflict';
+
+      submodules.push({
+        name: subPath.split('/').pop() || subPath,
+        path: subPath,
+        head_sha: sha,
+        short_head: sha.slice(0, 7),
+        url: '',
+        status,
+      });
+    }
+  }
+
+  return submodules;
+}
+
+export async function updateSubmodules(repoPath: string, recursive = true): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['submodule', 'update', '--init'];
+  if (recursive) args.push('--recursive');
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || 'Submodules updated successfully.',
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function getBisectStatus(repoPath: string): Promise<BisectStatus> {
+  const rootPath = await validateRepository(repoPath);
+  const bisectStartPath = path.join(rootPath, '.git', 'BISECT_START');
+  const inBisect = fs.existsSync(bisectStartPath);
+
+  if (!inBisect) {
+    return { in_bisect: false };
+  }
+
+  const logRes = await runGit(rootPath, ['bisect', 'log']);
+  return {
+    in_bisect: true,
+    output: logRes.stdout,
+  };
+}
+
+export async function runBisectCommand(
+  repoPath: string,
+  action: 'start' | 'good' | 'bad' | 'reset' | 'skip',
+  commitSha?: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['bisect', action];
+  if (commitSha?.trim()) {
+    args.push(commitSha.trim());
+  }
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function getRerereStatus(repoPath: string): Promise<RerereStatus> {
+  const rootPath = await validateRepository(repoPath);
+  const checkEnabled = await runGit(rootPath, ['config', '--get', 'rerere.enabled']);
+  const isEnabled = checkEnabled.stdout.trim() === 'true' || checkEnabled.stdout.trim() === '1';
+
+  const rrDir = path.join(rootPath, '.git', 'rr-cache');
+  let recordedCount = 0;
+  if (fs.existsSync(rrDir)) {
+    try {
+      recordedCount = fs.readdirSync(rrDir).length;
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    enabled: isEnabled,
+    resolved_recorded: recordedCount,
+  };
+}
+
+export async function toggleRerere(repoPath: string, enable: boolean): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['config', 'rerere.enabled', enable ? 'true' : 'false'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: `rerere.enabled set to ${enable}`,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function getLfsDiagnostics(repoPath: string): Promise<LfsDiagnostics> {
+  const rootPath = await validateRepository(repoPath);
+  const versionRes = await runGit(rootPath, ['lfs', 'version']);
+  const isInstalled = versionRes.code === 0;
+
+  const gitattributesPath = path.join(rootPath, '.gitattributes');
+  const trackedPatterns: string[] = [];
+  if (fs.existsSync(gitattributesPath)) {
+    const content = fs.readFileSync(gitattributesPath, 'utf8');
+    for (const line of content.split('\n')) {
+      if (line.includes('filter=lfs')) {
+        const pattern = line.split(/\s+/)[0];
+        if (pattern) trackedPatterns.push(pattern);
+      }
+    }
+  }
+
+  return {
+    is_installed: isInstalled,
+    tracked_patterns: trackedPatterns,
+    locked_files: [],
+  };
+}
+
 
 

@@ -80,6 +80,16 @@ import {
   installCommitMsgHook,
   installPreCommitHook,
   updateGitignoreAIDirectories,
+  getTags,
+  createTag,
+  deleteTag,
+  getSubmodules,
+  updateSubmodules,
+  getBisectStatus,
+  runBisectCommand,
+  getRerereStatus,
+  toggleRerere,
+  getLfsDiagnostics,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -873,6 +883,114 @@ export function gitApiPlugin(): Plugin {
             const resData = await updateGitignoreAIDirectories(repoPath);
             return sendJson(200, resData);
           }
+
+          // Tags API (Phase 3 Extension)
+          if (pathname === '/api/git/tags' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getTags(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/tags/create' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await createTag(repoPath, body);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/tags/delete' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const tagName = typeof body.tag_name === 'string' ? body.tag_name : '';
+            if (!repoPath || !tagName) return sendJson(400, { error: 'repo_path and tag_name required' });
+            const resData = await deleteTag(repoPath, tagName);
+            return sendJson(200, resData);
+          }
+
+          // Submodules API (Phase 3 Extension)
+          if (pathname === '/api/git/submodules' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getSubmodules(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/submodules/update' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await updateSubmodules(repoPath, body.recursive !== false);
+            return sendJson(200, resData);
+          }
+
+          // Bisect API (Phase 3 Extension)
+          if (pathname === '/api/git/bisect/status' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getBisectStatus(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/bisect/command' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const action = body.action;
+            if (!repoPath || !action) return sendJson(400, { error: 'repo_path and action required' });
+            const resData = await runBisectCommand(repoPath, action, body.commit_sha);
+            return sendJson(200, resData);
+          }
+
+          // Rerere API (Phase 3 Extension)
+          if (pathname === '/api/git/rerere/status' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getRerereStatus(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/rerere/toggle' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await toggleRerere(repoPath, Boolean(body.enable));
+            return sendJson(200, resData);
+          }
+
+          // LFS Diagnostics (Phase 3 Extension)
+          if (pathname === '/api/git/lfs/diagnostics' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getLfsDiagnostics(repoPath);
+            return sendJson(200, resData);
+          }
+
 
 
 
