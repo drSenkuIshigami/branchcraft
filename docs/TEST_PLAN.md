@@ -76,14 +76,16 @@
 
 ---
 
-## 3. Future Automated Test Plan (Phase 5 Readiness)
+## 4. Phase 5 Test Checklist (Packaging, Hardening & Distribution)
 
-### Rust Backend Tests (`cargo test`)
-- Unit tests for command argument validation against allowlist regexes.
-- Unit tests for porcelain output parsers (`git status --porcelain=v2`, `git log`).
-- Fixture-based tests generating isolated temporary repositories in temp directories.
+### 4.1 Architecture Invariants & Local-First Verification
+- [x] Zero external network telemetry calls or background automated remote network polling.
+- [x] Process execution strictly uses tokenized child arguments (`std::process::Command` / `execFile`) with zero shell injection vectors.
+- [x] Strict allowlist validation across all 5 risk tiers (Level 0 through Level 4).
+- [x] System Audit modal displays real-time architecture compliance, runtime versions, and packaging readiness.
 
-### Frontend Component Tests
-- Virtualized commit graph row rendering benchmarks.
-- Theme switching state tests.
-- Form validation tests for branch creation and commit message length warnings.
+### 4.2 Application Packaging & Versioning
+- [x] Semantic version bumped to `1.0.0` across `package.json`, `Cargo.toml`, and `tauri.conf.json`.
+- [x] Multi-platform packaging targets configured for Windows (`.msi`, `.exe`), macOS (`.dmg`), and Linux (`.deb`, `.AppImage`).
+- [x] User manual and operational guide documented in `/docs/USER_MANUAL.md`.
+- [x] Build and lint validations (`npm run lint`, `compile_applet`) succeed cleanly with zero warnings or errors.

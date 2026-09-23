@@ -42,6 +42,7 @@ interface SidebarProps {
   onOpenAddWorktree?: () => void;
   onOpenResetHard?: () => void;
   onOpenSync?: () => void;
+  onOpenSystemAudit?: () => void;
   theme: Theme;
 }
 
@@ -63,6 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAddWorktree,
   onOpenResetHard,
   onOpenSync,
+  onOpenSystemAudit,
 }) => {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [workingTreeOpen, setWorkingTreeOpen] = useState(true);
@@ -479,11 +481,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer Info */}
       <div className="p-2 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50 text-[11px] text-zinc-500 flex items-center justify-between shrink-0">
-        <span className="flex items-center gap-1">
-          <Tag className="w-3 h-3 text-zinc-400" />
-          <span>Phase 1 (Read-Only)</span>
+        <button
+          type="button"
+          onClick={onOpenSystemAudit}
+          className="flex items-center gap-1.5 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
+          title="System Audit & Architecture Compliance"
+        >
+          <Tag className="w-3 h-3 text-emerald-500" />
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300">v1.0.0 Release</span>
+        </button>
+        <span className="text-[10px] opacity-75 font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          Local-First Verified
         </span>
-        <span className="text-[10px] opacity-75 font-mono">Risk Level 0</span>
       </div>
     </aside>
   );

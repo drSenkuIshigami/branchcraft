@@ -13,6 +13,7 @@ import {
   FolderSearch,
   SquareTerminal,
   CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import type {
   BranchInfo,
@@ -113,6 +114,7 @@ import { CreateBranchModal } from '../components/CreateBranchModal';
 import { RenameBranchModal } from '../components/RenameBranchModal';
 import { DeleteBranchModal } from '../components/DeleteBranchModal';
 import { RemoteSyncModal } from '../components/RemoteSyncModal';
+import { SystemAuditModal } from '../components/SystemAuditModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -142,6 +144,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
   const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
   const [isCommandLogOpen, setIsCommandLogOpen] = useState(false);
+  const [isSystemAuditOpen, setIsSystemAuditOpen] = useState(false);
   const [commandLogs, setCommandLogs] = useState<LoggedCommand[]>([]);
 
   // Branch Management State
@@ -1637,6 +1640,17 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             </span>
           </button>
 
+          {/* System Audit (Phase 5) */}
+          <button
+            type="button"
+            onClick={() => setIsSystemAuditOpen(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-medium transition-colors cursor-pointer"
+            title="Architecture Invariants & System Audit"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">System Audit</span>
+          </button>
+
           <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-700" />
 
           {/* Non-blocking Git CLI status badge */}
@@ -1702,6 +1716,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenAddWorktree={() => setIsAddWorktreeOpen(true)}
           onOpenResetHard={() => setIsResetHardOpen(true)}
           onOpenSync={() => setIsSyncModalOpen(true)}
+          onOpenSystemAudit={() => setIsSystemAuditOpen(true)}
           theme={theme}
         />
 
@@ -2153,6 +2168,16 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             });
           }}
           theme={theme}
+        />
+      )}
+
+      {/* System Audit & Distribution Readiness Modal (Phase 5) */}
+      {isSystemAuditOpen && (
+        <SystemAuditModal
+          isOpen={isSystemAuditOpen}
+          onClose={() => setIsSystemAuditOpen(false)}
+          gitAvailability={null}
+          activeRepoPath={repoPath}
         />
       )}
 
