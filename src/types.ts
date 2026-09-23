@@ -236,4 +236,25 @@ export interface ReflogEntry {
   date: string;
 }
 
+export interface WorktreeInfo {
+  path: string;
+  head: string;
+  short_head: string;
+  branch: string | null;
+  is_main: boolean;
+  is_bare: boolean;
+  is_locked: boolean;
+  lock_reason?: string | null;
+  is_detached: boolean;
+}
+
+export interface AddWorktreeOptions {
+  path: string;
+  branch?: string;
+  new_branch?: string;
+  commit_ish?: string;
+  lock?: boolean;
+  lock_reason?: string;
+}
+
 

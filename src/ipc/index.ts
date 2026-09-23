@@ -30,6 +30,8 @@ import type {
   StatusInfo,
   SyncStatus,
   SystemOpenResult,
+  WorktreeInfo,
+  AddWorktreeOptions,
 } from '../types';
 
 /**
@@ -1512,4 +1514,136 @@ export async function resetToTarget(
 
   return (await res.json()) as OperationResult;
 }
+
+/**
+ * Phase 3 Step 6: Git Worktrees Management
+ */
+export async function getWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
+  if (isTauriEnvironment()) {
+    return await invoke<WorktreeInfo[]>('get_worktrees', { repoPath });
+  }
+
+  const res = await fetch('/api/git/worktrees', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to fetch worktrees' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as WorktreeInfo[];
+}
+
+export async function addWorktree(
+  repoPath: string,
+  options: AddWorktreeOptions
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('add_worktree', { repoPath, options });
+  }
+
+  const res = await fetch('/api/git/worktrees/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, ...options }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to add worktree' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function removeWorktree(
+  repoPath: string,
+  worktreePath: string,
+  force = false
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('remove_worktree', { repoPath, worktreePath, force });
+  }
+
+  const res = await fetch('/api/git/worktrees/remove', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, worktree_path: worktreePath, force }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to remove worktree' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function lockWorktree(
+  repoPath: string,
+  worktreePath: string,
+  reason?: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('lock_worktree', { repoPath, worktreePath, reason });
+  }
+
+  const res = await fetch('/api/git/worktrees/lock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, worktree_path: worktreePath, reason }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to lock worktree' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function unlockWorktree(
+  repoPath: string,
+  worktreePath: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('unlock_worktree', { repoPath, worktreePath });
+  }
+
+  const res = await fetch('/api/git/worktrees/unlock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, worktree_path: worktreePath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to unlock worktree' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function pruneWorktrees(repoPath: string): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('prune_worktrees', { repoPath });
+  }
+
+  const res = await fetch('/api/git/worktrees/prune', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to prune worktrees' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
 

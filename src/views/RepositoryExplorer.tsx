@@ -30,6 +30,7 @@ import type {
   OperationResult,
   ReflogEntry,
   ResetMode,
+  WorktreeInfo,
 } from '../types';
 import {
   abortConflictOperation,
@@ -59,6 +60,7 @@ import {
   getStashes,
   getStatus,
   getSyncStatus,
+  getWorktrees,
   gitFetch,
   gitPull,
   gitPush,
@@ -100,6 +102,8 @@ import { CherryPickModal } from '../components/CherryPickModal';
 import { RevertModal } from '../components/RevertModal';
 import { ReflogViewer } from '../components/ReflogViewer';
 import { ResetConfirmModal } from '../components/ResetConfirmModal';
+import { WorktreeManager } from '../components/WorktreeManager';
+import { AddWorktreeModal } from '../components/AddWorktreeModal';
 import type { CommitAuthorOptions } from '../components/CommitBox';
 import { OpenRepoModal } from '../components/OpenRepoModal';
 import { CommandLogModal, type LoggedCommand } from '../components/CommandLogModal';
@@ -127,7 +131,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
 
-  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes' | 'reflog'>('graph');
+  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees'>('graph');
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
@@ -196,6 +200,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [reflogLoading, setReflogLoading] = useState(false);
   const [resetTargetModal, setResetTargetModal] = useState<{ targetRef: string; subject?: string } | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
+
+  // Worktree Management State (Phase 3 Step 6)
+  const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([]);
+  const [worktreesLoading, setWorktreesLoading] = useState(false);
+  const [isAddWorktreeOpen, setIsAddWorktreeOpen] = useState(false);
+
 
   useEffect(() => {
     if (!systemToast) return;
@@ -334,6 +344,19 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           setReflogEntries(newReflog);
         } catch {
           setReflogEntries([]);
+        }
+
+        // Worktrees (Phase 3 Step 6)
+        try {
+          const wtStart = performance.now();
+          const newWorktrees = await getWorktrees(newStatus.root_path);
+          recordCommand(
+            ['worktree', 'list', '--porcelain'],
+            Math.round(performance.now() - wtStart)
+          );
+          setWorktrees(newWorktrees);
+        } catch {
+          setWorktrees([]);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1474,6 +1497,23 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
+  // Worktree Handlers (Phase 3 Step 6)
+  const handleRefreshWorktrees = async () => {
+    if (!repoPath) return;
+    setWorktreesLoading(true);
+    const start = performance.now();
+    try {
+      const newWorktrees = await getWorktrees(repoPath);
+      recordCommand(['worktree', 'list', '--porcelain'], Math.round(performance.now() - start));
+      setWorktrees(newWorktrees);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to refresh worktrees: ${msg}`);
+    } finally {
+      setWorktreesLoading(false);
+    }
+  };
+
   const latestCommitMsg =
     commits.length > 0
       ? commits[0].body
@@ -1647,6 +1687,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           stashes={stashes}
           remotes={remotes}
           reflogCount={reflogEntries.length}
+          worktreesCount={worktrees.length}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -1655,6 +1696,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenRenameBranch={handleOpenRenameBranch}
           onOpenDeleteBranch={handleOpenDeleteBranch}
           onOpenCreateStash={() => setIsCreateStashOpen(true)}
+          onOpenAddWorktree={() => setIsAddWorktreeOpen(true)}
           onOpenResetHard={() => setIsResetHardOpen(true)}
           onOpenSync={() => setIsSyncModalOpen(true)}
           theme={theme}
@@ -1784,6 +1826,28 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   <DiffViewer diff={diff} loading={diffLoading} theme={theme} />
                 </div>
               </div>
+            </div>
+          ) : selectedView === 'worktrees' ? (
+            /* Worktrees mode: Parallel working trees dashboard */
+            <div className="flex-1 overflow-hidden h-full">
+              <WorktreeManager
+                currentRepoPath={repoPath || ''}
+                worktrees={worktrees}
+                loading={worktreesLoading}
+                onRefresh={handleRefreshWorktrees}
+                onOpenAddModal={() => setIsAddWorktreeOpen(true)}
+                onSwitchRepo={(newPath) => {
+                  setRepoPath(newPath);
+                  loadRepositoryData(newPath);
+                }}
+                onCommandExecuted={(res) => {
+                  if (res.command_run) {
+                    recordCommand(res.command_run, res.duration_ms || 100);
+                  }
+                  handleRefreshWorktrees();
+                }}
+                theme={theme}
+              />
             </div>
           ) : (
             /* Graph mode: Commit Graph on top, Commit details & Monaco diff below */
@@ -2035,6 +2099,28 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onClose={() => setResetTargetModal(null)}
           onConfirm={handleConfirmReset}
           loading={resetLoading}
+          theme={theme}
+        />
+      )}
+
+      {/* Add Linked Worktree Modal (Phase 3 Step 6) */}
+      {isAddWorktreeOpen && repoPath && (
+        <AddWorktreeModal
+          isOpen={isAddWorktreeOpen}
+          repoPath={repoPath}
+          branches={branches}
+          existingWorktreePaths={worktrees.map((w) => w.path)}
+          existingWorktreeBranches={worktrees.map((w) => w.branch).filter(Boolean) as string[]}
+          onClose={() => setIsAddWorktreeOpen(false)}
+          onSuccess={(result, newPath) => {
+            if (result.command_run) {
+              recordCommand(result.command_run, result.duration_ms || 100);
+            }
+            handleRefreshWorktrees();
+            setSystemToast({
+              message: `Worktree created successfully at ${newPath}`,
+            });
+          }}
           theme={theme}
         />
       )}

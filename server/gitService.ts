@@ -38,6 +38,8 @@ import type {
   StatusInfo,
   SyncStatus,
   SystemOpenResult,
+  WorktreeInfo,
+  AddWorktreeOptions,
 } from '../src/types';
 
 function runGit(
@@ -2447,3 +2449,204 @@ export async function resetToTarget(
     duration_ms: res.duration_ms + backupDuration,
   };
 }
+
+/**
+ * Phase 3 Step 6: Git Worktrees Management
+ */
+export async function getWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['worktree', 'list', '--porcelain']);
+  if (res.code !== 0) {
+    return [];
+  }
+
+  const entries: WorktreeInfo[] = [];
+  const lines = res.stdout.split('\n');
+  let current: Partial<WorktreeInfo> = {};
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      if (current.path && current.head) {
+        entries.push({
+          path: current.path,
+          head: current.head,
+          short_head: current.head.slice(0, 7),
+          branch: current.branch || null,
+          is_main: entries.length === 0,
+          is_bare: Boolean(current.is_bare),
+          is_locked: Boolean(current.is_locked),
+          lock_reason: current.lock_reason || null,
+          is_detached: Boolean(current.is_detached),
+        });
+      }
+      current = {};
+      continue;
+    }
+
+    if (line.startsWith('worktree ')) {
+      current.path = line.substring('worktree '.length).trim();
+    } else if (line.startsWith('HEAD ')) {
+      current.head = line.substring('HEAD '.length).trim();
+    } else if (line.startsWith('branch ')) {
+      const fullRef = line.substring('branch '.length).trim();
+      current.branch = fullRef.replace(/^refs\/heads\//, '');
+    } else if (line === 'bare') {
+      current.is_bare = true;
+    } else if (line === 'detached') {
+      current.is_detached = true;
+    } else if (line.startsWith('locked')) {
+      current.is_locked = true;
+      const reason = line.substring('locked'.length).trim();
+      current.lock_reason = reason.length > 0 ? reason : null;
+    }
+  }
+
+  if (current.path && current.head) {
+    entries.push({
+      path: current.path,
+      head: current.head,
+      short_head: current.head.slice(0, 7),
+      branch: current.branch || null,
+      is_main: entries.length === 0,
+      is_bare: Boolean(current.is_bare),
+      is_locked: Boolean(current.is_locked),
+      lock_reason: current.lock_reason || null,
+      is_detached: Boolean(current.is_detached),
+    });
+  }
+
+  return entries;
+}
+
+export async function addWorktree(
+  repoPath: string,
+  options: AddWorktreeOptions
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!options.path || typeof options.path !== 'string') {
+    throw new Error('Worktree target path is required.');
+  }
+
+  const args: string[] = ['worktree', 'add'];
+
+  if (options.lock) {
+    args.push('--lock');
+    if (options.lock_reason?.trim()) {
+      args.push('--reason', options.lock_reason.trim());
+    }
+  }
+
+  if (options.new_branch?.trim()) {
+    args.push('-b', options.new_branch.trim(), options.path);
+    if (options.commit_ish?.trim()) {
+      args.push(options.commit_ish.trim());
+    }
+  } else if (options.branch?.trim()) {
+    args.push(options.path, options.branch.trim());
+  } else if (options.commit_ish?.trim()) {
+    args.push('--detach', options.path, options.commit_ish.trim());
+  } else {
+    args.push(options.path);
+  }
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function removeWorktree(
+  repoPath: string,
+  worktreePath: string,
+  force = false
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!worktreePath) {
+    throw new Error('Worktree path is required.');
+  }
+
+  const args: string[] = ['worktree', 'remove'];
+  if (force) {
+    args.push('--force');
+  }
+  args.push(worktreePath);
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function lockWorktree(
+  repoPath: string,
+  worktreePath: string,
+  reason?: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!worktreePath) {
+    throw new Error('Worktree path is required.');
+  }
+
+  const args: string[] = ['worktree', 'lock'];
+  if (reason?.trim()) {
+    args.push('--reason', reason.trim());
+  }
+  args.push(worktreePath);
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function unlockWorktree(
+  repoPath: string,
+  worktreePath: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  if (!worktreePath) {
+    throw new Error('Worktree path is required.');
+  }
+
+  const args: string[] = ['worktree', 'unlock', worktreePath];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function pruneWorktrees(repoPath: string): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args: string[] = ['worktree', 'prune', '-v'];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+

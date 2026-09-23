@@ -19,6 +19,7 @@ import {
   Archive,
   RotateCcw,
   History,
+  FolderTree,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -28,14 +29,16 @@ interface SidebarProps {
   stashes?: StashInfo[];
   remotes?: RemoteInfo[];
   reflogCount?: number;
-  selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog';
-  onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog') => void;
+  worktreesCount?: number;
+  selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees';
+  onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees') => void;
   onOpenRepoDialog: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
   onOpenRenameBranch: (branchName: string) => void;
   onOpenDeleteBranch: (branchName: string, isHead: boolean) => void;
   onOpenCreateStash?: () => void;
+  onOpenAddWorktree?: () => void;
   onOpenResetHard?: () => void;
   onOpenSync?: () => void;
   theme: Theme;
@@ -47,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   stashes = [],
   remotes = [],
   reflogCount = 0,
+  worktreesCount = 1,
   selectedView,
   onSelectView,
   onOpenRepoDialog,
@@ -55,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenRenameBranch,
   onOpenDeleteBranch,
   onOpenCreateStash,
+  onOpenAddWorktree,
   onOpenResetHard,
   onOpenSync,
 }) => {
@@ -265,6 +270,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
           </button>
         </div>
+
+        {/* Worktrees Navigation (Phase 3 Step 6) */}
+        <div>
+          <div
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors ${
+              selectedView === 'worktrees'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-medium'
+                : 'hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onSelectView('worktrees')}
+              className="flex items-center gap-2 flex-1 text-left min-w-0 cursor-pointer"
+            >
+              <FolderTree className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="truncate">Worktrees</span>
+            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="px-1.5 py-0.2 rounded-full font-mono text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {worktreesCount}
+              </span>
+              {onOpenAddWorktree && (
+                <button
+                  type="button"
+                  onClick={onOpenAddWorktree}
+                  className="p-0.5 rounded text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                  title="Add new linked worktree"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
 
         {/* Branches Section */}
         <div>

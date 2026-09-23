@@ -34,7 +34,15 @@
 | **2** | `push` | `repo_path: String, force_with_lease: bool` | `Result<OperationResult, String>` | **1–3** | Pushes to upstream (safe force default) |
 | **3** | `start_interactive_rebase` | `repo_path: String, base_sha: String` | `Result<OperationResult, String>` | **2** | Starts planned interactive rebase |
 | **3** | `cherry_pick` | `repo_path: String, sha: String` | `Result<OperationResult, String>` | **1–2** | Applies specific commit to HEAD |
-| **3** | `reset` | `repo_path: String, target: String, mode: ResetMode` | `Result<OperationResult, String>` | **2–3** | Resets HEAD to target commit |
+| **3** | `revert` | `repo_path: String, sha: String, mainline: Option<u32>` | `Result<OperationResult, String>` | **1–2** | Reverts commit with conflict sequencing |
+| **3** | `reset` | `repo_path: String, target: String, mode: ResetMode` | `Result<OperationResult, String>` | **2–3** | Resets HEAD to target commit (auto backup on hard) |
+| **3** | `get_reflog` | `repo_path: String, limit: u32` | `Result<Vec<ReflogEntry>, String>` | **0** | Queries reflog history for emergency recovery |
+| **3** | `get_worktrees` | `repo_path: String` | `Result<Vec<WorktreeInfo>, String>` | **0** | Lists active git linked worktrees |
+| **3** | `add_worktree` | `repo_path: String, options: AddWorktreeOptions` | `Result<OperationResult, String>` | **1** | Creates and links an isolated working tree |
+| **3** | `remove_worktree` | `repo_path: String, worktree_path: String, force: bool` | `Result<OperationResult, String>` | **1–2** | Deletes linked worktree directory and administrative metadata |
+| **3** | `lock_worktree` | `repo_path: String, worktree_path: String, reason: Option<String>` | `Result<OperationResult, String>` | **0** | Locks worktree against pruning or accidental deletion |
+| **3** | `unlock_worktree` | `repo_path: String, worktree_path: String` | `Result<OperationResult, String>` | **0** | Unlocks worktree |
+| **3** | `prune_worktrees` | `repo_path: String` | `Result<OperationResult, String>` | **1** | Prunes stale administrative records |
 | **4** | `create_backup` | `repo_path: String, reason: String` | `Result<BackupRef, String>` | **0** | Automatic safety branch or bundle |
 | **4** | `filter_repo_remove_paths` | `mirror_path: String, paths: Vec<String>` | `Result<OperationResult, String>` | **4** | Purges files across history in mirror clone |
 

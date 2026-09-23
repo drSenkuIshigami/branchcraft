@@ -62,6 +62,12 @@ import {
   unstageAll,
   unstageHunk,
   unstagePath,
+  getWorktrees,
+  addWorktree,
+  removeWorktree,
+  lockWorktree,
+  unlockWorktree,
+  pruneWorktrees,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -689,6 +695,68 @@ export function gitApiPlugin(): Plugin {
             const resData = await resetToTarget(repoPath, target, mode);
             return sendJson(200, resData);
           }
+
+          if (pathname === '/api/git/worktrees' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await getWorktrees(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/worktrees/add' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const path = typeof body.path === 'string' ? body.path : '';
+            if (!repoPath || !path) return sendJson(400, { error: 'repo_path and path required' });
+            const resData = await addWorktree(repoPath, {
+              path,
+              branch: typeof body.branch === 'string' ? body.branch : undefined,
+              new_branch: typeof body.new_branch === 'string' ? body.new_branch : undefined,
+              commit_ish: typeof body.commit_ish === 'string' ? body.commit_ish : undefined,
+              lock: Boolean(body.lock),
+              lock_reason: typeof body.lock_reason === 'string' ? body.lock_reason : undefined,
+            });
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/worktrees/remove' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const worktreePath = typeof body.worktree_path === 'string' ? body.worktree_path : '';
+            const force = Boolean(body.force);
+            if (!repoPath || !worktreePath) return sendJson(400, { error: 'repo_path and worktree_path required' });
+            const resData = await removeWorktree(repoPath, worktreePath, force);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/worktrees/lock' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const worktreePath = typeof body.worktree_path === 'string' ? body.worktree_path : '';
+            const reason = typeof body.reason === 'string' ? body.reason : undefined;
+            if (!repoPath || !worktreePath) return sendJson(400, { error: 'repo_path and worktree_path required' });
+            const resData = await lockWorktree(repoPath, worktreePath, reason);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/worktrees/unlock' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const worktreePath = typeof body.worktree_path === 'string' ? body.worktree_path : '';
+            if (!repoPath || !worktreePath) return sendJson(400, { error: 'repo_path and worktree_path required' });
+            const resData = await unlockWorktree(repoPath, worktreePath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/worktrees/prune' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await pruneWorktrees(repoPath);
+            return sendJson(200, resData);
+          }
+
 
           next();
         } catch (err: unknown) {
