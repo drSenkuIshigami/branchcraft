@@ -900,8 +900,14 @@ export function gitApiPlugin(): Plugin {
           if (pathname === '/api/git/tags/create' && req.method === 'POST') {
             const body = await readBody();
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
-            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
-            const resData = await createTag(repoPath, body);
+            const name = typeof body.name === 'string' ? body.name : '';
+            if (!repoPath || !name) return sendJson(400, { error: 'repo_path and name required' });
+            const resData = await createTag(repoPath, {
+              name,
+              target_sha: typeof body.target_sha === 'string' ? body.target_sha : undefined,
+              message: typeof body.message === 'string' ? body.message : undefined,
+              force: Boolean(body.force),
+            });
             return sendJson(200, resData);
           }
 
@@ -952,8 +958,19 @@ export function gitApiPlugin(): Plugin {
             const body = await readBody();
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             const action = body.action;
-            if (!repoPath || !action) return sendJson(400, { error: 'repo_path and action required' });
-            const resData = await runBisectCommand(repoPath, action, body.commit_sha);
+            const validActions = ['start', 'good', 'bad', 'reset', 'skip'] as const;
+            if (
+              !repoPath ||
+              typeof action !== 'string' ||
+              !validActions.includes(action as (typeof validActions)[number])
+            ) {
+              return sendJson(400, { error: 'Valid repo_path and action (start, good, bad, reset, skip) required' });
+            }
+            const resData = await runBisectCommand(
+              repoPath,
+              action as (typeof validActions)[number],
+              typeof body.commit_sha === 'string' ? body.commit_sha : undefined
+            );
             return sendJson(200, resData);
           }
 

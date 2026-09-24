@@ -117,7 +117,7 @@
 - [x] Reset dialog with soft, mixed, and hard modes + precise explanatory impact preview and automatic backup branch creation for hard reset.
 - [x] Reflog viewer with historical recovery wizard (rescue branch creation from dropped commits, reset HEAD, cherry-pick from reflog).
 - [x] Worktree manager (list, add new worktree, lock/unlock, remove, prune, switch active repo to worktree).
-- [ ] Annotated tag creation, remote push, and deletion.
+- [x] Annotated tag creation, remote push, and deletion (`TagManagerModal`, lightweight & annotated tags with tagger metadata, search, remote push via `git push origin <tag>`, and safe deletion via `git tag -d`).
 - [ ] Submodule dashboard (status, sync, recursive update).
 - [ ] Interactive Git bisect wizard (start, mark good/bad, pinpoint culprit commit, reset).
 - [ ] `rerere` activation and state inspection.

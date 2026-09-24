@@ -32,6 +32,8 @@ import type {
   ReflogEntry,
   ResetMode,
   WorktreeInfo,
+  TagInfo,
+  CreateTagOptions,
 } from '../types';
 import {
   abortConflictOperation,
@@ -46,7 +48,9 @@ import {
   createDemoCherryPickConflict,
   createDemoConflict,
   createStash,
+  createTag,
   deleteBranch,
+  deleteTag,
   discardHunk,
   discardPath,
   dropStash,
@@ -61,6 +65,7 @@ import {
   getStashes,
   getStatus,
   getSyncStatus,
+  getTags,
   getWorktrees,
   gitFetch,
   gitPull,
@@ -115,6 +120,7 @@ import { RenameBranchModal } from '../components/RenameBranchModal';
 import { DeleteBranchModal } from '../components/DeleteBranchModal';
 import { RemoteSyncModal } from '../components/RemoteSyncModal';
 import { SystemAuditModal } from '../components/SystemAuditModal';
+import { TagManagerModal } from '../components/TagManagerModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -211,6 +217,10 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([]);
   const [worktreesLoading, setWorktreesLoading] = useState(false);
   const [isAddWorktreeOpen, setIsAddWorktreeOpen] = useState(false);
+
+  // Tags Management State (Phase 3 Extension)
+  const [tags, setTags] = useState<TagInfo[]>([]);
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
 
 
   useEffect(() => {
@@ -363,6 +373,19 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           setWorktrees(newWorktrees);
         } catch {
           setWorktrees([]);
+        }
+
+        // Tags & Release Markers (Phase 3 Extension)
+        try {
+          const tagsStart = performance.now();
+          const newTags = await getTags(newStatus.root_path);
+          recordCommand(
+            ['for-each-ref', 'refs/tags/'],
+            Math.round(performance.now() - tagsStart)
+          );
+          setTags(newTags);
+        } catch {
+          setTags([]);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1705,6 +1728,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           remotes={remotes}
           reflogCount={reflogEntries.length}
           worktreesCount={worktrees.length}
+          tagsCount={tags.length}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -1717,6 +1741,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenResetHard={() => setIsResetHardOpen(true)}
           onOpenSync={() => setIsSyncModalOpen(true)}
           onOpenSystemAudit={() => setIsSystemAuditOpen(true)}
+          onOpenTags={() => setIsTagModalOpen(true)}
           theme={theme}
         />
 
@@ -2178,6 +2203,42 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onClose={() => setIsSystemAuditOpen(false)}
           gitAvailability={null}
           activeRepoPath={repoPath}
+        />
+      )}
+
+      {/* Tag Manager Modal (Phase 3 Extension) */}
+      {isTagModalOpen && (
+        <TagManagerModal
+          isOpen={isTagModalOpen}
+          onClose={() => setIsTagModalOpen(false)}
+          tags={tags}
+          currentHeadSha={commits[0]?.sha}
+          onRefreshTags={async () => {
+            if (!repoPath) return;
+            const newTags = await getTags(repoPath);
+            setTags(newTags);
+          }}
+          onCreateTag={async (options) => {
+            if (!repoPath) return;
+            const start = performance.now();
+            const res = await createTag(repoPath, options);
+            recordCommand(res.command_run || ['tag', options.name], Math.round(performance.now() - start));
+            setSystemToast({ message: `Tag "${options.name}" created.` });
+          }}
+          onDeleteTag={async (tagName) => {
+            if (!repoPath) return;
+            const start = performance.now();
+            const res = await deleteTag(repoPath, tagName);
+            recordCommand(res.command_run || ['tag', '-d', tagName], Math.round(performance.now() - start));
+            setSystemToast({ message: `Tag "${tagName}" deleted.` });
+          }}
+          onPushTag={async (tagName) => {
+            if (!repoPath) return;
+            const start = performance.now();
+            const res = await gitPush(repoPath, undefined, tagName);
+            recordCommand(res.command_run || ['push', 'origin', tagName], Math.round(performance.now() - start));
+            setSystemToast({ message: `Tag "${tagName}" pushed to remote.` });
+          }}
         />
       )}
 
