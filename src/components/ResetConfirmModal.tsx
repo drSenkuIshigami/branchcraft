@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
-import {
-  AlertTriangle,
-  RotateCcw,
-  ShieldCheck,
-  X,
-  FileCode,
-  Check,
-  Info,
-} from 'lucide-react';
+import { AlertTriangle, RotateCcw, ShieldCheck, X, FileCode, Check, Info } from 'lucide-react';
 import type { ResetMode, Theme } from '../types';
 
 interface ResetConfirmModalProps {
@@ -63,7 +55,8 @@ export const ResetConfirmModal: React.FC<ResetConfirmModalProps> = ({
             <div>
               <h2 className="font-semibold text-sm">Reset HEAD to Reference</h2>
               <p className="text-[11px] text-zinc-500 font-mono mt-0.5">
-                Target: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{targetRef}</span>
+                Target:{' '}
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{targetRef}</span>
               </p>
             </div>
           </div>
@@ -122,7 +115,8 @@ export const ResetConfirmModal: React.FC<ResetConfirmModalProps> = ({
                   </span>
                 </div>
                 <p className="text-zinc-500 dark:text-zinc-400 text-[11px] leading-relaxed">
-                  Moves HEAD pointer to target. Unstages changes in the index, but preserves all modified files in your working tree.
+                  Moves HEAD pointer to target. Unstages changes in the index, but preserves all
+                  modified files in your working tree.
                 </p>
               </div>
             </label>
@@ -148,7 +142,8 @@ export const ResetConfirmModal: React.FC<ResetConfirmModalProps> = ({
                   --soft (Keep staged)
                 </span>
                 <p className="text-zinc-500 dark:text-zinc-400 text-[11px] leading-relaxed">
-                  Moves HEAD pointer to target. Leaves all file modifications completely staged in your index for immediate re-committing.
+                  Moves HEAD pointer to target. Leaves all file modifications completely staged in
+                  your index for immediate re-committing.
                 </p>
               </div>
             </label>
@@ -193,8 +188,11 @@ export const ResetConfirmModal: React.FC<ResetConfirmModalProps> = ({
                 <p className="font-semibold">Automated Safety Backup Active</p>
                 <p className="opacity-90">
                   Per Safety Policy Level 3, Git Workbench will automatically create a backup branch
-                  (<code className="font-mono text-[10px] bg-rose-100 dark:bg-rose-900 px-1 py-0.2 rounded">backup/pre-reset-&lt;timestamp&gt;</code>)
-                  before executing this reset so previous work is never permanently lost.
+                  (
+                  <code className="font-mono text-[10px] bg-rose-100 dark:bg-rose-900 px-1 py-0.2 rounded">
+                    backup/pre-reset-&lt;timestamp&gt;
+                  </code>
+                  ) before executing this reset so previous work is never permanently lost.
                 </p>
               </div>
             </div>

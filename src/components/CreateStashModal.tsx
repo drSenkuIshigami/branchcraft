@@ -5,11 +5,7 @@ import type { StatusInfo } from '../types';
 interface CreateStashModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (
-    message: string,
-    includeUntracked: boolean,
-    keepIndex: boolean
-  ) => Promise<void>;
+  onConfirm: (message: string, includeUntracked: boolean, keepIndex: boolean) => Promise<void>;
   status: StatusInfo | null;
 }
 
@@ -158,7 +154,8 @@ export const CreateStashModal: React.FC<CreateStashModalProps> = ({
                 className="rounded border-stone-300 dark:border-stone-700 text-amber-600 focus:ring-amber-500/30"
               />
               <span>
-                Keep staged index intact (<code className="text-[11px] font-mono">--keep-index</code>)
+                Keep staged index intact (
+                <code className="text-[11px] font-mono">--keep-index</code>)
               </span>
             </label>
           </div>

@@ -57,7 +57,8 @@ export const ResetHardModal: React.FC<ResetHardModalProps> = ({
               Reset Working Tree to HEAD
             </h2>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              Discard all staged and unstaged tracked changes (<code className="font-mono">git reset --hard HEAD</code>)
+              Discard all staged and unstaged tracked changes (
+              <code className="font-mono">git reset --hard HEAD</code>)
             </p>
           </div>
         </div>
@@ -77,8 +78,10 @@ export const ResetHardModal: React.FC<ResetHardModalProps> = ({
             </div>
             <p className="text-xs text-rose-600/90 dark:text-rose-300/90 leading-relaxed">
               This will irreversibly discard all uncommitted changes across{' '}
-              <span className="font-bold">{totalTracked} tracked file{totalTracked === 1 ? '' : 's'}</span>.
-              Any uncommitted edits will be lost unless previously stashed or committed.
+              <span className="font-bold">
+                {totalTracked} tracked file{totalTracked === 1 ? '' : 's'}
+              </span>
+              . Any uncommitted edits will be lost unless previously stashed or committed.
             </p>
           </div>
 

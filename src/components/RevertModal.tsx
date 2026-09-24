@@ -270,7 +270,8 @@ export const RevertModal: React.FC<RevertModalProps> = ({
               />
               <div>
                 <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                  Stage inverse changes without committing (<code>-n</code> / <code>--no-commit</code>)
+                  Stage inverse changes without committing (<code>-n</code> /{' '}
+                  <code>--no-commit</code>)
                 </span>
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
                   Applies the reverted inverse changes into your staging index and working tree,

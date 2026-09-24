@@ -90,6 +90,10 @@ import {
   getRerereStatus,
   toggleRerere,
   getLfsDiagnostics,
+  getRangeDiff,
+  mergeWithOptions,
+  previewForceRelocateBranch,
+  executeForceRelocateBranch,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -1005,6 +1009,61 @@ export function gitApiPlugin(): Plugin {
                 : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await getLfsDiagnostics(repoPath);
+            return sendJson(200, resData);
+          }
+
+          // Range-Diff API (Phase 3 Extension)
+          if (pathname === '/api/git/range_diff' && req.method === 'GET') {
+            const repoPath = typeof parsedUrl.query.repo_path === 'string' ? parsedUrl.query.repo_path : '';
+            const baseSha = typeof parsedUrl.query.base_sha === 'string' ? parsedUrl.query.base_sha : '';
+            const oldSha = typeof parsedUrl.query.old_sha === 'string' ? parsedUrl.query.old_sha : '';
+            const newSha = typeof parsedUrl.query.new_sha === 'string' ? parsedUrl.query.new_sha : '';
+            if (!repoPath || !baseSha || !oldSha || !newSha) {
+              return sendJson(400, { error: 'repo_path, base_sha, old_sha, and new_sha required' });
+            }
+            const resData = await getRangeDiff(repoPath, baseSha, oldSha, newSha);
+            return sendJson(200, resData);
+          }
+
+          // Merge with Strategy API (Phase 3 Extension: -X ours/theirs vs -s ours)
+          if (pathname === '/api/git/merge_with_options' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const branchName = typeof body.branch_name === 'string' ? body.branch_name : '';
+            const strategy =
+              typeof body.strategy === 'string'
+                ? (body.strategy as 'recursive-ours' | 'recursive-theirs' | 'strategy-ours')
+                : undefined;
+            const message = typeof body.message === 'string' ? body.message : undefined;
+            if (!repoPath || !branchName) {
+              return sendJson(400, { error: 'repo_path and branch_name required' });
+            }
+            const resData = await mergeWithOptions(repoPath, { branchName, strategy, message });
+            return sendJson(200, resData);
+          }
+
+          // Force Relocate Branch (Phase 3 Extension: branch -f with lost commits preview)
+          if (pathname === '/api/git/branch_force_relocate/preview' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const branchName = typeof body.branch_name === 'string' ? body.branch_name : '';
+            const newSha = typeof body.new_sha === 'string' ? body.new_sha : '';
+            if (!repoPath || !branchName || !newSha) {
+              return sendJson(400, { error: 'repo_path, branch_name, and new_sha required' });
+            }
+            const resData = await previewForceRelocateBranch(repoPath, branchName, newSha);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/branch_force_relocate/execute' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const branchName = typeof body.branch_name === 'string' ? body.branch_name : '';
+            const newSha = typeof body.new_sha === 'string' ? body.new_sha : '';
+            if (!repoPath || !branchName || !newSha) {
+              return sendJson(400, { error: 'repo_path, branch_name, and new_sha required' });
+            }
+            const resData = await executeForceRelocateBranch(repoPath, branchName, newSha);
             return sendJson(200, resData);
           }
 

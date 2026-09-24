@@ -133,9 +133,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   };
 
   const handleMessageChange = (id: string, msg: string) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, new_message: msg } : item))
-    );
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, new_message: msg } : item)));
   };
 
   const handleExecCommandChange = (id: string, cmd: string) => {
@@ -172,13 +170,17 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
 
   const handleSquashAllIntoFirst = () => {
     setItems((prev) =>
-      prev.map((item, idx) => (idx === 0 ? { ...item, action: 'pick' } : { ...item, action: 'squash' }))
+      prev.map((item, idx) =>
+        idx === 0 ? { ...item, action: 'pick' } : { ...item, action: 'squash' }
+      )
     );
   };
 
   const handleFixupAllIntoFirst = () => {
     setItems((prev) =>
-      prev.map((item, idx) => (idx === 0 ? { ...item, action: 'pick' } : { ...item, action: 'fixup' }))
+      prev.map((item, idx) =>
+        idx === 0 ? { ...item, action: 'pick' } : { ...item, action: 'fixup' }
+      )
     );
   };
 
@@ -186,10 +188,13 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   const hasInvalidFirstItem =
     items.length > 0 && (items[0].action === 'squash' || items[0].action === 'fixup');
 
-  const actionCounts = items.reduce((acc, it) => {
-    acc[it.action] = (acc[it.action] || 0) + 1;
-    return acc;
-  }, {} as Record<RebaseAction, number>);
+  const actionCounts = items.reduce(
+    (acc, it) => {
+      acc[it.action] = (acc[it.action] || 0) + 1;
+      return acc;
+    },
+    {} as Record<RebaseAction, number>
+  );
 
   const handleExecute = async () => {
     if (hasInvalidFirstItem || items.length === 0) return;
@@ -253,7 +258,9 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
         <div className="px-4 py-2.5 bg-zinc-100/70 dark:bg-zinc-800/40 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
           <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
             <GitCommit className="w-4 h-4 text-zinc-400" />
-            <span>Rebasing {items.length} commit{items.length !== 1 ? 's' : ''} onto:</span>
+            <span>
+              Rebasing {items.length} commit{items.length !== 1 ? 's' : ''} onto:
+            </span>
             <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">
               {baseSummary || baseSha.slice(0, 10)}
             </span>
@@ -318,7 +325,10 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
         {hasInvalidFirstItem && (
           <div className="mx-4 mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>The first commit in a rebase cannot be "squash" or "fixup". Change it to "pick" or move another commit before it.</span>
+            <span>
+              The first commit in a rebase cannot be "squash" or "fixup". Change it to "pick" or
+              move another commit before it.
+            </span>
           </div>
         )}
 
@@ -378,7 +388,9 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                     <div className="shrink-0">
                       <select
                         value={item.action}
-                        onChange={(e) => handleActionChange(item.id, e.target.value as RebaseAction)}
+                        onChange={(e) =>
+                          handleActionChange(item.id, e.target.value as RebaseAction)
+                        }
                         disabled={submitting}
                         className={`text-xs font-mono font-medium rounded-md px-2.5 py-1.5 border appearance-none cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition-colors ${
                           theme === 'dark' ? config.darkBadgeClass : config.badgeClass
@@ -450,7 +462,8 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             <span>
-              If conflicts arise, rebase automatically pauses allowing resolution, continuing, or aborting safely.
+              If conflicts arise, rebase automatically pauses allowing resolution, continuing, or
+              aborting safely.
             </span>
           </div>
 

@@ -105,9 +105,7 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
 
   const isPathAlreadyUsed = useMemo(() => {
     const normalized = targetPath.trim().replace(/\/+$/, '');
-    return existingWorktreePaths.some(
-      (p) => p.trim().replace(/\/+$/, '') === normalized
-    );
+    return existingWorktreePaths.some((p) => p.trim().replace(/\/+$/, '') === normalized);
   }, [targetPath, existingWorktreePaths]);
 
   // Computed command preview
@@ -130,7 +128,16 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
       parts.push(targetPath || '<path>', selectedBranch || '<branch>');
     }
     return parts.join(' ');
-  }, [branchMode, targetPath, selectedBranch, newBranchName, startPoint, commitIsh, lockOnCreate, lockReason]);
+  }, [
+    branchMode,
+    targetPath,
+    selectedBranch,
+    newBranchName,
+    startPoint,
+    commitIsh,
+    lockOnCreate,
+    lockReason,
+  ]);
 
   if (!isOpen) return null;
 
@@ -145,7 +152,9 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
       return;
     }
     if (branchMode === 'existing' && isBranchAlreadyCheckedOut) {
-      setError(`Branch '${selectedBranch}' is already checked out in another worktree. Select a different branch or create a new branch.`);
+      setError(
+        `Branch '${selectedBranch}' is already checked out in another worktree. Select a different branch or create a new branch.`
+      );
       return;
     }
     if (branchMode === 'new' && !newBranchName.trim()) {
@@ -232,7 +241,8 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
                 Independent Workspace Architecture
               </p>
               <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-                Linked worktrees allow you to work on multiple branches simultaneously without stash overhead or resetting HEAD. All worktrees share the same Git objects and refs.
+                Linked worktrees allow you to work on multiple branches simultaneously without stash
+                overhead or resetting HEAD. All worktrees share the same Git objects and refs.
               </p>
             </div>
           </div>
@@ -294,12 +304,13 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
                   {availableBranches.map((b) => {
                     const isCheckedOut = existingWorktreeBranches.includes(b.name);
                     return (
-                      <option
-                        key={b.name}
-                        value={b.name}
-                        disabled={isCheckedOut}
-                      >
-                        {b.name} {isCheckedOut ? '(checked out in another worktree)' : b.is_head ? '(active in main)' : ''}
+                      <option key={b.name} value={b.name} disabled={isCheckedOut}>
+                        {b.name}{' '}
+                        {isCheckedOut
+                          ? '(checked out in another worktree)'
+                          : b.is_head
+                            ? '(active in main)'
+                            : ''}
                       </option>
                     );
                   })}
@@ -431,7 +442,11 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || isPathAlreadyUsed || (branchMode === 'existing' && isBranchAlreadyCheckedOut)}
+              disabled={
+                loading ||
+                isPathAlreadyUsed ||
+                (branchMode === 'existing' && isBranchAlreadyCheckedOut)
+              }
               className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? (

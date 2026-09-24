@@ -45,7 +45,10 @@ export const SubmodulesAndLfsModal: React.FC<SubmodulesAndLfsModalProps> = ({
     setUpdateResult(null);
     try {
       const res = await onUpdateSubmodules(recursive);
-      setUpdateResult(res.stdout || (res.success ? 'Submodules updated successfully.' : 'Submodule update failed.'));
+      setUpdateResult(
+        res.stdout ||
+          (res.success ? 'Submodules updated successfully.' : 'Submodule update failed.')
+      );
       await onRefreshData();
     } catch (err: unknown) {
       setUpdateResult(err instanceof Error ? err.message : String(err));
@@ -168,7 +171,8 @@ export const SubmodulesAndLfsModal: React.FC<SubmodulesAndLfsModalProps> = ({
                   <Layers className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   <p className="font-medium">No submodules configured in this repository.</p>
                   <p className="text-[11px] text-zinc-400 mt-1">
-                    To add a submodule via CLI: <code>git submodule add &lt;url&gt; &lt;path&gt;</code>
+                    To add a submodule via CLI:{' '}
+                    <code>git submodule add &lt;url&gt; &lt;path&gt;</code>
                   </p>
                 </div>
               ) : (
@@ -188,8 +192,8 @@ export const SubmodulesAndLfsModal: React.FC<SubmodulesAndLfsModalProps> = ({
                               sub.status === 'clean'
                                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                                 : sub.status === 'uninitialized'
-                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                  : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
                             }`}
                           >
                             {sub.status}
@@ -238,7 +242,9 @@ export const SubmodulesAndLfsModal: React.FC<SubmodulesAndLfsModalProps> = ({
                   )}
                 </div>
                 <p className="text-[11px] text-zinc-500">
-                  Git Large File Storage (LFS) replaces large files such as audio samples, videos, datasets, and graphics with text pointers inside Git, storing file contents on remote servers.
+                  Git Large File Storage (LFS) replaces large files such as audio samples, videos,
+                  datasets, and graphics with text pointers inside Git, storing file contents on
+                  remote servers.
                 </p>
               </div>
 
@@ -261,7 +267,8 @@ export const SubmodulesAndLfsModal: React.FC<SubmodulesAndLfsModalProps> = ({
                   </div>
                 ) : (
                   <p className="text-zinc-400 dark:text-zinc-500 text-[11px] italic">
-                    No active <code>filter=lfs</code> patterns detected in repository root <code>.gitattributes</code>.
+                    No active <code>filter=lfs</code> patterns detected in repository root{' '}
+                    <code>.gitattributes</code>.
                   </p>
                 )}
               </div>
@@ -269,8 +276,11 @@ export const SubmodulesAndLfsModal: React.FC<SubmodulesAndLfsModalProps> = ({
               <div className="p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 text-indigo-700 dark:text-indigo-300 text-[11px]">
                 <p className="font-semibold mb-1">Recommended LFS Tracking Commands:</p>
                 <code className="font-mono block bg-black/5 dark:bg-black/20 p-2 rounded text-[11px]">
-                  git lfs install<br />
-                  git lfs track &quot;*.psd&quot; &quot;*.zip&quot; &quot;*.mp4&quot; &quot;*.weights&quot;<br />
+                  git lfs install
+                  <br />
+                  git lfs track &quot;*.psd&quot; &quot;*.zip&quot; &quot;*.mp4&quot;
+                  &quot;*.weights&quot;
+                  <br />
                   git add .gitattributes
                 </code>
               </div>

@@ -1,5 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Tag, GitBranch, Copy, Check, Layers, Clock, Cherry, RotateCcw, Undo2 } from 'lucide-react';
+import {
+  Search,
+  Tag,
+  GitBranch,
+  Copy,
+  Check,
+  Layers,
+  Clock,
+  Cherry,
+  RotateCcw,
+  Undo2,
+  ArrowRightLeft,
+} from 'lucide-react';
 import type { CommitInfo, Theme } from '../types';
 import { CommitGraphCanvas } from './CommitGraphCanvas';
 
@@ -12,6 +24,7 @@ interface CommitListProps {
   onRevert?: (commit: CommitInfo) => void;
   onModifyAuthorDate?: (commit: CommitInfo) => void;
   onResetToCommit?: (commit: CommitInfo) => void;
+  onForceRelocateBranch?: (commit: CommitInfo) => void;
   loading: boolean;
   theme: Theme;
 }
@@ -27,6 +40,7 @@ export const CommitList: React.FC<CommitListProps> = ({
   onRevert,
   onModifyAuthorDate,
   onResetToCommit,
+  onForceRelocateBranch,
   loading,
   theme,
 }) => {
@@ -241,6 +255,19 @@ export const CommitList: React.FC<CommitListProps> = ({
                         title="Reset HEAD to this commit (--soft / --mixed / --hard)"
                       >
                         <Undo2 className="w-3 h-3" />
+                      </button>
+                    )}
+                    {onForceRelocateBranch && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onForceRelocateBranch(c);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-amber-500/10 text-zinc-400 hover:text-amber-500 dark:hover:text-amber-400 transition-all"
+                        title="Force relocate a branch pointer to this commit (branch -f)"
+                      >
+                        <ArrowRightLeft className="w-3 h-3" />
                       </button>
                     )}
                     <button

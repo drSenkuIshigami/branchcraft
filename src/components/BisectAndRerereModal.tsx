@@ -23,7 +23,10 @@ interface BisectAndRerereModalProps {
   commits: CommitInfo[];
   bisectStatus: BisectStatus | null;
   rerereStatus: RerereStatus | null;
-  onRunBisect: (action: 'start' | 'good' | 'bad' | 'reset' | 'skip', commitSha?: string) => Promise<OperationResult>;
+  onRunBisect: (
+    action: 'start' | 'good' | 'bad' | 'reset' | 'skip',
+    commitSha?: string
+  ) => Promise<OperationResult>;
   onToggleRerere: (enable: boolean) => Promise<OperationResult>;
   onRefresh: () => Promise<void>;
 }
@@ -81,7 +84,9 @@ export const BisectAndRerereModal: React.FC<BisectAndRerereModalProps> = ({
     setError(null);
     try {
       const res = await onRunBisect(action);
-      setOutputLog((prev) => `${prev}\n\n[bisect ${action}]:\n${res.stdout || res.stderr || 'Done.'}`);
+      setOutputLog(
+        (prev) => `${prev}\n\n[bisect ${action}]:\n${res.stdout || res.stderr || 'Done.'}`
+      );
       await onRefresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -182,7 +187,10 @@ export const BisectAndRerereModal: React.FC<BisectAndRerereModalProps> = ({
                       How Git Bisect Works:
                     </p>
                     <p>
-                      Bisect performs a binary search through your commit history to quickly find which commit introduced a bug or regression. You specify a known <strong>bad commit</strong> (typically HEAD) and an older <strong>good commit</strong> where the bug did not exist.
+                      Bisect performs a binary search through your commit history to quickly find
+                      which commit introduced a bug or regression. You specify a known{' '}
+                      <strong>bad commit</strong> (typically HEAD) and an older{' '}
+                      <strong>good commit</strong> where the bug did not exist.
                     </p>
                   </div>
 
@@ -195,7 +203,9 @@ export const BisectAndRerereModal: React.FC<BisectAndRerereModalProps> = ({
                         type="text"
                         value={badCommitSha}
                         onChange={(e) => setBadCommitSha(e.target.value)}
-                        placeholder={commits[0]?.sha ? `${commits[0].sha.slice(0, 7)} (HEAD)` : 'HEAD'}
+                        placeholder={
+                          commits[0]?.sha ? `${commits[0].sha.slice(0, 7)} (HEAD)` : 'HEAD'
+                        }
                         className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-xs focus:ring-2 focus:ring-violet-500 focus:outline-none"
                       />
                     </div>
@@ -236,7 +246,8 @@ export const BisectAndRerereModal: React.FC<BisectAndRerereModalProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-zinc-600 dark:text-zinc-300">
-                      Test your code or test suite on the currently checked out commit, then classify it:
+                      Test your code or test suite on the currently checked out commit, then
+                      classify it:
                     </p>
                     <div className="flex items-center gap-2 pt-2">
                       <button
@@ -334,7 +345,9 @@ export const BisectAndRerereModal: React.FC<BisectAndRerereModalProps> = ({
                   </button>
                 </div>
                 <p className="text-[11px] text-zinc-500">
-                  <code>git rerere</code> records how you have resolved a conflicting hunk and uses the recorded resolution to resolve future identical conflicts automatically during rebases and merges.
+                  <code>git rerere</code> records how you have resolved a conflicting hunk and uses
+                  the recorded resolution to resolve future identical conflicts automatically during
+                  rebases and merges.
                 </p>
               </div>
 
@@ -350,7 +363,9 @@ export const BisectAndRerereModal: React.FC<BisectAndRerereModalProps> = ({
                 <div className="text-[11px] text-zinc-400 flex items-start gap-1.5 pt-1">
                   <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-violet-500" />
                   <span>
-                    When enabled, resolving a conflict once saves the resolution into your local repository cache. Subsequent rebases with the same conflicts will auto-apply your recorded resolution.
+                    When enabled, resolving a conflict once saves the resolution into your local
+                    repository cache. Subsequent rebases with the same conflicts will auto-apply
+                    your recorded resolution.
                   </span>
                 </div>
               </div>

@@ -58,7 +58,10 @@ export const StashManager: React.FC<StashManagerProps> = ({
 
   // Auto-select first stash if none is selected
   useEffect(() => {
-    if (stashes.length > 0 && (!selectedStashRef || !stashes.some((s) => s.ref === selectedStashRef))) {
+    if (
+      stashes.length > 0 &&
+      (!selectedStashRef || !stashes.some((s) => s.ref === selectedStashRef))
+    ) {
       onSelectStash(stashes[0].ref);
     } else if (stashes.length === 0) {
       onSelectStash(null);
@@ -81,7 +84,10 @@ export const StashManager: React.FC<StashManagerProps> = ({
       .then((detail) => {
         if (!isMounted) return;
         setStashDetail(detail);
-        if (detail.files.length > 0 && (!activeDiffFile || !detail.files.some((f) => f.path === activeDiffFile))) {
+        if (
+          detail.files.length > 0 &&
+          (!activeDiffFile || !detail.files.some((f) => f.path === activeDiffFile))
+        ) {
           onSelectFileForDiff(detail.files[0].path, selectedStashRef);
         }
       })
@@ -252,7 +258,8 @@ export const StashManager: React.FC<StashManagerProps> = ({
                 {searchQuery ? 'No stashes match your search' : 'No stashes currently saved'}
               </p>
               <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-1 max-w-xs">
-                Use &quot;Stash Changes&quot; to tuck away uncommitted work so you can switch branches cleanly.
+                Use &quot;Stash Changes&quot; to tuck away uncommitted work so you can switch
+                branches cleanly.
               </p>
             </div>
           ) : (
@@ -403,9 +410,7 @@ export const StashManager: React.FC<StashManagerProps> = ({
                     {stashDetail.stash.branch}
                   </span>
                 </div>
-                <span className="text-xs font-mono text-stone-400">
-                  {stashDetail.stash.hash}
-                </span>
+                <span className="text-xs font-mono text-stone-400">{stashDetail.stash.hash}</span>
               </div>
 
               <h3 className="mt-2 text-xs font-semibold text-stone-900 dark:text-stone-100">
@@ -464,9 +469,7 @@ export const StashManager: React.FC<StashManagerProps> = ({
                       <span className="text-emerald-600 dark:text-emerald-400">
                         +{file.additions}
                       </span>
-                      <span className="text-rose-600 dark:text-rose-400">
-                        -{file.deletions}
-                      </span>
+                      <span className="text-rose-600 dark:text-rose-400">-{file.deletions}</span>
                       <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
                     </div>
                   </button>

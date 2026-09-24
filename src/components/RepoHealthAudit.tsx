@@ -53,7 +53,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
   onOpenPurgeWizard,
   theme: _theme,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'secrets' | 'large_files' | 'ai_traces' | 'backups' | 'maintenance'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'secrets' | 'large_files' | 'ai_traces' | 'backups' | 'maintenance'
+  >('overview');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RepoAuditReport | null>(null);
   const [fsck, setFsck] = useState<FsckResult | null>(null);
@@ -126,7 +128,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
     setHookSuccessMsg(null);
     try {
       const res = await installPreCommitHook(repoPath);
-      setHookSuccessMsg(res.stdout || 'Installed pre-commit hook with secret scanner and large file guard.');
+      setHookSuccessMsg(
+        res.stdout || 'Installed pre-commit hook with secret scanner and large file guard.'
+      );
       const updated = await getGitHooksStatus(repoPath);
       setHooksStatus(updated);
     } catch (err: unknown) {
@@ -251,7 +255,8 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
               </span>
             </div>
             <p className="text-xs text-zinc-500">
-              Audit committed secrets, history-bloating blobs, AI trace metadata, and offline safety backups
+              Audit committed secrets, history-bloating blobs, AI trace metadata, and offline safety
+              backups
             </p>
           </div>
         </div>
@@ -392,9 +397,12 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
         >
           <Wrench className="w-3.5 h-3.5" />
           <span>Hooks & Guard Rails</span>
-          {hooksStatus && (!hooksStatus.commit_msg_installed || !hooksStatus.pre_commit_installed || !hooksStatus.gitignore_has_ai_dirs) && (
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-          )}
+          {hooksStatus &&
+            (!hooksStatus.commit_msg_installed ||
+              !hooksStatus.pre_commit_installed ||
+              !hooksStatus.gitignore_has_ai_dirs) && (
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+            )}
         </button>
       </div>
 
@@ -419,7 +427,8 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   {fsck?.is_healthy ? 'Clean & Valid' : 'Corruptions'}
                 </div>
                 <p className="text-[11px] text-zinc-400 mt-1">
-                  {fsck?.dangling_blobs || 0} dangling blobs, {fsck?.dangling_commits || 0} unreferenced commits
+                  {fsck?.dangling_blobs || 0} dangling blobs, {fsck?.dangling_commits || 0}{' '}
+                  unreferenced commits
                 </p>
               </div>
 
@@ -436,7 +445,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   {totalSecrets}
                 </div>
                 <p className="text-[11px] text-zinc-400 mt-1">
-                  {totalSecrets > 0 ? 'High-risk credentials in commits' : 'No credential patterns detected'}
+                  {totalSecrets > 0
+                    ? 'High-risk credentials in commits'
+                    : 'No credential patterns detected'}
                 </p>
               </div>
 
@@ -483,8 +494,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   <span>Level 4 History Purge & Sanitization Runbook</span>
                 </h3>
                 <p className="text-xs text-zinc-500 leading-relaxed">
-                  Need to eradicate hardcoded API credentials, purge huge video or binary assets from past commits,
-                  or rewrite co-authors? Use the automated 7-step isolated mirror wizard.
+                  Need to eradicate hardcoded API credentials, purge huge video or binary assets
+                  from past commits, or rewrite co-authors? Use the automated 7-step isolated mirror
+                  wizard.
                 </p>
               </div>
               <button
@@ -505,7 +517,8 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   <span>Git Object Store Verification (`git fsck --full`)</span>
                 </h3>
                 <span className="text-[10px] text-zinc-400 font-mono">
-                  Scanned {report?.total_commits_scanned || 0} commits in {report?.duration_ms || 0}ms
+                  Scanned {report?.total_commits_scanned || 0} commits in {report?.duration_ms || 0}
+                  ms
                 </span>
               </div>
               <pre className="p-3 rounded-lg bg-zinc-950 text-zinc-300 font-mono text-[11px] overflow-x-auto max-h-40 leading-relaxed">
@@ -546,7 +559,8 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   No Secret Leaks Found
                 </h4>
                 <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                  No API tokens, private keys, AWS credentials, or hardcoded tokens were detected in the sampled commit history.
+                  No API tokens, private keys, AWS credentials, or hardcoded tokens were detected in
+                  the sampled commit history.
                 </p>
               </div>
             ) : (
@@ -575,7 +589,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                     <div className="flex items-center justify-between gap-2 text-xs font-mono bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
                       <div className="flex items-center gap-2 truncate">
                         <FileCode className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                        <span className="text-zinc-800 dark:text-zinc-200 truncate">{secret.file_path}</span>
+                        <span className="text-zinc-800 dark:text-zinc-200 truncate">
+                          {secret.file_path}
+                        </span>
                       </div>
                       <span className="text-rose-600 dark:text-rose-400 font-bold px-2 py-0.5 bg-rose-50 dark:bg-rose-950/50 rounded shrink-0">
                         {secret.match_preview}
@@ -684,7 +700,8 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   No Verifiable AI Traces Found
                 </h4>
                 <p className="text-xs text-zinc-500 max-w-sm mx-auto">
-                  No identifiable AI co-author commit trailers or tool configuration files were found.
+                  No identifiable AI co-author commit trailers or tool configuration files were
+                  found.
                 </p>
               </div>
             ) : (
@@ -707,9 +724,7 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                     <div className="text-xs font-mono font-semibold text-zinc-900 dark:text-zinc-100">
                       {trace.marker}
                     </div>
-                    <div className="text-[11px] text-zinc-500">
-                      {trace.details}
-                    </div>
+                    <div className="text-[11px] text-zinc-500">{trace.details}</div>
                   </div>
                 ))}
               </div>
@@ -727,7 +742,8 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                 <span>Create Instant Safety Restore Point</span>
               </h3>
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Take an automatic safety snapshot before initiating manual or complex Git procedures.
+                Take an automatic safety snapshot before initiating manual or complex Git
+                procedures.
               </p>
 
               {backupSuccessMsg && (
@@ -868,13 +884,12 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                     Proactive Git Hooks & Guard Rails
                   </h3>
                 </div>
-                <span className="text-[11px] font-mono text-zinc-400">
-                  Local-only `.git/hooks`
-                </span>
+                <span className="text-[11px] font-mono text-zinc-400">Local-only `.git/hooks`</span>
               </div>
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Install local defense-in-depth hooks that intercept commits before they are finalized.
-                This prevents accidental attribution leakage or credential exposure regardless of IDE or agent behavior.
+                Install local defense-in-depth hooks that intercept commits before they are
+                finalized. This prevents accidental attribution leakage or credential exposure
+                regardless of IDE or agent behavior.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
@@ -891,11 +906,14 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                           : 'bg-zinc-200/50 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300 dark:border-zinc-600'
                       }`}
                     >
-                      {hooksStatus?.commit_msg_blocks_ai_trailers ? 'Active (Guarded)' : 'Not Configured'}
+                      {hooksStatus?.commit_msg_blocks_ai_trailers
+                        ? 'Active (Guarded)'
+                        : 'Not Configured'}
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-500">
-                    Defense-in-depth against AI trailers (e.g., <code>Co-authored-by: Claude</code>, <code>Claude-Session: &lt;url&gt;</code>).
+                    Defense-in-depth against AI trailers (e.g., <code>Co-authored-by: Claude</code>,{' '}
+                    <code>Claude-Session: &lt;url&gt;</code>).
                   </p>
                   <div className="flex gap-2 pt-1">
                     <button
@@ -904,7 +922,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                       disabled={installingAction !== null}
                       className="px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium cursor-pointer transition-colors"
                     >
-                      {installingAction === 'commit-msg-strip' ? 'Installing...' : 'Install (Auto-Strip)'}
+                      {installingAction === 'commit-msg-strip'
+                        ? 'Installing...'
+                        : 'Install (Auto-Strip)'}
                     </button>
                     <button
                       type="button"
@@ -912,7 +932,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                       disabled={installingAction !== null}
                       className="px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-medium cursor-pointer transition-colors"
                     >
-                      {installingAction === 'commit-msg-reject' ? 'Installing...' : 'Install (Strict Reject)'}
+                      {installingAction === 'commit-msg-reject'
+                        ? 'Installing...'
+                        : 'Install (Strict Reject)'}
                     </button>
                   </div>
                 </div>
@@ -930,11 +952,14 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                           : 'bg-zinc-200/50 dark:bg-zinc-700/50 text-zinc-500 border-zinc-300 dark:border-zinc-600'
                       }`}
                     >
-                      {hooksStatus?.pre_commit_blocks_secrets ? 'Active (Scanning)' : 'Not Configured'}
+                      {hooksStatus?.pre_commit_blocks_secrets
+                        ? 'Active (Scanning)'
+                        : 'Not Configured'}
                     </span>
                   </div>
                   <p className="text-[11px] text-zinc-500">
-                    Blocks commits with staged secrets (AWS, OpenAI, Anthropic, SSH keys) and warns on blobs &gt; 500 KB.
+                    Blocks commits with staged secrets (AWS, OpenAI, Anthropic, SSH keys) and warns
+                    on blobs &gt; 500 KB.
                   </p>
                   <div className="pt-1">
                     <button
@@ -943,7 +968,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                       disabled={installingAction !== null}
                       className="px-2.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium cursor-pointer transition-colors"
                     >
-                      {installingAction === 'pre-commit' ? 'Installing...' : 'Install Pre-Commit Scanner'}
+                      {installingAction === 'pre-commit'
+                        ? 'Installing...'
+                        : 'Install Pre-Commit Scanner'}
                     </button>
                   </div>
                 </div>
@@ -970,10 +997,13 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-500 leading-relaxed">
-                Prevents accidental tracking of developer-local IDE configurations and AI workspaces:
+                Prevents accidental tracking of developer-local IDE configurations and AI
+                workspaces:
                 <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.cursor/</code>,
-                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.cursorrules</code>,
-                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.claude/</code>,
+                <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">
+                  .cursorrules
+                </code>
+                ,<code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.claude/</code>,
                 <code className="mx-1 text-zinc-700 dark:text-zinc-300 font-mono">.cline/</code>.
               </p>
               {hooksStatus?.missing_ai_dirs && hooksStatus.missing_ai_dirs.length > 0 && (
@@ -988,7 +1018,9 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   disabled={installingAction !== null}
                   className="px-3 py-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-xs font-medium cursor-pointer transition-colors"
                 >
-                  {installingAction === 'gitignore' ? 'Updating .gitignore...' : 'Add AI Tool Rules to .gitignore'}
+                  {installingAction === 'gitignore'
+                    ? 'Updating .gitignore...'
+                    : 'Add AI Tool Rules to .gitignore'}
                 </button>
               </div>
             </div>
@@ -1007,15 +1039,20 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   <span>Strict Safety Warning: Irreversible Garbage Collection</span>
                 </div>
                 <p className="leading-relaxed">
-                  In accordance with <code>SAFETY_POLICY.md</code>, aggressive garbage collection is <strong>never</strong> automated
-                  inside any wizard. Running this command permanently prunes all unreferenced, dangling commits and repacks loose objects.
+                  In accordance with <code>SAFETY_POLICY.md</code>, aggressive garbage collection is{' '}
+                  <strong>never</strong> automated inside any wizard. Running this command
+                  permanently prunes all unreferenced, dangling commits and repacks loose objects.
                   Once pruned, orphan commits cannot be rescued via reflog!
                 </p>
               </div>
 
               <div className="space-y-2 pt-1">
                 <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Type <span className="font-mono font-bold text-rose-600 dark:text-rose-400">PRUNE NOW</span> to confirm manual garbage collection:
+                  Type{' '}
+                  <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                    PRUNE NOW
+                  </span>{' '}
+                  to confirm manual garbage collection:
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input

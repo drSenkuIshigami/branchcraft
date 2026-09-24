@@ -55,7 +55,8 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
   const inRebase = conflictState?.in_rebase ?? false;
   const inCherryPick = conflictState?.in_cherry_pick ?? false;
   const inRevert = conflictState?.in_revert ?? false;
-  const hasConflictState = inMerge || inRebase || inCherryPick || inRevert || conflictedFiles.length > 0;
+  const hasConflictState =
+    inMerge || inRebase || inCherryPick || inRevert || conflictedFiles.length > 0;
 
   if (!hasConflictState) {
     return (
@@ -130,12 +131,12 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
   const opTitle = inRebase
     ? 'Rebase Conflict in Progress'
     : inCherryPick
-    ? 'Cherry-pick Conflict in Progress'
-    : inRevert
-    ? 'Revert Conflict in Progress'
-    : inMerge
-    ? 'Merge Conflict in Progress'
-    : 'Unmerged Working Tree Conflicts';
+      ? 'Cherry-pick Conflict in Progress'
+      : inRevert
+        ? 'Revert Conflict in Progress'
+        : inMerge
+          ? 'Merge Conflict in Progress'
+          : 'Unmerged Working Tree Conflicts';
 
   const opDescription = inCherryPick
     ? `A cherry-pick was paused due to colliding changes${
@@ -143,25 +144,21 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
           ? ` while applying commit ${conflictState.cherry_pick_head.slice(0, 7)}`
           : ''
       }${
-        conflictState?.cherry_pick_subject
-          ? ` ("${conflictState.cherry_pick_subject}")`
-          : ''
+        conflictState?.cherry_pick_subject ? ` ("${conflictState.cherry_pick_subject}")` : ''
       }. Resolve the conflicted files below and click Continue, or click Skip to omit this commit.`
     : inRevert
-    ? `A revert operation was paused due to conflicting changes${
-        conflictState?.revert_head
-          ? ` while reverting commit ${conflictState.revert_head.slice(0, 7)}`
-          : ''
-      }${
-        conflictState?.revert_subject
-          ? ` ("${conflictState.revert_subject}")`
-          : ''
-      }. Resolve the conflicted files below and click Continue to finalize the revert commit, or click Skip/Abort.`
-    : inRebase
-    ? 'A rebase sequence was paused due to merge conflicts. Resolve files then continue or abort.'
-    : inMerge
-    ? 'A merge operation encountered conflicting changes between local branch and incoming branch.'
-    : 'Files have unresolved conflict markers. Choose which version to keep or edit manually.';
+      ? `A revert operation was paused due to conflicting changes${
+          conflictState?.revert_head
+            ? ` while reverting commit ${conflictState.revert_head.slice(0, 7)}`
+            : ''
+        }${
+          conflictState?.revert_subject ? ` ("${conflictState.revert_subject}")` : ''
+        }. Resolve the conflicted files below and click Continue to finalize the revert commit, or click Skip/Abort.`
+      : inRebase
+        ? 'A rebase sequence was paused due to merge conflicts. Resolve files then continue or abort.'
+        : inMerge
+          ? 'A merge operation encountered conflicting changes between local branch and incoming branch.'
+          : 'Files have unresolved conflict markers. Choose which version to keep or edit manually.';
 
   const handleResolve = async (filePath: string, resolution: ConflictResolutionType) => {
     setActionFile(`${filePath}:${resolution}`);
@@ -253,8 +250,8 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
                 inCherryPick
                   ? 'Skip applying this commit (git cherry-pick --skip)'
                   : inRevert
-                  ? 'Skip reverting this commit (git revert --skip)'
-                  : 'Skip current rebase commit (git rebase --skip)'
+                    ? 'Skip reverting this commit (git revert --skip)'
+                    : 'Skip current rebase commit (git rebase --skip)'
               }
             >
               <SkipForward className="w-3.5 h-3.5" />
@@ -264,7 +261,9 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
 
           {confirmAbort ? (
             <div className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/30 p-1 rounded-lg text-[11px]">
-              <span className="text-rose-600 dark:text-rose-400 font-medium px-1">Abort operation?</span>
+              <span className="text-rose-600 dark:text-rose-400 font-medium px-1">
+                Abort operation?
+              </span>
               <button
                 type="button"
                 onClick={handleAbort}
@@ -374,7 +373,9 @@ export const ConflictResolutionSection: React.FC<ConflictResolutionSectionProps>
                   title="Mark Resolved: Stage current file content (git add)"
                 >
                   <Check className="w-3 h-3" />
-                  <span>{actionFile === `${path}:mark_resolved` ? 'Staging...' : 'Mark Resolved'}</span>
+                  <span>
+                    {actionFile === `${path}:mark_resolved` ? 'Staging...' : 'Mark Resolved'}
+                  </span>
                 </button>
 
                 <button

@@ -43,7 +43,8 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
 
   // Check if commit might be a merge commit (heuristic: multiple parents or message indicates merge)
   const isLikelyMerge =
-    commit.subject.toLowerCase().startsWith('merge') || commit.body.toLowerCase().includes('merge:');
+    commit.subject.toLowerCase().startsWith('merge') ||
+    commit.body.toLowerCase().includes('merge:');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,11 +63,11 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
       };
 
       const res = await cherryPickCommit(repoPath, commit.sha, options);
-      const isConflict = !res.success && (
-        res.stderr.toLowerCase().includes('conflict') ||
-        res.stdout.toLowerCase().includes('conflict') ||
-        res.stderr.includes('could not apply')
-      );
+      const isConflict =
+        !res.success &&
+        (res.stderr.toLowerCase().includes('conflict') ||
+          res.stdout.toLowerCase().includes('conflict') ||
+          res.stderr.includes('could not apply'));
       if (!res.success && !isConflict) {
         throw new Error(res.stderr || res.stdout || 'Cherry-pick failed');
       }
@@ -164,7 +165,8 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
                   Record origin reference (<code>-x</code>)
                 </span>
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Appends &ldquo;(cherry picked from commit {shortSha})&rdquo; to the new commit message.
+                  Appends &ldquo;(cherry picked from commit {shortSha})&rdquo; to the new commit
+                  message.
                 </p>
               </div>
             </label>
@@ -182,7 +184,8 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
                   No commit (<code>-n</code> / <code>--no-commit</code>)
                 </span>
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Applies the commit's diff directly into your staged changes without making a commit. You can inspect or edit changes first.
+                  Applies the commit's diff directly into your staged changes without making a
+                  commit. You can inspect or edit changes first.
                 </p>
               </div>
             </label>
@@ -235,10 +238,14 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
                   <span>Merge Commit Detected</span>
                 </div>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  To cherry-pick a merge commit, you must specify the parent number (usually <code>1</code> for mainline):
+                  To cherry-pick a merge commit, you must specify the parent number (usually{' '}
+                  <code>1</code> for mainline):
                 </p>
                 <div className="flex items-center gap-2 pt-1">
-                  <label htmlFor="mainline-input" className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400">
+                  <label
+                    htmlFor="mainline-input"
+                    className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400"
+                  >
                     -m:
                   </label>
                   <input
@@ -247,7 +254,9 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
                     min="1"
                     max="5"
                     value={mainlineParent}
-                    onChange={(e) => setMainlineParent(e.target.value ? Number(e.target.value) : '')}
+                    onChange={(e) =>
+                      setMainlineParent(e.target.value ? Number(e.target.value) : '')
+                    }
                     placeholder="1"
                     className="w-16 px-2 py-0.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono"
                   />
@@ -264,7 +273,10 @@ export const CherryPickModal: React.FC<CherryPickModalProps> = ({
               <span>Conflict Handling Guidance</span>
             </div>
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-              If any changes in this commit collide with your working branch, Git will enter conflict state. Git Workbench will automatically highlight the conflicted files, allowing you to accept ours/theirs, edit manually in Monaco, and click <strong>Continue</strong> or <strong>Abort</strong>.
+              If any changes in this commit collide with your working branch, Git will enter
+              conflict state. Git Workbench will automatically highlight the conflicted files,
+              allowing you to accept ours/theirs, edit manually in Monaco, and click{' '}
+              <strong>Continue</strong> or <strong>Abort</strong>.
             </p>
           </div>
 

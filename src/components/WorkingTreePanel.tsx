@@ -38,7 +38,11 @@ interface WorkingTreePanelProps {
   onDiscardFile: (filePath: string, isUntracked: boolean) => Promise<void>;
   onStageAll: () => Promise<void>;
   onUnstageAll: () => Promise<void>;
-  onCommit: (message: string, isAmend: boolean, authorOptions?: CommitAuthorOptions) => Promise<void>;
+  onCommit: (
+    message: string,
+    isAmend: boolean,
+    authorOptions?: CommitAuthorOptions
+  ) => Promise<void>;
   onResolveConflict?: (filePath: string, resolution: ConflictResolutionType) => Promise<void>;
   onLaunchMergetool?: (filePath?: string) => Promise<void>;
   onContinueConflict?: () => Promise<void>;

@@ -99,7 +99,16 @@ export const ReflogViewer: React.FC<ReflogViewerProps> = ({
     }
   };
 
-  const availableFilters = ['all', 'commit', 'checkout', 'rebase', 'reset', 'cherry-pick', 'revert', 'merge'];
+  const availableFilters = [
+    'all',
+    'commit',
+    'checkout',
+    'rebase',
+    'reset',
+    'cherry-pick',
+    'revert',
+    'merge',
+  ];
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-zinc-950 select-none overflow-hidden">
@@ -162,7 +171,9 @@ export const ReflogViewer: React.FC<ReflogViewerProps> = ({
                 <span>{action}</span>
                 <span
                   className={`text-[10px] px-1 py-0.2 rounded-full font-mono ${
-                    isActive ? 'bg-white/20 text-white' : 'bg-zinc-300/60 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-300'
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : 'bg-zinc-300/60 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-300'
                   }`}
                 >
                   {count}
@@ -223,8 +234,8 @@ export const ReflogViewer: React.FC<ReflogViewerProps> = ({
                   isSelected
                     ? 'border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 shadow-xs'
                     : isHeadZero
-                    ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/10 hover:border-emerald-500'
-                    : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-zinc-50/30 dark:bg-zinc-900/30'
+                      ? 'border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/10 hover:border-emerald-500'
+                      : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-zinc-50/30 dark:bg-zinc-900/30'
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">

@@ -277,7 +277,9 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
               <div className="flex items-center gap-2 shrink-0">
                 <div className="flex items-center gap-1.5 font-mono text-[10px]">
                   {file.additions > 0 && (
-                    <span className="text-emerald-600 dark:text-emerald-400">+{file.additions}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      +{file.additions}
+                    </span>
                   )}
                   {file.deletions > 0 && (
                     <span className="text-rose-600 dark:text-rose-400">-{file.deletions}</span>

@@ -22,6 +22,8 @@ import {
   FolderTree,
   ShieldAlert,
   Search,
+  GitCompare,
+  GitMerge,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -36,7 +38,9 @@ interface SidebarProps {
   submodulesCount?: number;
   inBisect?: boolean;
   selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health';
-  onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health') => void;
+  onSelectView: (
+    view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health'
+  ) => void;
   onOpenRepoDialog: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
@@ -50,6 +54,8 @@ interface SidebarProps {
   onOpenTags?: () => void;
   onOpenSubmodulesAndLfs?: () => void;
   onOpenBisect?: () => void;
+  onOpenRangeDiff?: () => void;
+  onOpenMergeModal?: () => void;
   theme: Theme;
 }
 
@@ -78,6 +84,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenTags,
   onOpenSubmodulesAndLfs,
   onOpenBisect,
+  onOpenRangeDiff,
+  onOpenMergeModal,
 }) => {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [workingTreeOpen, setWorkingTreeOpen] = useState(true);
@@ -410,6 +418,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
+        {/* Range-Diff Inspector (Phase 3) */}
+        <div>
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 transition-colors">
+            <button
+              type="button"
+              onClick={onOpenRangeDiff}
+              className="flex items-center gap-2 cursor-pointer flex-1 text-left"
+            >
+              <GitCompare className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Range-Diff</span>
+            </button>
+          </div>
+        </div>
 
         {/* Branches Section */}
         <div>
@@ -426,14 +447,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <ChevronRight className="w-3 h-3" />
               )}
             </button>
-            <button
-              type="button"
-              onClick={() => onOpenCreateBranch()}
-              className="p-1 rounded text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors"
-              title="Create New Branch"
-            >
-              <Plus className="w-3 h-3" />
-            </button>
+            <div className="flex items-center gap-1">
+              {onOpenMergeModal && (
+                <button
+                  type="button"
+                  onClick={onOpenMergeModal}
+                  className="p-1 rounded text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  title="Merge a branch into HEAD"
+                >
+                  <GitMerge className="w-3 h-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onOpenCreateBranch()}
+                className="p-1 rounded text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Create New Branch"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
           {branchesOpen && (

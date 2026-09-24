@@ -49,7 +49,8 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500">
-                Phase 5 Verification: Local-First Architecture, Zero-Telemetry, and Desktop Distribution
+                Phase 5 Verification: Local-First Architecture, Zero-Telemetry, and Desktop
+                Distribution
               </p>
             </div>
           </div>
@@ -74,29 +75,46 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
               <div className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">100% Local-First</div>
-                  <div className="text-zinc-500 text-[10px]">Zero cloud servers, no account registration, zero telemetry tracking.</div>
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">
+                    100% Local-First
+                  </div>
+                  <div className="text-zinc-500 text-[10px]">
+                    Zero cloud servers, no account registration, zero telemetry tracking.
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">Real Git Subprocesses</div>
-                  <div className="text-zinc-500 text-[10px]">Direct child process execution with tokenized arguments (Zero shell injection).</div>
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">
+                    Real Git Subprocesses
+                  </div>
+                  <div className="text-zinc-500 text-[10px]">
+                    Direct child process execution with tokenized arguments (Zero shell injection).
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">Explicit Decoupled Remote</div>
-                  <div className="text-zinc-500 text-[10px]">Background auto-fetch is disabled; pushes and pulls require explicit invocation.</div>
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">
+                    Explicit Decoupled Remote
+                  </div>
+                  <div className="text-zinc-500 text-[10px]">
+                    Background auto-fetch is disabled; pushes and pulls require explicit invocation.
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">Multi-Tier Safety Guard</div>
-                  <div className="text-zinc-500 text-[10px]">Level 2–4 operations enforce restore points, bundle backups, and typed confirmation.</div>
+                  <div className="font-semibold text-zinc-800 dark:text-zinc-200">
+                    Multi-Tier Safety Guard
+                  </div>
+                  <div className="text-zinc-500 text-[10px]">
+                    Level 2–4 operations enforce restore points, bundle backups, and typed
+                    confirmation.
+                  </div>
                 </div>
               </div>
             </div>
@@ -112,20 +130,28 @@ export const SystemAuditModal: React.FC<SystemAuditModalProps> = ({
               <div className="flex items-center justify-between pb-1.5 border-b border-zinc-100 dark:border-zinc-800">
                 <span className="text-zinc-500">Core Git Binary</span>
                 <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                  {gitAvailability?.version || (gitAvailability?.available ? 'Available' : 'Missing')}
+                  {gitAvailability?.version ||
+                    (gitAvailability?.available ? 'Available' : 'Missing')}
                 </span>
               </div>
               <div className="flex items-center justify-between pb-1.5 border-b border-zinc-100 dark:border-zinc-800">
                 <span className="text-zinc-500">Desktop Shell Target</span>
-                <span className="text-zinc-800 dark:text-zinc-200">Tauri 2 (Rust std::process::Command)</span>
+                <span className="text-zinc-800 dark:text-zinc-200">
+                  Tauri 2 (Rust std::process::Command)
+                </span>
               </div>
               <div className="flex items-center justify-between pb-1.5 border-b border-zinc-100 dark:border-zinc-800">
                 <span className="text-zinc-500">Target Frontend Architecture</span>
-                <span className="text-zinc-800 dark:text-zinc-200">React 19 + TypeScript 5.8 + Vite 6 + Tailwind CSS 4</span>
+                <span className="text-zinc-800 dark:text-zinc-200">
+                  React 19 + TypeScript 5.8 + Vite 6 + Tailwind CSS 4
+                </span>
               </div>
               <div className="flex items-center justify-between pb-1.5 border-b border-zinc-100 dark:border-zinc-800">
                 <span className="text-zinc-500">Active Workspace</span>
-                <span className="text-zinc-800 dark:text-zinc-200 truncate max-w-xs" title={activeRepoPath || 'None'}>
+                <span
+                  className="text-zinc-800 dark:text-zinc-200 truncate max-w-xs"
+                  title={activeRepoPath || 'None'}
+                >
                   {activeRepoPath || 'No repository selected'}
                 </span>
               </div>

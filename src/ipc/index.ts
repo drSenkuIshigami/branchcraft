@@ -44,6 +44,9 @@ import type {
   BisectStatus,
   RerereStatus,
   LfsDiagnostics,
+  RangeDiffResult,
+  MergeExecutionOptions,
+  ForceRelocateBranchPreview,
 } from '../types';
 
 /**
@@ -510,10 +513,7 @@ export async function getStashes(repoPath: string): Promise<StashInfo[]> {
   return (await res.json()) as StashInfo[];
 }
 
-export async function getStashDetail(
-  repoPath: string,
-  stashRef: string
-): Promise<StashDetail> {
+export async function getStashDetail(repoPath: string, stashRef: string): Promise<StashDetail> {
   if (isTauriEnvironment()) {
     return await invoke<StashDetail>('get_stash_detail', { repoPath, stashRef });
   }
@@ -625,10 +625,7 @@ export async function popStash(
   return (await res.json()) as OperationResult;
 }
 
-export async function dropStash(
-  repoPath: string,
-  stashRef: string
-): Promise<OperationResult> {
+export async function dropStash(repoPath: string, stashRef: string): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('drop_stash', { repoPath, stashRef });
   }
@@ -1121,7 +1118,9 @@ export async function getRebaseCandidates(
     `/api/git/rebase/candidates?repo_path=${encodeURIComponent(repoPath)}&base_sha=${encodeURIComponent(baseSha)}`
   );
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Failed to fetch rebase candidate commits' }));
+    const err = await res
+      .json()
+      .catch(() => ({ error: 'Failed to fetch rebase candidate commits' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 
@@ -1154,7 +1153,11 @@ export async function executeInteractiveRebase(
   items: RebaseTodoItem[]
 ): Promise<OperationResult> {
   if (isTauriEnvironment()) {
-    return await invoke<OperationResult>('execute_interactive_rebase', { repoPath, baseSha, items });
+    return await invoke<OperationResult>('execute_interactive_rebase', {
+      repoPath,
+      baseSha,
+      items,
+    });
   }
 
   const res = await fetch('/api/git/rebase/start', {
@@ -1353,7 +1356,9 @@ export async function createDemoCherryPickConflict(repoPath: string): Promise<Op
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Failed to create demo cherry-pick conflict' }));
+    const err = await res
+      .json()
+      .catch(() => ({ error: 'Failed to create demo cherry-pick conflict' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 
@@ -1824,7 +1829,9 @@ export async function pushMirrorToRemote(
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Failed to push mirror repository to remote' }));
+    const err = await res
+      .json()
+      .catch(() => ({ error: 'Failed to push mirror repository to remote' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 
@@ -1965,7 +1972,10 @@ export async function getTags(repoPath: string): Promise<TagInfo[]> {
   return (await res.json()) as TagInfo[];
 }
 
-export async function createTag(repoPath: string, options: CreateTagOptions): Promise<OperationResult> {
+export async function createTag(
+  repoPath: string,
+  options: CreateTagOptions
+): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('create_tag', { repoPath, options });
   }
@@ -2013,7 +2023,10 @@ export async function getSubmodules(repoPath: string): Promise<SubmoduleInfo[]> 
   return (await res.json()) as SubmoduleInfo[];
 }
 
-export async function updateSubmodules(repoPath: string, recursive = true): Promise<OperationResult> {
+export async function updateSubmodules(
+  repoPath: string,
+  recursive = true
+): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('update_submodules', { repoPath, recursive });
   }
@@ -2104,6 +2117,104 @@ export async function getLfsDiagnostics(repoPath: string): Promise<LfsDiagnostic
   return (await res.json()) as LfsDiagnostics;
 }
 
+export async function getRangeDiff(
+  repoPath: string,
+  baseSha: string,
+  oldSha: string,
+  newSha: string
+): Promise<RangeDiffResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<RangeDiffResult>('get_range_diff', { repoPath, baseSha, oldSha, newSha });
+  }
 
+  const params = new URLSearchParams({
+    repo_path: repoPath,
+    base_sha: baseSha,
+    old_sha: oldSha,
+    new_sha: newSha,
+  });
+  const res = await fetch(`/api/git/range_diff?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to get range-diff`);
+  return (await res.json()) as RangeDiffResult;
+}
 
+export async function mergeWithOptions(
+  repoPath: string,
+  options: MergeExecutionOptions
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('merge_with_options', { repoPath, options });
+  }
 
+  const res = await fetch('/api/git/merge_with_options', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      branch_name: options.branchName,
+      strategy: options.strategy,
+      message: options.message,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Merge failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function previewForceRelocateBranch(
+  repoPath: string,
+  branchName: string,
+  newSha: string
+): Promise<ForceRelocateBranchPreview> {
+  if (isTauriEnvironment()) {
+    return await invoke<ForceRelocateBranchPreview>('preview_force_relocate_branch', {
+      repoPath,
+      branchName,
+      newSha,
+    });
+  }
+
+  const res = await fetch('/api/git/branch_force_relocate/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, branch_name: branchName, new_sha: newSha }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Preview failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as ForceRelocateBranchPreview;
+}
+
+export async function executeForceRelocateBranch(
+  repoPath: string,
+  branchName: string,
+  newSha: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('execute_force_relocate_branch', {
+      repoPath,
+      branchName,
+      newSha,
+    });
+  }
+
+  const res = await fetch('/api/git/branch_force_relocate/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, branch_name: branchName, new_sha: newSha }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Relocate failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}

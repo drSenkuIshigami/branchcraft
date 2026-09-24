@@ -393,4 +393,26 @@ export interface LfsDiagnostics {
   locked_files: string[];
 }
 
+export interface RangeDiffResult {
+  output: string;
+  diff_entries: Array<{
+    status: 'matched' | 'modified' | 'added' | 'removed';
+    summary: string;
+    details?: string;
+  }>;
+}
 
+export type MergeStrategyType = 'recursive-ours' | 'recursive-theirs' | 'strategy-ours';
+
+export interface MergeExecutionOptions {
+  branchName: string;
+  strategy?: MergeStrategyType; // -X ours vs -X theirs vs -s ours
+  message?: string;
+}
+
+export interface ForceRelocateBranchPreview {
+  targetBranch: string;
+  currentSha: string;
+  newSha: string;
+  lostCommits: CommitInfo[];
+}

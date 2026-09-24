@@ -13,17 +13,8 @@ import {
   Loader2,
   Terminal,
 } from 'lucide-react';
-import type {
-  MirrorCloneSetupResult,
-  PurgePlanOptions,
-  OperationResult,
-  Theme,
-} from '../types';
-import {
-  setupIsolatedMirrorClone,
-  executeHistoryPurge,
-  pushMirrorToRemote,
-} from '../ipc';
+import type { MirrorCloneSetupResult, PurgePlanOptions, OperationResult, Theme } from '../types';
+import { setupIsolatedMirrorClone, executeHistoryPurge, pushMirrorToRemote } from '../ipc';
 
 interface HistoryPurgeWizardProps {
   isOpen: boolean;
@@ -189,23 +180,39 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
 
         {/* Stepper Indicator */}
         <div className="px-6 py-2.5 bg-zinc-100/70 dark:bg-zinc-800/40 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-xs">
-          <div className={`flex items-center gap-1.5 ${step >= 1 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}>
-            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">1</span>
+          <div
+            className={`flex items-center gap-1.5 ${step >= 1 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}
+          >
+            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">
+              1
+            </span>
             <span>Configure Plan</span>
           </div>
           <div className="w-4 h-[1px] bg-zinc-300 dark:bg-zinc-700" />
-          <div className={`flex items-center gap-1.5 ${step >= 2 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}>
-            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">2</span>
+          <div
+            className={`flex items-center gap-1.5 ${step >= 2 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}
+          >
+            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">
+              2
+            </span>
             <span>Mirror Clone</span>
           </div>
           <div className="w-4 h-[1px] bg-zinc-300 dark:bg-zinc-700" />
-          <div className={`flex items-center gap-1.5 ${step >= 3 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}>
-            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">3</span>
+          <div
+            className={`flex items-center gap-1.5 ${step >= 3 ? 'text-rose-600 font-semibold' : 'text-zinc-400'}`}
+          >
+            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">
+              3
+            </span>
             <span>Verify & Confirm</span>
           </div>
           <div className="w-4 h-[1px] bg-zinc-300 dark:bg-zinc-700" />
-          <div className={`flex items-center gap-1.5 ${step >= 5 ? 'text-emerald-600 font-semibold' : 'text-zinc-400'}`}>
-            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">4</span>
+          <div
+            className={`flex items-center gap-1.5 ${step >= 5 ? 'text-emerald-600 font-semibold' : 'text-zinc-400'}`}
+          >
+            <span className="w-5 h-5 rounded-full border flex items-center justify-center text-[10px]">
+              4
+            </span>
             <span>Complete</span>
           </div>
         </div>
@@ -229,8 +236,10 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   <span>Permanent History Rewriting Warning</span>
                 </div>
                 <p>
-                  This wizard removes files or trailers across <strong>all commits and tags in repository history</strong>.
-                  Before doing anything, Git Workbench will create a full offline <code>.bundle</code> backup and execute inside a temporary clone.
+                  This wizard removes files or trailers across{' '}
+                  <strong>all commits and tags in repository history</strong>. Before doing
+                  anything, Git Workbench will create a full offline <code>.bundle</code> backup and
+                  execute inside a temporary clone.
                 </p>
               </div>
 
@@ -267,7 +276,8 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   </span>
                 </label>
                 <p className="text-[11px] text-zinc-500 pl-5">
-                  Strips identifiable trailers like <code>Co-authored-by: Claude/ChatGPT/Copilot</code> from commit messages.
+                  Strips identifiable trailers like{' '}
+                  <code>Co-authored-by: Claude/ChatGPT/Copilot</code> from commit messages.
                 </p>
               </div>
 
@@ -288,7 +298,9 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                 {enableAuthorRewrite && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
                     <div>
-                      <label className="text-[10px] text-zinc-400 block mb-1">Match Old Email (Optional)</label>
+                      <label className="text-[10px] text-zinc-400 block mb-1">
+                        Match Old Email (Optional)
+                      </label>
                       <input
                         type="email"
                         value={authorOldEmail}
@@ -298,7 +310,9 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-zinc-400 block mb-1">New Author Name</label>
+                      <label className="text-[10px] text-zinc-400 block mb-1">
+                        New Author Name
+                      </label>
                       <input
                         type="text"
                         value={authorNewName}
@@ -308,7 +322,9 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] text-zinc-400 block mb-1">New Author Email</label>
+                      <label className="text-[10px] text-zinc-400 block mb-1">
+                        New Author Email
+                      </label>
                       <input
                         type="email"
                         value={authorNewEmail}
@@ -332,7 +348,8 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   <span>Isolation Environment Initialized Successfully</span>
                 </div>
                 <p>
-                  Per the safety policy, history filtering will take place in an isolated mirror clone, completely protecting your active working tree and untracked files.
+                  Per the safety policy, history filtering will take place in an isolated mirror
+                  clone, completely protecting your active working tree and untracked files.
                 </p>
               </div>
 
@@ -363,13 +380,18 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   <span>Confirmation Required</span>
                 </div>
                 <p>
-                  Rewriting commit history alters all commit SHAs. Anyone who has pulled the current repository will encounter divergence if updated to the rewritten history.
+                  Rewriting commit history alters all commit SHAs. Anyone who has pulled the current
+                  repository will encounter divergence if updated to the rewritten history.
                 </p>
               </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                  Type <span className="font-mono text-rose-600 dark:text-rose-400 select-all">{REQUIRED_CONFIRM_STRING}</span> to confirm execution:
+                  Type{' '}
+                  <span className="font-mono text-rose-600 dark:text-rose-400 select-all">
+                    {REQUIRED_CONFIRM_STRING}
+                  </span>{' '}
+                  to confirm execution:
                 </label>
                 <input
                   type="text"
@@ -390,7 +412,8 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                 Rewriting Commit History in Mirror Clone...
               </h3>
               <p className="text-xs text-zinc-500 max-w-sm">
-                Running index filters, squelching empty commits, and verifying structural integrity with git fsck.
+                Running index filters, squelching empty commits, and verifying structural integrity
+                with git fsck.
               </p>
             </div>
           )}
@@ -404,7 +427,8 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   <span>History Rewritten and Verified with Git Fsck</span>
                 </div>
                 <p>
-                  The mirror clone history has been successfully purged. All commits have been rewritten, and object store integrity is verified.
+                  The mirror clone history has been successfully purged. All commits have been
+                  rewritten, and object store integrity is verified.
                 </p>
               </div>
 
@@ -447,7 +471,9 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                       className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>{pushingToRemote ? 'Pushing Mirror...' : 'Push Purged History to Remote'}</span>
+                      <span>
+                        {pushingToRemote ? 'Pushing Mirror...' : 'Push Purged History to Remote'}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -459,8 +485,14 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   Step 7: Post-Rewrite Team Checklist
                 </h4>
                 <ul className="list-disc pl-4 space-y-1 text-zinc-600 dark:text-zinc-400 text-[11px]">
-                  <li>Notify teammates to re-clone the repository fresh rather than pulling into their stale branches.</li>
-                  <li>Rotate any secret credentials or API tokens that were committed, even after purging.</li>
+                  <li>
+                    Notify teammates to re-clone the repository fresh rather than pulling into their
+                    stale branches.
+                  </li>
+                  <li>
+                    Rotate any secret credentials or API tokens that were committed, even after
+                    purging.
+                  </li>
                   <li>Close or rebase existing pull requests opened against the old commits.</li>
                 </ul>
               </div>

@@ -177,7 +177,9 @@ export const CommitAuthorDateModal: React.FC<CommitAuthorDateModalProps> = ({
   // Build command preview string
   const authorDateIso = getComputedAuthorDateIso();
   const committerDateIso = getComputedCommitterDateIso();
-  const isPushedToRemote = commit.refs.some((r) => r.includes('origin/') || r.includes('upstream/'));
+  const isPushedToRemote = commit.refs.some(
+    (r) => r.includes('origin/') || r.includes('upstream/')
+  );
 
   const commandPreview = React.useMemo(() => {
     const parts: string[] = [];
@@ -299,8 +301,8 @@ export const CommitAuthorDateModal: React.FC<CommitAuthorDateModalProps> = ({
               <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
               <div>
                 <span className="font-semibold">Remote Tracking Warning:</span> This commit has
-                already been pushed to an upstream branch. Rewriting its author or timestamp modifies
-                its SHA and will require a force push (
+                already been pushed to an upstream branch. Rewriting its author or timestamp
+                modifies its SHA and will require a force push (
                 <code className="font-mono text-[11px]">git push --force-with-lease</code>).
               </div>
             </div>
@@ -312,8 +314,8 @@ export const CommitAuthorDateModal: React.FC<CommitAuthorDateModalProps> = ({
               <div>
                 <span className="font-semibold">Automated History Rewrite:</span> This commit is not
                 HEAD. Applying changes will execute an automated rebase that pauses at this commit,
-                amends the author and timestamp metadata, and automatically replays subsequent commits
-                onto the new SHA.
+                amends the author and timestamp metadata, and automatically replays subsequent
+                commits onto the new SHA.
               </div>
             </div>
           )}

@@ -246,10 +246,12 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                         )
                       ) : (
                         <div className="flex items-center gap-1">
-                          {onDiscardHunk && (
-                            isConfirmingDiscard ? (
+                          {onDiscardHunk &&
+                            (isConfirmingDiscard ? (
                               <div className="flex items-center gap-1 bg-rose-500/10 p-0.5 rounded text-[10px]">
-                                <span className="text-rose-600 dark:text-rose-400 px-1">Discard?</span>
+                                <span className="text-rose-600 dark:text-rose-400 px-1">
+                                  Discard?
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => handleHunkDiscard(hunk.id, hunk.patch)}
@@ -277,8 +279,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                                 <Trash2 className="w-3 h-3" />
                                 <span>Discard</span>
                               </button>
-                            )
-                          )}
+                            ))}
 
                           {onStageHunk && (
                             <button
@@ -309,8 +310,8 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
                             isAdd
                               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                               : isDel
-                              ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
-                              : 'text-zinc-600 dark:text-zinc-400'
+                                ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                                : 'text-zinc-600 dark:text-zinc-400'
                           }`}
                         >
                           {line}

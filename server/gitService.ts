@@ -55,6 +55,9 @@ import type {
   BisectStatus,
   RerereStatus,
   LfsDiagnostics,
+  RangeDiffResult,
+  MergeExecutionOptions,
+  ForceRelocateBranchPreview,
 } from '../src/types';
 
 function runGit(
@@ -3744,6 +3747,144 @@ export async function getLfsDiagnostics(repoPath: string): Promise<LfsDiagnostic
     is_installed: isInstalled,
     tracked_patterns: trackedPatterns,
     locked_files: [],
+  };
+}
+
+export async function getRangeDiff(
+  repoPath: string,
+  baseSha: string,
+  oldHeadSha: string,
+  newHeadSha: string
+): Promise<RangeDiffResult> {
+  const rootPath = await validateRepository(repoPath);
+  const range1 = `${baseSha.trim()}..${oldHeadSha.trim()}`;
+  const range2 = `${baseSha.trim()}..${newHeadSha.trim()}`;
+  const res = await runGit(rootPath, ['range-diff', range1, range2]);
+
+  const output = res.stdout || res.stderr || 'No differences between ranges.';
+  const entries: RangeDiffResult['diff_entries'] = [];
+
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('=')) {
+      entries.push({ status: 'matched', summary: trimmed });
+    } else if (trimmed.startsWith('!')) {
+      entries.push({ status: 'modified', summary: trimmed });
+    } else if (trimmed.startsWith('+')) {
+      entries.push({ status: 'added', summary: trimmed });
+    } else if (trimmed.startsWith('-')) {
+      entries.push({ status: 'removed', summary: trimmed });
+    } else {
+      entries.push({ status: 'modified', summary: trimmed });
+    }
+  }
+
+  return {
+    output,
+    diff_entries: entries,
+  };
+}
+
+export async function mergeWithOptions(
+  repoPath: string,
+  options: MergeExecutionOptions
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['merge'];
+
+  // Strict differentiation:
+  // -X ours: use recursive/ort merge driver, but auto-resolve conflicting hunks favoring our current version
+  // -X theirs: use recursive/ort merge driver, but auto-resolve conflicting hunks favoring the incoming version
+  // -s ours: discard entire tree of incoming branch; merge commit simply keeps our exact tree untouched
+  if (options.strategy === 'recursive-ours') {
+    args.push('-X', 'ours');
+  } else if (options.strategy === 'recursive-theirs') {
+    args.push('-X', 'theirs');
+  } else if (options.strategy === 'strategy-ours') {
+    args.push('-s', 'ours');
+  }
+
+  if (options.message?.trim()) {
+    args.push('-m', options.message.trim());
+  }
+
+  args.push(options.branchName.trim());
+
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function previewForceRelocateBranch(
+  repoPath: string,
+  branchName: string,
+  newSha: string
+): Promise<ForceRelocateBranchPreview> {
+  const rootPath = await validateRepository(repoPath);
+  // Get current SHA of the target branch
+  const shaRes = await runGit(rootPath, ['rev-parse', branchName.trim()]);
+  const currentSha = shaRes.stdout.trim();
+
+  // Find commits reachable from currentSha but NOT reachable from newSha (these would become dangling/lost from this branch)
+  const logRes = await runGit(rootPath, [
+    'log',
+    '--format=%H|%s|%an|%ae|%ad',
+    '--date=iso',
+    `${newSha.trim()}..${currentSha}`,
+  ]);
+
+  const lostCommits: CommitInfo[] = [];
+  if (logRes.stdout.trim()) {
+    for (const line of logRes.stdout.trim().split('\n')) {
+      const parts = line.split('|');
+      if (parts.length >= 4) {
+        lostCommits.push({
+          sha: parts[0],
+          subject: parts[1] || '',
+          author_name: parts[2] || '',
+          author_email: parts[3] || '',
+          author_date: parts[4] || '',
+          committer_name: parts[2] || '',
+          committer_email: parts[3] || '',
+          committer_date: parts[4] || '',
+          body: '',
+          refs: [],
+          parents: [],
+        });
+      }
+    }
+  }
+
+  return {
+    targetBranch: branchName,
+    currentSha,
+    newSha,
+    lostCommits,
+  };
+}
+
+export async function executeForceRelocateBranch(
+  repoPath: string,
+  branchName: string,
+  newSha: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['branch', '-f', branchName.trim(), newSha.trim()];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || `Branch ${branchName} successfully relocated to ${newSha.slice(0, 7)}.`,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
   };
 }
 

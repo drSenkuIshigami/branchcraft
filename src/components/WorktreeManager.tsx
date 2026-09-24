@@ -22,7 +22,13 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { WorktreeInfo, Theme, OperationResult } from '../types';
-import { lockWorktree, unlockWorktree, removeWorktree, pruneWorktrees, openSystemLocation } from '../ipc';
+import {
+  lockWorktree,
+  unlockWorktree,
+  removeWorktree,
+  pruneWorktrees,
+  openSystemLocation,
+} from '../ipc';
 
 interface WorktreeManagerProps {
   currentRepoPath: string;
@@ -87,7 +93,11 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
     setActionLoading(true);
     setActionError(null);
     try {
-      const res = await lockWorktree(currentRepoPath, lockingWorktree.path, lockReasonInput.trim() || undefined);
+      const res = await lockWorktree(
+        currentRepoPath,
+        lockingWorktree.path,
+        lockReasonInput.trim() || undefined
+      );
       onCommandExecuted(res);
       setLockingWorktree(null);
       setLockReasonInput('');
@@ -314,7 +324,9 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
                         {wt.is_locked && (
                           <span
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-                            title={wt.lock_reason ? `Locked: ${wt.lock_reason}` : 'Worktree is locked'}
+                            title={
+                              wt.lock_reason ? `Locked: ${wt.lock_reason}` : 'Worktree is locked'
+                            }
                           >
                             <Lock className="w-3 h-3 text-amber-500" />
                             <span>Locked</span>
@@ -409,7 +421,11 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
                                 ? 'border-zinc-200 dark:border-zinc-800 text-zinc-300 dark:text-zinc-600 cursor-not-allowed'
                                 : 'border-rose-200 dark:border-rose-900/40 hover:bg-rose-500/10 text-rose-500 hover:text-rose-600'
                             }`}
-                            title={wt.is_locked ? 'Unlock worktree first before removing' : 'Remove linked worktree'}
+                            title={
+                              wt.is_locked
+                                ? 'Unlock worktree first before removing'
+                                : 'Remove linked worktree'
+                            }
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -430,8 +446,9 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
             <span>Why Use Git Worktrees?</span>
           </div>
           <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed text-[11px]">
-            Git worktrees allow a single Git repository to have multiple checkouts at different directory paths simultaneously.
-            Each worktree has its own isolated index, working tree, and HEAD branch, but shares all commits, trees, blobs, tags, and remotes.
+            Git worktrees allow a single Git repository to have multiple checkouts at different
+            directory paths simultaneously. Each worktree has its own isolated index, working tree,
+            and HEAD branch, but shares all commits, trees, blobs, tags, and remotes.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1 text-[11px]">
             <div className="p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-800">
@@ -439,7 +456,8 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
                 Zero Stash Switching
               </span>
               <span className="text-zinc-500">
-                Fix production bugs on `main` without interrupting your unfinished work or dealing with stash conflicts.
+                Fix production bugs on `main` without interrupting your unfinished work or dealing
+                with stash conflicts.
               </span>
             </div>
             <div className="p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-800">
@@ -447,7 +465,8 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
                 Concurrent Builds
               </span>
               <span className="text-zinc-500">
-                Run long test suites or build processes in a separate folder while continuing your normal coding flow.
+                Run long test suites or build processes in a separate folder while continuing your
+                normal coding flow.
               </span>
             </div>
             <div className="p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200/60 dark:border-zinc-800">
@@ -455,7 +474,8 @@ export const WorktreeManager: React.FC<WorktreeManagerProps> = ({
                 Disk Space Efficient
               </span>
               <span className="text-zinc-500">
-                Only the working files are cloned on disk; all Git history is reused from the parent `.git` object store.
+                Only the working files are cloned on disk; all Git history is reused from the parent
+                `.git` object store.
               </span>
             </div>
           </div>

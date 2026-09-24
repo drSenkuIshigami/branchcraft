@@ -45,9 +45,7 @@ export const RemoteSyncModal: React.FC<RemoteSyncModalProps> = ({
   );
   const [pruneOnFetch, setPruneOnFetch] = useState<boolean>(true);
   const [forceWithLease, setForceWithLease] = useState<boolean>(false);
-  const [setUpstreamOnPush, setSetUpstreamOnPush] = useState<boolean>(
-    !syncStatus?.has_upstream
-  );
+  const [setUpstreamOnPush, setSetUpstreamOnPush] = useState<boolean>(!syncStatus?.has_upstream);
   const [activeAction, setActiveAction] = useState<'fetch' | 'pull' | 'push' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -94,12 +92,7 @@ export const RemoteSyncModal: React.FC<RemoteSyncModalProps> = ({
     setActionError(null);
     setActionSuccess(null);
     try {
-      await onPush(
-        effectiveRemote,
-        currentBranch || undefined,
-        forceWithLease,
-        setUpstreamOnPush
-      );
+      await onPush(effectiveRemote, currentBranch || undefined, forceWithLease, setUpstreamOnPush);
       setActionSuccess(
         `Successfully pushed ${currentBranch || 'HEAD'} to ${effectiveRemote}${
           forceWithLease ? ' (--force-with-lease)' : ''

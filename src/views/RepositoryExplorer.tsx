@@ -101,6 +101,10 @@ import {
   unstageHunk,
   unstagePath,
   updateSubmodules,
+  getRangeDiff,
+  mergeWithOptions,
+  previewForceRelocateBranch,
+  executeForceRelocateBranch,
 } from '../ipc';
 import { Sidebar } from '../components/Sidebar';
 import { CommitList } from '../components/CommitList';
@@ -134,6 +138,9 @@ import { SystemAuditModal } from '../components/SystemAuditModal';
 import { TagManagerModal } from '../components/TagManagerModal';
 import { SubmodulesAndLfsModal } from '../components/SubmodulesAndLfsModal';
 import { BisectAndRerereModal } from '../components/BisectAndRerereModal';
+import { MergeBranchModal } from '../components/MergeBranchModal';
+import { ForceRelocateBranchModal } from '../components/ForceRelocateBranchModal';
+import { RangeDiffViewerModal } from '../components/RangeDiffViewerModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -154,7 +161,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
 
-  const [selectedView, setSelectedView] = useState<'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health'>('graph');
+  const [selectedView, setSelectedView] = useState<
+    'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health'
+  >('graph');
   const [isPurgeWizardOpen, setIsPurgeWizardOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -202,14 +211,20 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [restoreTargetSubject, setRestoreTargetSubject] = useState<string | null>(null);
 
   // System Action Feedback Toast
-  const [systemToast, setSystemToast] = useState<{ message: string; commandSnippet?: string } | null>(null);
+  const [systemToast, setSystemToast] = useState<{
+    message: string;
+    commandSnippet?: string;
+  } | null>(null);
 
   // Conflict State (Phase 2)
   const [conflictState, setConflictState] = useState<ConflictState | null>(null);
 
   // Interactive Rebase State (Phase 3 Step 1)
   const [rebaseStatus, setRebaseStatus] = useState<RebaseStatus | null>(null);
-  const [rebaseModalTarget, setRebaseModalTarget] = useState<{ baseSha: string; baseSummary?: string } | null>(null);
+  const [rebaseModalTarget, setRebaseModalTarget] = useState<{
+    baseSha: string;
+    baseSummary?: string;
+  } | null>(null);
 
   // Commit Author & Date Modification State (Phase 3 Step 2)
   const [authorDateModalCommit, setAuthorDateModalCommit] = useState<CommitInfo | null>(null);
@@ -223,7 +238,10 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   // Reflog & Reset State (Phase 3 Step 5)
   const [reflogEntries, setReflogEntries] = useState<ReflogEntry[]>([]);
   const [reflogLoading, setReflogLoading] = useState(false);
-  const [resetTargetModal, setResetTargetModal] = useState<{ targetRef: string; subject?: string } | null>(null);
+  const [resetTargetModal, setResetTargetModal] = useState<{
+    targetRef: string;
+    subject?: string;
+  } | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
 
   // Worktree Management State (Phase 3 Step 6)
@@ -245,6 +263,14 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [rerereStatus, setRerereStatus] = useState<RerereStatus | null>(null);
   const [isBisectRerereOpen, setIsBisectRerereOpen] = useState(false);
 
+  // Range-Diff, Merge Strategy & Force Relocate State (Phase 3 Extension)
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [isRangeDiffOpen, setIsRangeDiffOpen] = useState(false);
+  const [forceRelocateTarget, setForceRelocateTarget] = useState<{
+    branchName: string;
+    targetSha: string;
+    targetSubject?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!systemToast) return;
@@ -313,10 +339,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
         const stashStart = performance.now();
         const newStashes = await getStashes(newStatus.root_path);
-        recordCommand(
-          ['stash', 'list'],
-          Math.round(performance.now() - stashStart)
-        );
+        recordCommand(['stash', 'list'], Math.round(performance.now() - stashStart));
         setStashes(newStashes);
         if (newStashes.length > 0) {
           setSelectedStashRef((prev) =>
@@ -330,10 +353,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         try {
           const remotesStart = performance.now();
           const newRemotes = await getRemotes(newStatus.root_path);
-          recordCommand(
-            ['remote', '-v'],
-            Math.round(performance.now() - remotesStart)
-          );
+          recordCommand(['remote', '-v'], Math.round(performance.now() - remotesStart));
           setRemotes(newRemotes);
 
           const syncStart = performance.now();
@@ -353,7 +373,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         try {
           const conflictStart = performance.now();
           const newConflictState = await getConflictState(newStatus.root_path);
-          if (newConflictState.in_merge || newConflictState.in_rebase || newConflictState.in_cherry_pick || newConflictState.in_revert) {
+          if (
+            newConflictState.in_merge ||
+            newConflictState.in_rebase ||
+            newConflictState.in_cherry_pick ||
+            newConflictState.in_revert
+          ) {
             recordCommand(
               ['status', '(conflict-detection)'],
               Math.round(performance.now() - conflictStart)
@@ -402,10 +427,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         try {
           const tagsStart = performance.now();
           const newTags = await getTags(newStatus.root_path);
-          recordCommand(
-            ['for-each-ref', 'refs/tags/'],
-            Math.round(performance.now() - tagsStart)
-          );
+          recordCommand(['for-each-ref', 'refs/tags/'], Math.round(performance.now() - tagsStart));
           setTags(newTags);
         } catch {
           setTags([]);
@@ -415,10 +437,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         try {
           const subStart = performance.now();
           const newSubs = await getSubmodules(newStatus.root_path);
-          recordCommand(
-            ['submodule', 'status'],
-            Math.round(performance.now() - subStart)
-          );
+          recordCommand(['submodule', 'status'], Math.round(performance.now() - subStart));
           setSubmodules(newSubs);
 
           const lfsDiag = await getLfsDiagnostics(newStatus.root_path);
@@ -1149,7 +1168,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const cmdTokens = ['apply', '--cached', '-'];
     try {
       const res = await stageHunk(repoPath, patch);
-      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       await loadRepositoryData(repoPath);
       if (selectedFile) {
         const diffStart = performance.now();
@@ -1171,12 +1196,21 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const cmdTokens = ['apply', '--cached', '--reverse', '-'];
     try {
       const res = await unstageHunk(repoPath, patch);
-      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       await loadRepositoryData(repoPath);
       if (selectedFile) {
         const diffStart = performance.now();
         const newDiff = await getFileDiff(repoPath, selectedFile);
-        recordCommand(['diff', '--cached', '--', selectedFile], Math.round(performance.now() - diffStart));
+        recordCommand(
+          ['diff', '--cached', '--', selectedFile],
+          Math.round(performance.now() - diffStart)
+        );
         setDiff(newDiff);
       }
     } catch (err: unknown) {
@@ -1193,7 +1227,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const cmdTokens = ['apply', '--reverse', '-'];
     try {
       const res = await discardHunk(repoPath, patch);
-      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       await loadRepositoryData(repoPath);
       if (selectedFile) {
         const diffStart = performance.now();
@@ -1217,12 +1257,18 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       resolution === 'ours'
         ? ['checkout', '--ours', '--', filePath]
         : resolution === 'theirs'
-        ? ['checkout', '--theirs', '--', filePath]
-        : ['add', '--', filePath];
+          ? ['checkout', '--theirs', '--', filePath]
+          : ['add', '--', filePath];
 
     try {
       const res = await resolveConflict(repoPath, filePath, resolution);
-      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       await loadRepositoryData(repoPath);
       setSystemToast({
         message: `Resolved ${filePath} (${resolution})`,
@@ -1242,7 +1288,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const cmdTokens = ['mergetool', '--no-prompt', ...(filePath ? ['--', filePath] : [])];
     try {
       const res = await launchMergetool(repoPath, filePath);
-      recordCommand(cmdTokens, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'External mergetool command initiated',
         commandSnippet: `git ${cmdTokens.join(' ')}`,
@@ -1259,7 +1311,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await continueConflictOperation(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Operation successfully continued and committed',
         commandSnippet: res.command_run.join(' '),
@@ -1278,7 +1336,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await abortConflictOperation(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Conflict operation aborted; repository state restored',
         commandSnippet: res.command_run.join(' '),
@@ -1297,7 +1361,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await createDemoConflict(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Simulated merge conflict generated on src/index.js',
         commandSnippet: 'git merge feature/conflict-demo',
@@ -1307,7 +1377,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       setSelectedFile('src/index.js');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordCommand(['merge', 'feature/conflict-demo'], Math.round(performance.now() - start), false, 1, msg);
+      recordCommand(
+        ['merge', 'feature/conflict-demo'],
+        Math.round(performance.now() - start),
+        false,
+        1,
+        msg
+      );
       setError(msg);
       throw err;
     }
@@ -1323,7 +1399,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await continueConflictOperation(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Interactive rebase continued',
         commandSnippet: res.command_run.join(' '),
@@ -1342,7 +1424,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await rebaseSkip(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Current commit skipped; rebase continued',
         commandSnippet: res.command_run.join(' '),
@@ -1361,7 +1449,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await abortConflictOperation(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Interactive rebase aborted; original branch restored',
         commandSnippet: res.command_run.join(' '),
@@ -1419,13 +1513,19 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       } else {
         res = await rebaseSkip(repoPath);
       }
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: conflictState?.in_cherry_pick
           ? 'Cherry-pick commit skipped; operation resumed'
           : conflictState?.in_revert
-          ? 'Revert commit skipped; operation resumed'
-          : 'Rebase commit skipped; rebase resumed',
+            ? 'Revert commit skipped; operation resumed'
+            : 'Rebase commit skipped; rebase resumed',
         commandSnippet: res.command_run.join(' '),
       });
       await loadRepositoryData(repoPath);
@@ -1474,7 +1574,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await createDemoRevertConflict(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Simulated revert conflict scenario prepared',
         commandSnippet: res.command_run.join(' '),
@@ -1483,7 +1589,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       setSelectedView('working-tree');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordCommand(['revert', 'demo-conflict'], Math.round(performance.now() - start), false, 1, msg);
+      recordCommand(
+        ['revert', 'demo-conflict'],
+        Math.round(performance.now() - start),
+        false,
+        1,
+        msg
+      );
       setError(msg);
       throw err;
     }
@@ -1494,7 +1606,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     const start = performance.now();
     try {
       const res = await createDemoCherryPickConflict(repoPath);
-      recordCommand(res.command_run, Math.round(performance.now() - start), res.success, res.exit_code, res.stderr);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
       setSystemToast({
         message: 'Simulated cherry-pick conflict scenario prepared',
         commandSnippet: res.command_run.join(' '),
@@ -1503,7 +1621,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       setSelectedView('working-tree');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      recordCommand(['cherry-pick', 'demo-conflict'], Math.round(performance.now() - start), false, 1, msg);
+      recordCommand(
+        ['cherry-pick', 'demo-conflict'],
+        Math.round(performance.now() - start),
+        false,
+        1,
+        msg
+      );
       setError(msg);
       throw err;
     }
@@ -1542,7 +1666,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Reset failed: ${msg}`);
-      recordCommand(['reset', `--${mode}`, resetTargetModal.targetRef], Math.round(performance.now() - start), false, 1, msg);
+      recordCommand(
+        ['reset', `--${mode}`, resetTargetModal.targetRef],
+        Math.round(performance.now() - start),
+        false,
+        1,
+        msg
+      );
     } finally {
       setResetLoading(false);
     }
@@ -1550,7 +1680,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
   const handleRescueBranch = (sha: string, refSelector: string) => {
     setCreateBranchStartSha(sha);
-    const sanitized = refSelector.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+    const sanitized = refSelector
+      .replace(/[^a-zA-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase();
     setCreateBranchRefName(sanitized.startsWith('rescue') ? sanitized : `rescue-${sanitized}`);
     setIsCreateBranchOpen(true);
   };
@@ -1797,6 +1931,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenTags={() => setIsTagModalOpen(true)}
           onOpenSubmodulesAndLfs={() => setIsSubmodulesLfsOpen(true)}
           onOpenBisect={() => setIsBisectRerereOpen(true)}
+          onOpenRangeDiff={() => setIsRangeDiffOpen(true)}
+          onOpenMergeModal={() => setIsMergeModalOpen(true)}
           theme={theme}
         />
 
@@ -1969,7 +2105,17 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onCherryPick={setCherryPickModalCommit}
                   onRevert={setRevertModalCommit}
                   onModifyAuthorDate={setAuthorDateModalCommit}
-                  onResetToCommit={(c) => setResetTargetModal({ targetRef: c.sha, subject: c.subject })}
+                  onResetToCommit={(c) =>
+                    setResetTargetModal({ targetRef: c.sha, subject: c.subject })
+                  }
+                  onForceRelocateBranch={(c) => {
+                    const currentHeadBranch = branches.find((b) => b.is_head)?.name || 'main';
+                    setForceRelocateTarget({
+                      branchName: currentHeadBranch,
+                      targetSha: c.sha,
+                      targetSubject: c.subject,
+                    });
+                  }}
                   loading={loading}
                   theme={theme}
                 />
@@ -2140,9 +2286,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           commit={authorDateModalCommit}
           isHead={Boolean(
             authorDateModalCommit &&
-              (authorDateModalCommit.refs.some((r) => r.includes('HEAD')) ||
-                branches.find((b) => b.is_head)?.tip_sha === authorDateModalCommit.sha ||
-                commits[0]?.sha === authorDateModalCommit.sha)
+            (authorDateModalCommit.refs.some((r) => r.includes('HEAD')) ||
+              branches.find((b) => b.is_head)?.tip_sha === authorDateModalCommit.sha ||
+              commits[0]?.sha === authorDateModalCommit.sha)
           )}
           onClose={() => setAuthorDateModalCommit(null)}
           onSuccess={async (result) => {
@@ -2277,21 +2423,30 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             if (!repoPath) return;
             const start = performance.now();
             const res = await createTag(repoPath, options);
-            recordCommand(res.command_run || ['tag', options.name], Math.round(performance.now() - start));
+            recordCommand(
+              res.command_run || ['tag', options.name],
+              Math.round(performance.now() - start)
+            );
             setSystemToast({ message: `Tag "${options.name}" created.` });
           }}
           onDeleteTag={async (tagName) => {
             if (!repoPath) return;
             const start = performance.now();
             const res = await deleteTag(repoPath, tagName);
-            recordCommand(res.command_run || ['tag', '-d', tagName], Math.round(performance.now() - start));
+            recordCommand(
+              res.command_run || ['tag', '-d', tagName],
+              Math.round(performance.now() - start)
+            );
             setSystemToast({ message: `Tag "${tagName}" deleted.` });
           }}
           onPushTag={async (tagName) => {
             if (!repoPath) return;
             const start = performance.now();
             const res = await gitPush(repoPath, undefined, tagName);
-            recordCommand(res.command_run || ['push', 'origin', tagName], Math.round(performance.now() - start));
+            recordCommand(
+              res.command_run || ['push', 'origin', tagName],
+              Math.round(performance.now() - start)
+            );
             setSystemToast({ message: `Tag "${tagName}" pushed to remote.` });
           }}
         />
@@ -2374,6 +2529,79 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             setStatus(st);
             const cList = await getCommitGraph(repoPath);
             setCommits(cList);
+          }}
+        />
+      )}
+
+      {/* Merge Branch Modal (Phase 3 Extension: -X ours/theirs vs -s ours) */}
+      {isMergeModalOpen && repoPath && (
+        <MergeBranchModal
+          isOpen={isMergeModalOpen}
+          onClose={() => setIsMergeModalOpen(false)}
+          currentBranch={status?.current_branch || 'HEAD'}
+          branches={branches}
+          onExecuteMerge={async (options) => {
+            const start = performance.now();
+            const res = await mergeWithOptions(repoPath, options);
+            recordCommand(
+              res.command_run || ['merge', options.branchName],
+              Math.round(performance.now() - start),
+              res.success,
+              res.exit_code,
+              res.stderr
+            );
+            setSystemToast({
+              message: `Merge operation finished: ${options.branchName} into ${status?.current_branch || 'HEAD'}`,
+            });
+            await handleRefresh();
+            return res;
+          }}
+        />
+      )}
+
+      {/* Range-Diff Modal (Phase 3 Extension) */}
+      {isRangeDiffOpen && repoPath && (
+        <RangeDiffViewerModal
+          isOpen={isRangeDiffOpen}
+          onClose={() => setIsRangeDiffOpen(false)}
+          onRunRangeDiff={async (baseSha, oldSha, newSha) => {
+            const start = performance.now();
+            const res = await getRangeDiff(repoPath, baseSha, oldSha, newSha);
+            recordCommand(
+              ['range-diff', `${baseSha}..${oldSha}`, `${baseSha}..${newSha}`],
+              Math.round(performance.now() - start)
+            );
+            return res;
+          }}
+        />
+      )}
+
+      {/* Force Relocate Branch Modal (Phase 3 Extension: branch -f with lost commits preview) */}
+      {forceRelocateTarget && repoPath && (
+        <ForceRelocateBranchModal
+          isOpen={Boolean(forceRelocateTarget)}
+          onClose={() => setForceRelocateTarget(null)}
+          branchName={forceRelocateTarget.branchName}
+          targetSha={forceRelocateTarget.targetSha}
+          targetSubject={forceRelocateTarget.targetSubject}
+          onPreview={async (branchName, newSha) => {
+            return await previewForceRelocateBranch(repoPath, branchName, newSha);
+          }}
+          onExecute={async (branchName, newSha) => {
+            const start = performance.now();
+            const res = await executeForceRelocateBranch(repoPath, branchName, newSha);
+            recordCommand(
+              res.command_run || ['branch', '-f', branchName, newSha],
+              Math.round(performance.now() - start),
+              res.success,
+              res.exit_code,
+              res.stderr
+            );
+            setSystemToast({
+              message: `Branch ${branchName} pointer relocated to ${newSha.slice(0, 7)}`,
+            });
+            await handleRefresh();
+            return res;
           }}
         />
       )}

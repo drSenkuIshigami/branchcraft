@@ -192,9 +192,7 @@ export const TagManagerModal: React.FC<TagManagerModalProps> = ({
                             lightweight
                           </span>
                         )}
-                        <span className="font-mono text-[11px] text-zinc-400">
-                          {t.short_sha}
-                        </span>
+                        <span className="font-mono text-[11px] text-zinc-400">{t.short_sha}</span>
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">

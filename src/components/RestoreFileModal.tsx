@@ -60,7 +60,8 @@ export const RestoreFileModal: React.FC<RestoreFileModalProps> = ({
         {/* Content */}
         <div className="p-5 space-y-4">
           <p className="text-zinc-600 dark:text-zinc-300 leading-relaxed">
-            Restore this file into your current working tree as it existed at the selected historical commit:
+            Restore this file into your current working tree as it existed at the selected
+            historical commit:
           </p>
 
           {/* Target File */}
@@ -80,9 +81,7 @@ export const RestoreFileModal: React.FC<RestoreFileModalProps> = ({
               </span>
             </div>
             {commitSubject && (
-              <p className="text-zinc-600 dark:text-zinc-400 truncate pl-5">
-                {commitSubject}
-              </p>
+              <p className="text-zinc-600 dark:text-zinc-400 truncate pl-5">{commitSubject}</p>
             )}
           </div>
 
@@ -96,8 +95,9 @@ export const RestoreFileModal: React.FC<RestoreFileModalProps> = ({
           <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-[11px] leading-relaxed">
             <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
             <div>
-              <span className="font-semibold">Working Tree Overwrite:</span> Any uncommitted changes currently in your working copy of this file will be replaced with the contents from commit{' '}
-              <span className="font-mono">{commitSha.substring(0, 8)}</span>.
+              <span className="font-semibold">Working Tree Overwrite:</span> Any uncommitted changes
+              currently in your working copy of this file will be replaced with the contents from
+              commit <span className="font-mono">{commitSha.substring(0, 8)}</span>.
             </div>
           </div>
 

@@ -23,7 +23,11 @@ export interface CommitAuthorOptions {
 interface CommitBoxProps {
   stagedCount: number;
   lastCommitMessage?: string;
-  onCommit: (message: string, isAmend: boolean, authorOptions?: CommitAuthorOptions) => Promise<void>;
+  onCommit: (
+    message: string,
+    isAmend: boolean,
+    authorOptions?: CommitAuthorOptions
+  ) => Promise<void>;
   loading: boolean;
   theme: Theme;
 }
@@ -84,7 +88,7 @@ export const CommitBox: React.FC<CommitBoxProps> = ({
     setSubmitting(true);
     try {
       const fullMessage = body.trim() ? `${subject.trim()}\n\n${body.trim()}` : subject.trim();
-      
+
       let authorOptions: CommitAuthorOptions | undefined = undefined;
       if (showAuthorOptions) {
         let authorDateIso: string | undefined = undefined;

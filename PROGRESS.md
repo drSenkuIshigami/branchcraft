@@ -121,9 +121,9 @@
 - [x] Submodule dashboard (status, sync, recursive update via `SubmodulesAndLfsModal`, recursive `git submodule update --init --recursive`, nested repository drill-down).
 - [x] Interactive Git bisect wizard (`BisectAndRerereModal`, start session with bad/good references, step-by-step mark good/bad/skip, live binary search CLI log, abort/reset).
 - [x] `rerere` activation and state inspection (`BisectAndRerereModal`, `git config rerere.enabled` toggle, inspect cached recorded resolutions in `.git/rr-cache`).
-- [ ] `range-diff` viewer for before/after rebase comparisons.
-- [ ] Strict UI differentiation between `merge -X ours/theirs` and `merge -s ours`.
-- [ ] Branch pointer force relocation (`branch -f`) with lost-commit preview.
+- [x] `range-diff` viewer for before/after rebase comparisons (`RangeDiffViewerModal`, CLI `git range-diff base..old base..new`, patch alignment badges for matched/modified/added/removed, and raw diff inspector).
+- [x] Strict UI differentiation between `merge -X ours/theirs` and `merge -s ours` (`MergeBranchModal`, detailed operational explanation, tree discard alert for `-s ours`, recursive conflict auto-resolution for `-X ours/theirs`).
+- [x] Branch pointer force relocation (`branch -f`) with lost-commit preview (`ForceRelocateBranchModal`, pre-execution traversal of orphaned commits, two-step safety confirmation).
 - [x] Git LFS diagnostics (tracked patterns in `.gitattributes`, binary CLI availability, and tracking guidelines via `SubmodulesAndLfsModal`).
 
 ---
