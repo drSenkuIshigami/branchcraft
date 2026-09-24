@@ -36,6 +36,8 @@ import type {
   CreateTagOptions,
   SubmoduleInfo,
   LfsDiagnostics,
+  BisectStatus,
+  RerereStatus,
 } from '../types';
 import {
   abortConflictOperation,
@@ -57,6 +59,7 @@ import {
   discardPath,
   dropStash,
   getBranches,
+  getBisectStatus,
   getCommitDetail,
   getCommitGraph,
   getConflictState,
@@ -65,6 +68,7 @@ import {
   getLfsDiagnostics,
   getReflog,
   getRemotes,
+  getRerereStatus,
   getStashes,
   getStatus,
   getSubmodules,
@@ -86,11 +90,13 @@ import {
   resolveConflict,
   restoreFileFromCommit,
   revertSkip,
+  runBisectCommand,
   createDemoRevertConflict,
   stageAll,
   stageHunk,
   stagePath,
   switchBranch,
+  toggleRerere,
   unstageAll,
   unstageHunk,
   unstagePath,
@@ -127,6 +133,7 @@ import { RemoteSyncModal } from '../components/RemoteSyncModal';
 import { SystemAuditModal } from '../components/SystemAuditModal';
 import { TagManagerModal } from '../components/TagManagerModal';
 import { SubmodulesAndLfsModal } from '../components/SubmodulesAndLfsModal';
+import { BisectAndRerereModal } from '../components/BisectAndRerereModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -232,6 +239,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [submodules, setSubmodules] = useState<SubmoduleInfo[]>([]);
   const [lfsDiagnostics, setLfsDiagnostics] = useState<LfsDiagnostics | null>(null);
   const [isSubmodulesLfsOpen, setIsSubmodulesLfsOpen] = useState(false);
+
+  // Bisect & Rerere State (Phase 3 Extension)
+  const [bisectStatus, setBisectStatus] = useState<BisectStatus | null>(null);
+  const [rerereStatus, setRerereStatus] = useState<RerereStatus | null>(null);
+  const [isBisectRerereOpen, setIsBisectRerereOpen] = useState(false);
 
 
   useEffect(() => {
@@ -414,6 +426,17 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         } catch {
           setSubmodules([]);
           setLfsDiagnostics(null);
+        }
+
+        // Bisect & Rerere (Phase 3 Extension)
+        try {
+          const bStatus = await getBisectStatus(newStatus.root_path);
+          setBisectStatus(bStatus);
+          const rStatus = await getRerereStatus(newStatus.root_path);
+          setRerereStatus(rStatus);
+        } catch {
+          setBisectStatus(null);
+          setRerereStatus(null);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1758,6 +1781,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           worktreesCount={worktrees.length}
           tagsCount={tags.length}
           submodulesCount={submodules.length}
+          inBisect={Boolean(bisectStatus?.in_bisect)}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -1772,6 +1796,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenSystemAudit={() => setIsSystemAuditOpen(true)}
           onOpenTags={() => setIsTagModalOpen(true)}
           onOpenSubmodulesAndLfs={() => setIsSubmodulesLfsOpen(true)}
+          onOpenBisect={() => setIsBisectRerereOpen(true)}
           theme={theme}
         />
 
@@ -2301,6 +2326,54 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             const fullPath = `${repoPath}/${subPath}`;
             loadRepositoryData(fullPath);
             setIsSubmodulesLfsOpen(false);
+          }}
+        />
+      )}
+
+      {/* Bisect & Rerere Modal (Phase 3 Extension) */}
+      {isBisectRerereOpen && repoPath && (
+        <BisectAndRerereModal
+          isOpen={isBisectRerereOpen}
+          onClose={() => setIsBisectRerereOpen(false)}
+          repoPath={repoPath}
+          commits={commits}
+          bisectStatus={bisectStatus}
+          rerereStatus={rerereStatus}
+          onRunBisect={async (action, commitSha) => {
+            const start = performance.now();
+            const res = await runBisectCommand(repoPath, action, commitSha);
+            recordCommand(
+              res.command_run || ['bisect', action, ...(commitSha ? [commitSha] : [])],
+              Math.round(performance.now() - start),
+              res.success,
+              res.exit_code,
+              res.stderr
+            );
+            return res;
+          }}
+          onToggleRerere={async (enable) => {
+            const start = performance.now();
+            const res = await toggleRerere(repoPath, enable);
+            recordCommand(
+              res.command_run || ['config', 'rerere.enabled', String(enable)],
+              Math.round(performance.now() - start)
+            );
+            setSystemToast({
+              message: `git rerere ${enable ? 'enabled' : 'disabled'}`,
+            });
+            return res;
+          }}
+          onRefresh={async () => {
+            if (!repoPath) return;
+            const bStatus = await getBisectStatus(repoPath);
+            setBisectStatus(bStatus);
+            const rStatus = await getRerereStatus(repoPath);
+            setRerereStatus(rStatus);
+            // Refresh git status as bisect checks out commits
+            const st = await getStatus(repoPath);
+            setStatus(st);
+            const cList = await getCommitGraph(repoPath);
+            setCommits(cList);
           }}
         />
       )}

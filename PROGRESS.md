@@ -119,8 +119,8 @@
 - [x] Worktree manager (list, add new worktree, lock/unlock, remove, prune, switch active repo to worktree).
 - [x] Annotated tag creation, remote push, and deletion (`TagManagerModal`, lightweight & annotated tags with tagger metadata, search, remote push via `git push origin <tag>`, and safe deletion via `git tag -d`).
 - [x] Submodule dashboard (status, sync, recursive update via `SubmodulesAndLfsModal`, recursive `git submodule update --init --recursive`, nested repository drill-down).
-- [ ] Interactive Git bisect wizard (start, mark good/bad, pinpoint culprit commit, reset).
-- [ ] `rerere` activation and state inspection.
+- [x] Interactive Git bisect wizard (`BisectAndRerereModal`, start session with bad/good references, step-by-step mark good/bad/skip, live binary search CLI log, abort/reset).
+- [x] `rerere` activation and state inspection (`BisectAndRerereModal`, `git config rerere.enabled` toggle, inspect cached recorded resolutions in `.git/rr-cache`).
 - [ ] `range-diff` viewer for before/after rebase comparisons.
 - [ ] Strict UI differentiation between `merge -X ours/theirs` and `merge -s ours`.
 - [ ] Branch pointer force relocation (`branch -f`) with lost-commit preview.

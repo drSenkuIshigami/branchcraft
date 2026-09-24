@@ -21,6 +21,7 @@ import {
   History,
   FolderTree,
   ShieldAlert,
+  Search,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -33,6 +34,7 @@ interface SidebarProps {
   worktreesCount?: number;
   tagsCount?: number;
   submodulesCount?: number;
+  inBisect?: boolean;
   selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health';
   onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health') => void;
   onOpenRepoDialog: () => void;
@@ -47,6 +49,7 @@ interface SidebarProps {
   onOpenSystemAudit?: () => void;
   onOpenTags?: () => void;
   onOpenSubmodulesAndLfs?: () => void;
+  onOpenBisect?: () => void;
   theme: Theme;
 }
 
@@ -59,6 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   worktreesCount = 1,
   tagsCount = 0,
   submodulesCount = 0,
+  inBisect = false,
   selectedView,
   onSelectView,
   onOpenRepoDialog,
@@ -73,6 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSystemAudit,
   onOpenTags,
   onOpenSubmodulesAndLfs,
+  onOpenBisect,
 }) => {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [workingTreeOpen, setWorkingTreeOpen] = useState(true);
@@ -383,6 +388,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {submodulesCount}
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Bisect & Rerere (Phase 3) */}
+        <div>
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 transition-colors">
+            <button
+              type="button"
+              onClick={onOpenBisect}
+              className="flex items-center gap-2 cursor-pointer flex-1 text-left"
+            >
+              <Search className="w-3.5 h-3.5 text-violet-500" />
+              <span>Bisect &amp; rerere</span>
+            </button>
+            {inBisect && (
+              <span className="font-mono text-[9px] bg-violet-500/20 text-violet-600 dark:text-violet-400 font-bold px-1.5 py-0.2 rounded border border-violet-500/30 animate-pulse">
+                ACTIVE
+              </span>
+            )}
           </div>
         </div>
 
