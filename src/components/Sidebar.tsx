@@ -32,6 +32,7 @@ interface SidebarProps {
   reflogCount?: number;
   worktreesCount?: number;
   tagsCount?: number;
+  submodulesCount?: number;
   selectedView: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health';
   onSelectView: (view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health') => void;
   onOpenRepoDialog: () => void;
@@ -45,6 +46,7 @@ interface SidebarProps {
   onOpenSync?: () => void;
   onOpenSystemAudit?: () => void;
   onOpenTags?: () => void;
+  onOpenSubmodulesAndLfs?: () => void;
   theme: Theme;
 }
 
@@ -56,6 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   reflogCount = 0,
   worktreesCount = 1,
   tagsCount = 0,
+  submodulesCount = 0,
   selectedView,
   onSelectView,
   onOpenRepoDialog,
@@ -69,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSync,
   onOpenSystemAudit,
   onOpenTags,
+  onOpenSubmodulesAndLfs,
 }) => {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [workingTreeOpen, setWorkingTreeOpen] = useState(true);
@@ -359,6 +363,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Plus className="w-3 h-3" />
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Submodules & Git LFS (Phase 3) */}
+        <div>
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 transition-colors">
+            <button
+              type="button"
+              onClick={onOpenSubmodulesAndLfs}
+              className="flex items-center gap-2 cursor-pointer flex-1 text-left"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Submodules &amp; LFS</span>
+            </button>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.2 rounded text-zinc-500">
+                {submodulesCount}
+              </span>
             </div>
           </div>
         </div>

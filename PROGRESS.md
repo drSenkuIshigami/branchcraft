@@ -118,13 +118,13 @@
 - [x] Reflog viewer with historical recovery wizard (rescue branch creation from dropped commits, reset HEAD, cherry-pick from reflog).
 - [x] Worktree manager (list, add new worktree, lock/unlock, remove, prune, switch active repo to worktree).
 - [x] Annotated tag creation, remote push, and deletion (`TagManagerModal`, lightweight & annotated tags with tagger metadata, search, remote push via `git push origin <tag>`, and safe deletion via `git tag -d`).
-- [ ] Submodule dashboard (status, sync, recursive update).
+- [x] Submodule dashboard (status, sync, recursive update via `SubmodulesAndLfsModal`, recursive `git submodule update --init --recursive`, nested repository drill-down).
 - [ ] Interactive Git bisect wizard (start, mark good/bad, pinpoint culprit commit, reset).
 - [ ] `rerere` activation and state inspection.
 - [ ] `range-diff` viewer for before/after rebase comparisons.
 - [ ] Strict UI differentiation between `merge -X ours/theirs` and `merge -s ours`.
 - [ ] Branch pointer force relocation (`branch -f`) with lost-commit preview.
-- [ ] Git LFS diagnostics (tracked files, lock status).
+- [x] Git LFS diagnostics (tracked patterns in `.gitattributes`, binary CLI availability, and tracking guidelines via `SubmodulesAndLfsModal`).
 
 ---
 

@@ -34,6 +34,8 @@ import type {
   WorktreeInfo,
   TagInfo,
   CreateTagOptions,
+  SubmoduleInfo,
+  LfsDiagnostics,
 } from '../types';
 import {
   abortConflictOperation,
@@ -60,10 +62,12 @@ import {
   getConflictState,
   getDetailedRebaseStatus,
   getFileDiff,
+  getLfsDiagnostics,
   getReflog,
   getRemotes,
   getStashes,
   getStatus,
+  getSubmodules,
   getSyncStatus,
   getTags,
   getWorktrees,
@@ -90,6 +94,7 @@ import {
   unstageAll,
   unstageHunk,
   unstagePath,
+  updateSubmodules,
 } from '../ipc';
 import { Sidebar } from '../components/Sidebar';
 import { CommitList } from '../components/CommitList';
@@ -121,6 +126,7 @@ import { DeleteBranchModal } from '../components/DeleteBranchModal';
 import { RemoteSyncModal } from '../components/RemoteSyncModal';
 import { SystemAuditModal } from '../components/SystemAuditModal';
 import { TagManagerModal } from '../components/TagManagerModal';
+import { SubmodulesAndLfsModal } from '../components/SubmodulesAndLfsModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -221,6 +227,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   // Tags Management State (Phase 3 Extension)
   const [tags, setTags] = useState<TagInfo[]>([]);
   const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+
+  // Submodules & LFS State (Phase 3 Extension)
+  const [submodules, setSubmodules] = useState<SubmoduleInfo[]>([]);
+  const [lfsDiagnostics, setLfsDiagnostics] = useState<LfsDiagnostics | null>(null);
+  const [isSubmodulesLfsOpen, setIsSubmodulesLfsOpen] = useState(false);
 
 
   useEffect(() => {
@@ -386,6 +397,23 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           setTags(newTags);
         } catch {
           setTags([]);
+        }
+
+        // Submodules & LFS Diagnostics (Phase 3 Extension)
+        try {
+          const subStart = performance.now();
+          const newSubs = await getSubmodules(newStatus.root_path);
+          recordCommand(
+            ['submodule', 'status'],
+            Math.round(performance.now() - subStart)
+          );
+          setSubmodules(newSubs);
+
+          const lfsDiag = await getLfsDiagnostics(newStatus.root_path);
+          setLfsDiagnostics(lfsDiag);
+        } catch {
+          setSubmodules([]);
+          setLfsDiagnostics(null);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1729,6 +1757,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           reflogCount={reflogEntries.length}
           worktreesCount={worktrees.length}
           tagsCount={tags.length}
+          submodulesCount={submodules.length}
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
@@ -1742,6 +1771,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenSync={() => setIsSyncModalOpen(true)}
           onOpenSystemAudit={() => setIsSystemAuditOpen(true)}
           onOpenTags={() => setIsTagModalOpen(true)}
+          onOpenSubmodulesAndLfs={() => setIsSubmodulesLfsOpen(true)}
           theme={theme}
         />
 
@@ -2238,6 +2268,39 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             const res = await gitPush(repoPath, undefined, tagName);
             recordCommand(res.command_run || ['push', 'origin', tagName], Math.round(performance.now() - start));
             setSystemToast({ message: `Tag "${tagName}" pushed to remote.` });
+          }}
+        />
+      )}
+
+      {/* Submodules & Git LFS Modal (Phase 3 Extension) */}
+      {isSubmodulesLfsOpen && (
+        <SubmodulesAndLfsModal
+          isOpen={isSubmodulesLfsOpen}
+          onClose={() => setIsSubmodulesLfsOpen(false)}
+          submodules={submodules}
+          lfsDiagnostics={lfsDiagnostics}
+          onUpdateSubmodules={async (recursive) => {
+            if (!repoPath) throw new Error('No repository selected');
+            const start = performance.now();
+            const res = await updateSubmodules(repoPath, recursive);
+            recordCommand(
+              res.command_run || ['submodule', 'update', '--init', recursive ? '--recursive' : ''],
+              Math.round(performance.now() - start)
+            );
+            return res;
+          }}
+          onRefreshData={async () => {
+            if (!repoPath) return;
+            const newSubs = await getSubmodules(repoPath);
+            setSubmodules(newSubs);
+            const lfsDiag = await getLfsDiagnostics(repoPath);
+            setLfsDiagnostics(lfsDiag);
+          }}
+          onOpenSubmoduleRepo={(subPath) => {
+            if (!repoPath) return;
+            const fullPath = `${repoPath}/${subPath}`;
+            loadRepositoryData(fullPath);
+            setIsSubmodulesLfsOpen(false);
           }}
         />
       )}
