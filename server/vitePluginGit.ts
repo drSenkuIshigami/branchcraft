@@ -95,6 +95,8 @@ import {
   previewForceRelocateBranch,
   executeForceRelocateBranch,
   pickFolderDialog,
+  searchRepository,
+  replaceInFiles,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -145,6 +147,26 @@ export function gitApiPlugin(): Plugin {
 
           if (pathname === '/api/git/pick_folder' && (req.method === 'GET' || req.method === 'POST')) {
             const result = await pickFolderDialog();
+            return sendJson(200, result);
+          }
+
+          if (pathname === '/api/git/search' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repoPath === 'string' ? body.repoPath : '';
+            if (!repoPath) {
+              return sendJson(400, { error: 'repoPath is required' });
+            }
+            const result = await searchRepository(repoPath, (body.options || body) as any);
+            return sendJson(200, result);
+          }
+
+          if (pathname === '/api/git/replace' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repoPath === 'string' ? body.repoPath : '';
+            if (!repoPath) {
+              return sendJson(400, { error: 'repoPath is required' });
+            }
+            const result = await replaceInFiles(repoPath, (body.options || body) as any);
             return sendJson(200, result);
           }
 

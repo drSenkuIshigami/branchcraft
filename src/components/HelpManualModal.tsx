@@ -37,7 +37,8 @@ export type HelpActionId =
   | 'open_system_audit'
   | 'open_command_log'
   | 'open_bisect_rerere'
-  | 'open_submodules';
+  | 'open_submodules'
+  | 'open_search_replace';
 
 export interface HelpTopic {
   id: string;
@@ -54,6 +55,29 @@ export interface HelpTopic {
 }
 
 export const HELP_TOPICS: HelpTopic[] = [
+  // --- SEARCH & REPLACE ---
+  {
+    id: 'search-and-replace',
+    title: 'Global Search & Replace (Code, Wildcards, Branches & History)',
+    category: 'audit',
+    keywords: ['find', 'search', 'replace', 'find and replace', 'wildcard', 'code', '.com', 'regex', 'branch filter', 'history search'],
+    severity: 'safe',
+    symptom: 'You want to search for a word, domain (like *.com), or wildcard pattern (*code*) across all files, branches, or commits, and optionally replace matching text in your Working Tree.',
+    solutionSteps: [
+      'In Git Workbench, click the "Search & Replace" button in the top header bar or sidebar (or press Ctrl+Shift+F).',
+      'Enter your search term. You can type literal text, wildcards (e.g. *code* or *.com), or full regular expressions.',
+      'Toggle search options: Aa (Match Case), \\b (Whole Word), or .* (Regex mode).',
+      'Select your Search Scope: "Working Tree" (find & replace in disk files), "All Branches / Specific" (search trees across branches), or "All Commits" (pickaxe history search).',
+      'Use Filters to narrow down by Branch Pattern (e.g. *main to search only branches ending with main) or file glob (e.g. *.ts, *.tsx, !*.lock).',
+      'If replacing in Working Tree: enter the replacement text, review the real-time line diff preview, and click "Replace All" or "Replace Line". The files are updated immediately on disk ready for commit!',
+    ],
+    actionId: 'open_search_replace',
+    actionLabel: 'Launch Global Search & Replace',
+    cliCommand: '# Git grep search:\ngit grep -n -I -e "pattern" -- "*.ts"\n# Pickaxe history search across all commits:\ngit log --all -S "pattern" --oneline',
+    tips: [
+      'Replacements in Working Tree directly update files on your disk and automatically show up in your Working Tree panel so you can inspect diffs and stage them.',
+    ],
+  },
   // --- CONFLICTS ---
   {
     id: 'resolve-conflicts',

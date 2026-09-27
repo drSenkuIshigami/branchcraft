@@ -421,3 +421,70 @@ export interface ForceRelocateBranchPreview {
   newSha: string;
   lostCommits: CommitInfo[];
 }
+
+export interface SearchMatch {
+  line_number: number;
+  line_content: string;
+  match_start: number;
+  match_end: number;
+  replaced_content?: string;
+}
+
+export interface SearchFileResult {
+  file_path: string;
+  matches: SearchMatch[];
+  branch_or_commit?: string;
+}
+
+export interface SearchCommitMatch {
+  sha: string;
+  short_sha: string;
+  subject: string;
+  author_name: string;
+  author_date: string;
+  file_path?: string;
+  matching_line?: string;
+}
+
+export interface SearchQueryOptions {
+  query: string;
+  replaceText?: string;
+  isRegex?: boolean;
+  isCaseSensitive?: boolean;
+  isWholeWord?: boolean;
+  searchScope: 'working_tree' | 'all_commits' | 'selected_branches';
+  branches?: string[];
+  branchPattern?: string;
+  fileFilter?: string;
+  pathPrefix?: string;
+  maxResults?: number;
+}
+
+export interface SearchResponse {
+  query: string;
+  total_matches: number;
+  files_matched: number;
+  results: SearchFileResult[];
+  commit_results?: SearchCommitMatch[];
+  duration_ms: number;
+}
+
+export interface ReplaceFileOptions {
+  repoPath: string;
+  filePaths: string[];
+  query: string;
+  replaceText: string;
+  isRegex?: boolean;
+  isCaseSensitive?: boolean;
+  isWholeWord?: boolean;
+  lineNumbers?: number[];
+}
+
+export interface ReplaceResponse {
+  success: boolean;
+  replaced_files_count: number;
+  total_replacements_count: number;
+  modified_files: string[];
+  error?: string;
+}
+

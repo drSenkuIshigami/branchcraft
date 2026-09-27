@@ -44,6 +44,7 @@ interface SidebarProps {
   ) => void;
   onOpenRepoDialog: () => void;
   onOpenHelpManual?: () => void;
+  onOpenSearchReplace?: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
   onOpenRenameBranch: (branchName: string) => void;
@@ -75,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectView,
   onOpenRepoDialog,
   onOpenHelpManual,
+  onOpenSearchReplace,
   onSwitchBranch,
   onOpenCreateBranch,
   onOpenRenameBranch,
@@ -371,6 +373,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-600 dark:text-blue-300">
                 F1
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Global Search & Replace */}
+        {onOpenSearchReplace && (
+          <div>
+            <button
+              type="button"
+              onClick={onOpenSearchReplace}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300 cursor-pointer"
+              title="Global Search & Replace across repository (Ctrl+Shift+F)"
+            >
+              <div className="flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-blue-500" />
+                <span>Search &amp; Replace</span>
+              </div>
+              <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
+                Ctrl+Shift+F
               </span>
             </button>
           </div>

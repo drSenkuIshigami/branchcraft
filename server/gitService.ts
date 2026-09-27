@@ -58,6 +58,13 @@ import type {
   RangeDiffResult,
   MergeExecutionOptions,
   ForceRelocateBranchPreview,
+  SearchQueryOptions,
+  SearchResponse,
+  SearchFileResult,
+  SearchMatch,
+  SearchCommitMatch,
+  ReplaceFileOptions,
+  ReplaceResponse,
 } from '../src/types';
 
 function runGit(
@@ -4033,6 +4040,419 @@ export async function pickFolderDialog(): Promise<{
     });
   }
 }
+
+/**
+ * Helper to test wildcard patterns (e.g. *main, feature/*, *.ts)
+ */
+function matchWildcardString(str: string, pattern: string): boolean {
+  if (!pattern || pattern.trim() === '*' || pattern.trim() === '') return true;
+  const regex = new RegExp(
+    '^' +
+      pattern
+        .trim()
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.') +
+      '$',
+    'i'
+  );
+  return regex.test(str);
+}
+
+/**
+ * Searches across working tree, selected branches, or git commit history.
+ * Supports wildcards (*code*, *.com), regex, case sensitivity, word boundary,
+ * branch filters, and file path filters.
+ */
+export async function searchRepository(
+  repoPath: string,
+  options: SearchQueryOptions
+): Promise<SearchResponse> {
+  const rootPath = await validateRepository(repoPath);
+  const startTime = performance.now();
+
+  const query = options.query?.trim() || '';
+  if (!query) {
+    return {
+      query: '',
+      total_matches: 0,
+      files_matched: 0,
+      results: [],
+      commit_results: [],
+      duration_ms: 0,
+    };
+  }
+
+  // Determine if query is regex or contains wildcards
+  const hasWildcard = !options.isRegex && (query.includes('*') || query.includes('?'));
+  const isExtended = options.isRegex || hasWildcard;
+
+  // Convert search expression
+  let searchExpr = query;
+  if (hasWildcard) {
+    // Escape special regex chars except * and ?
+    searchExpr = query
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+  }
+
+  // Build flags for git grep
+  const grepFlags: string[] = [];
+  if (!options.isCaseSensitive) {
+    grepFlags.push('-i');
+  }
+  if (options.isWholeWord && !hasWildcard) {
+    grepFlags.push('-w');
+  }
+  if (isExtended) {
+    grepFlags.push('-E');
+  }
+
+  // Build pathspecs
+  const pathspecs: string[] = [];
+  if (options.pathPrefix && options.pathPrefix.trim()) {
+    pathspecs.push(options.pathPrefix.trim());
+  }
+  if (options.fileFilter && options.fileFilter.trim()) {
+    const rawFilters = options.fileFilter.split(/[,\s]+/).filter(Boolean);
+    for (const f of rawFilters) {
+      if (f.startsWith('!')) {
+        pathspecs.push(`:!${f.slice(1)}`);
+      } else {
+        pathspecs.push(f);
+      }
+    }
+  }
+
+  // Regular expression for computing replacement preview and match bounds
+  let jsRegex: RegExp;
+  try {
+    const flags = options.isCaseSensitive ? 'g' : 'gi';
+    if (options.isRegex) {
+      jsRegex = new RegExp(query, flags);
+    } else if (hasWildcard) {
+      jsRegex = new RegExp(searchExpr, flags);
+    } else {
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      jsRegex = new RegExp(options.isWholeWord ? `\\b${escaped}\\b` : escaped, flags);
+    }
+  } catch {
+    jsRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  }
+
+  const resultsMap = new Map<string, SearchFileResult>();
+  const commitResults: SearchCommitMatch[] = [];
+
+  if (options.searchScope === 'working_tree') {
+    // Run git grep on working tree including untracked files
+    const args = ['grep', '-n', '-I', '--untracked', ...grepFlags, '-e', searchExpr];
+    if (pathspecs.length > 0) {
+      args.push('--', ...pathspecs);
+    }
+
+    const res = await runGit(rootPath, args);
+    const lines = res.stdout ? res.stdout.split('\n') : [];
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      // Format: <file>:<line>:<content>
+      const match = line.match(/^([^:\r\n]+):(\d+):(.*)$/);
+      if (!match) continue;
+
+      const [, filePath, lineStr, lineContent] = match;
+      const lineNum = parseInt(lineStr, 10);
+
+      // Check fileFilter if specified and not fully captured by pathspec
+      if (options.fileFilter) {
+        const fileName = path.basename(filePath);
+        const filters = options.fileFilter.split(/[,\s]+/).filter(Boolean);
+        const includeFilters = filters.filter((f) => !f.startsWith('!'));
+        const excludeFilters = filters.filter((f) => f.startsWith('!')).map((f) => f.slice(1));
+
+        if (includeFilters.length > 0) {
+          const matchedAny = includeFilters.some((f) => matchWildcardString(fileName, f) || matchWildcardString(filePath, f));
+          if (!matchedAny) continue;
+        }
+        if (excludeFilters.some((f) => matchWildcardString(fileName, f) || matchWildcardString(filePath, f))) {
+          continue;
+        }
+      }
+
+      // Compute match positions
+      let matchStart = 0;
+      let matchEnd = query.length;
+      jsRegex.lastIndex = 0;
+      const execResult = jsRegex.exec(lineContent);
+      if (execResult) {
+        matchStart = execResult.index;
+        matchEnd = execResult.index + execResult[0].length;
+      }
+
+      let replacedContent: string | undefined;
+      if (options.replaceText !== undefined) {
+        jsRegex.lastIndex = 0;
+        replacedContent = lineContent.replace(jsRegex, options.replaceText);
+      }
+
+      if (!resultsMap.has(filePath)) {
+        resultsMap.set(filePath, {
+          file_path: filePath,
+          branch_or_commit: 'Working Tree',
+          matches: [],
+        });
+      }
+
+      resultsMap.get(filePath)!.matches.push({
+        line_number: lineNum,
+        line_content: lineContent,
+        match_start: matchStart,
+        match_end: matchEnd,
+        replaced_content: replacedContent,
+      });
+
+      if (resultsMap.size >= (options.maxResults || 500)) break;
+    }
+  } else if (options.searchScope === 'selected_branches') {
+    // Get all branches
+    const allBranches = await getBranches(rootPath);
+    let targetBranches = allBranches;
+
+    if (options.branches && options.branches.length > 0) {
+      targetBranches = allBranches.filter((b) => options.branches!.includes(b.name));
+    } else if (options.branchPattern && options.branchPattern.trim()) {
+      targetBranches = allBranches.filter((b) => matchWildcardString(b.name, options.branchPattern!));
+    }
+
+    const branchNames = targetBranches.map((b) => b.name).slice(0, 30);
+    if (branchNames.length > 0) {
+      const args = ['grep', '-n', '-I', ...grepFlags, '-e', searchExpr, ...branchNames];
+      if (pathspecs.length > 0) {
+        args.push('--', ...pathspecs);
+      }
+
+      const res = await runGit(rootPath, args);
+      const lines = res.stdout ? res.stdout.split('\n') : [];
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        // Format with refs: <ref>:<file>:<line>:<content>
+        const match = line.match(/^([^:\r\n]+):([^:\r\n]+):(\d+):(.*)$/);
+        if (!match) continue;
+
+        const [, refName, filePath, lineStr, lineContent] = match;
+        const lineNum = parseInt(lineStr, 10);
+        const mapKey = `${refName}:${filePath}`;
+
+        let replacedContent: string | undefined;
+        if (options.replaceText !== undefined) {
+          jsRegex.lastIndex = 0;
+          replacedContent = lineContent.replace(jsRegex, options.replaceText);
+        }
+
+        if (!resultsMap.has(mapKey)) {
+          resultsMap.set(mapKey, {
+            file_path: filePath,
+            branch_or_commit: refName,
+            matches: [],
+          });
+        }
+
+        resultsMap.get(mapKey)!.matches.push({
+          line_number: lineNum,
+          line_content: lineContent,
+          match_start: 0,
+          match_end: query.length,
+          replaced_content: replacedContent,
+        });
+
+        if (resultsMap.size >= (options.maxResults || 500)) break;
+      }
+    }
+  } else if (options.searchScope === 'all_commits') {
+    // Pickaxe history search (-S for exact string, -G for regex)
+    const pickaxeFlag = options.isRegex || hasWildcard ? '-G' : '-S';
+    const logArgs = [
+      'log',
+      '--all',
+      pickaxeFlag,
+      searchExpr,
+      '--oneline',
+      '--name-only',
+      '-n',
+      '100',
+    ];
+    if (pathspecs.length > 0) {
+      logArgs.push('--', ...pathspecs);
+    }
+
+    const res = await runGit(rootPath, logArgs);
+    if (res.stdout) {
+      const blocks = res.stdout.split(/\n(?=[a-f0-9]{7,40}\s)/g);
+      for (const block of blocks) {
+        const lines = block.split('\n').filter(Boolean);
+        if (lines.length === 0) continue;
+        const header = lines[0];
+        const shaMatch = header.match(/^([a-f0-9]{7,40})\s+(.*)$/);
+        if (!shaMatch) continue;
+
+        const [, shortSha, subject] = shaMatch;
+        const files = lines.slice(1);
+
+        for (const file of files) {
+          commitResults.push({
+            sha: shortSha,
+            short_sha: shortSha.slice(0, 7),
+            subject,
+            author_name: '',
+            author_date: '',
+            file_path: file.trim(),
+          });
+          if (commitResults.length >= 200) break;
+        }
+        if (commitResults.length >= 200) break;
+      }
+    }
+
+    // Also search commit messages
+    const msgArgs = ['log', '--all', `--grep=${query}`, '--oneline', '-n', '50'];
+    const msgRes = await runGit(rootPath, msgArgs);
+    if (msgRes.stdout) {
+      const msgLines = msgRes.stdout.split('\n').filter(Boolean);
+      for (const mLine of msgLines) {
+        const parts = mLine.match(/^([a-f0-9]{7,40})\s+(.*)$/);
+        if (!parts) continue;
+        const [, sSha, sSubj] = parts;
+        if (!commitResults.some((c) => c.sha === sSha)) {
+          commitResults.push({
+            sha: sSha,
+            short_sha: sSha.slice(0, 7),
+            subject: sSubj,
+            author_name: '',
+            author_date: '',
+          });
+        }
+      }
+    }
+  }
+
+  const results = Array.from(resultsMap.values());
+  const totalMatches = results.reduce((acc, r) => acc + r.matches.length, 0);
+
+  return {
+    query,
+    total_matches: totalMatches,
+    files_matched: results.length,
+    results,
+    commit_results: commitResults,
+    duration_ms: Math.round(performance.now() - startTime),
+  };
+}
+
+/**
+ * Replaces matching text across specified files on disk (Working Tree).
+ */
+export async function replaceInFiles(
+  repoPath: string,
+  options: ReplaceFileOptions
+): Promise<ReplaceResponse> {
+  const rootPath = await validateRepository(repoPath);
+
+  if (!options.query || options.replaceText === undefined) {
+    return {
+      success: false,
+      replaced_files_count: 0,
+      total_replacements_count: 0,
+      modified_files: [],
+      error: 'Query or replaceText missing',
+    };
+  }
+
+  const hasWildcard = !options.isRegex && (options.query.includes('*') || options.query.includes('?'));
+  let searchExpr = options.query;
+  if (hasWildcard) {
+    searchExpr = options.query
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+  }
+
+  let jsRegex: RegExp;
+  try {
+    const flags = options.isCaseSensitive ? 'g' : 'gi';
+    if (options.isRegex || hasWildcard) {
+      jsRegex = new RegExp(searchExpr, flags);
+    } else {
+      const escaped = options.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      jsRegex = new RegExp(options.isWholeWord ? `\\b${escaped}\\b` : escaped, flags);
+    }
+  } catch (err: unknown) {
+    return {
+      success: false,
+      replaced_files_count: 0,
+      total_replacements_count: 0,
+      modified_files: [],
+      error: `Invalid search expression: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  let replacedFilesCount = 0;
+  let totalReplacementsCount = 0;
+  const modifiedFiles: string[] = [];
+
+  for (const relPath of options.filePaths) {
+    const fullPath = path.resolve(rootPath, relPath);
+    // Security check: ensure path stays within repository
+    if (!fullPath.startsWith(rootPath)) {
+      continue;
+    }
+    if (!fs.existsSync(fullPath)) {
+      continue;
+    }
+
+    try {
+      const content = fs.readFileSync(fullPath, 'utf8');
+      const lines = content.split('\n');
+      let fileModified = false;
+
+      const newLines = lines.map((line, idx) => {
+        const lineNum = idx + 1;
+        if (options.lineNumbers && options.lineNumbers.length > 0) {
+          if (!options.lineNumbers.includes(lineNum)) {
+            return line;
+          }
+        }
+
+        jsRegex.lastIndex = 0;
+        if (jsRegex.test(line)) {
+          jsRegex.lastIndex = 0;
+          const matchCount = (line.match(jsRegex) || []).length;
+          totalReplacementsCount += matchCount;
+          fileModified = true;
+          jsRegex.lastIndex = 0;
+          return line.replace(jsRegex, options.replaceText);
+        }
+        return line;
+      });
+
+      if (fileModified) {
+        fs.writeFileSync(fullPath, newLines.join('\n'), 'utf8');
+        replacedFilesCount++;
+        modifiedFiles.push(relPath);
+      }
+    } catch (err: unknown) {
+      console.error(`Failed to replace in file ${relPath}:`, err);
+    }
+  }
+
+  return {
+    success: true,
+    replaced_files_count: replacedFilesCount,
+    total_replacements_count: totalReplacementsCount,
+    modified_files: modifiedFiles,
+  };
+}
+
 
 
 

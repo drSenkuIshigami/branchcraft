@@ -47,6 +47,10 @@ import type {
   RangeDiffResult,
   MergeExecutionOptions,
   ForceRelocateBranchPreview,
+  SearchQueryOptions,
+  SearchResponse,
+  ReplaceFileOptions,
+  ReplaceResponse,
 } from '../types';
 
 /**
@@ -2252,3 +2256,56 @@ export async function executeForceRelocateBranch(
 
   return (await res.json()) as OperationResult;
 }
+
+export async function searchRepository(
+  repoPath: string,
+  options: SearchQueryOptions
+): Promise<SearchResponse> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<SearchResponse>('search_repository', { repoPath, options });
+    } catch {
+      // fallback to http if not in rust command table
+    }
+  }
+
+  const res = await fetch('/api/git/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, options }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Search failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as SearchResponse;
+}
+
+export async function replaceInFiles(
+  repoPath: string,
+  options: ReplaceFileOptions
+): Promise<ReplaceResponse> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<ReplaceResponse>('replace_in_files', { repoPath, options });
+    } catch {
+      // fallback to http
+    }
+  }
+
+  const res = await fetch('/api/git/replace', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, options }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Replace failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as ReplaceResponse;
+}
+

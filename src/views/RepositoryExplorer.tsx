@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   BookOpen,
   HelpCircle,
+  Search,
 } from 'lucide-react';
 import type {
   BranchInfo,
@@ -145,6 +146,7 @@ import { MergeBranchModal } from '../components/MergeBranchModal';
 import { ForceRelocateBranchModal } from '../components/ForceRelocateBranchModal';
 import { RangeDiffViewerModal } from '../components/RangeDiffViewerModal';
 import { HelpManualModal, type HelpActionId } from '../components/HelpManualModal';
+import { SearchAndReplaceModal } from '../components/SearchAndReplaceModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -178,6 +180,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [isCommandLogOpen, setIsCommandLogOpen] = useState(false);
   const [isSystemAuditOpen, setIsSystemAuditOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isSearchReplaceOpen, setIsSearchReplaceOpen] = useState(false);
   const [commandLogs, setCommandLogs] = useState<LoggedCommand[]>([]);
 
   // Branch Management State
@@ -658,6 +661,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       case 'open_submodules':
         setIsSubmodulesLfsOpen(true);
         break;
+      case 'open_search_replace':
+        setIsSearchReplaceOpen(true);
+        break;
     }
   };
 
@@ -668,7 +674,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         e.target instanceof HTMLTextAreaElement ||
         (e.target as HTMLElement)?.isContentEditable;
 
-      if (e.key === 'F1') {
+      // Ctrl+Shift+F or Cmd+Shift+F opens Global Search & Replace
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsSearchReplaceOpen((prev) => !prev);
+      } else if (e.key === 'F1') {
         e.preventDefault();
         setIsHelpModalOpen((prev) => !prev);
       } else if (e.key === '?' && !isInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1968,6 +1978,20 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             </span>
           </button>
 
+          {/* Global Search & Replace */}
+          <button
+            type="button"
+            onClick={() => setIsSearchReplaceOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-200/60 dark:bg-zinc-800/80 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-xs font-medium text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+            title="Global Search & Replace across repository (Ctrl+Shift+F)"
+          >
+            <Search className="w-3.5 h-3.5 text-blue-500" />
+            <span className="hidden md:inline">Find &amp; Replace</span>
+            <kbd className="hidden 2xl:inline-block px-1 py-0.2 text-[9px] font-mono bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded">
+              Ctrl+Shift+F
+            </kbd>
+          </button>
+
           {/* System Audit (Phase 5) */}
           <button
             type="button"
@@ -2054,6 +2078,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
           onOpenHelpManual={() => setIsHelpModalOpen(true)}
+          onOpenSearchReplace={() => setIsSearchReplaceOpen(true)}
           onSwitchBranch={handleSwitchBranch}
           onOpenCreateBranch={handleOpenCreateBranch}
           onOpenRenameBranch={handleOpenRenameBranch}
@@ -2758,6 +2783,26 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         onPerformAction={handlePerformHelpAction}
         theme={theme}
       />
+
+      {/* Global Search & Replace Modal */}
+      {repoPath && (
+        <SearchAndReplaceModal
+          isOpen={isSearchReplaceOpen}
+          onClose={() => setIsSearchReplaceOpen(false)}
+          repoPath={repoPath}
+          branches={branches}
+          theme={theme}
+          onSelectCommit={(sha) => {
+            setSelectedSha(sha);
+            setSelectedView('graph');
+          }}
+          onSelectFile={(filePath) => {
+            setSelectedFile(filePath);
+            setSelectedView('working-tree');
+          }}
+          onRefresh={handleRefresh}
+        />
+      )}
 
       {/* System Toast Notification */}
       {systemToast && (

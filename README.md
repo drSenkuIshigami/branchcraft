@@ -72,7 +72,14 @@ Most traditional Git GUIs are either **bloated Electron resource hogs**, paywall
 - **Secret & Large File Scanner:** Identifies leaked API keys, tokens, `.env` files, and oversized binary assets.
 - **History Purge Wizard:** Cleanly and permanently strip oversized blobs or sensitive files across all commits, branches, and tags.
 
-### 8. 📖 Interactive In-App Problem-Solving Manual
+### 8. 🔍 Global Search & Replace (Code, Wildcards, Branches & History)
+- **Multi-Scope Search:** Find patterns across Working Tree (disk files), specific branches, or commit history (`git log -S / -G` pickaxe).
+- **Wildcard & Regex:** Search for wildcards like `*code*`, `*.com`, full regular expressions (`.*`), match case (`Aa`), or whole word (`\b`).
+- **Branch Filtering:** Filter branches using wildcard patterns (e.g. `*main` to match all branches ending with `main`) or multi-select with checkboxes.
+- **File Type & Path Filter:** Narrow searches by extension (e.g. `*.ts, *.tsx, !*.lock`) or directory prefixes (`src/`).
+- **Safe In-Place Replacement:** Real-time line-by-line diff preview (old line vs replacement) with 1-click **Replace Line**, **Replace in File**, or **Replace All** in Working Tree.
+
+### 9. 📖 Interactive In-App Problem-Solving Manual
 - Stuck on a Git problem? Press <kbd>F1</kbd> or click **Help & Manual** to open the interactive troubleshooting guide.
 - Live search for real-world problems: *"Conflict"*, *"Remove file from commit"*, *"Undo reset --hard"*, *"Detached HEAD"*, *"Push rejected"*, *"Stash changes"*.
 - Step-by-step guidance tailored directly to Git Workbench buttons, plus 1-click terminal CLI equivalent commands.
