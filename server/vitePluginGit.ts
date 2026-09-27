@@ -97,6 +97,7 @@ import {
   pickFolderDialog,
   searchRepository,
   replaceInFiles,
+  cleanAITraces,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -167,6 +168,16 @@ export function gitApiPlugin(): Plugin {
               return sendJson(400, { error: 'repoPath is required' });
             }
             const result = await replaceInFiles(repoPath, (body.options || body) as any);
+            return sendJson(200, result);
+          }
+
+          if (pathname === '/api/git/clean_ai_traces' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repoPath === 'string' ? body.repoPath : '';
+            if (!repoPath) {
+              return sendJson(400, { error: 'repoPath is required' });
+            }
+            const result = await cleanAITraces(repoPath, (body.options || body) as any);
             return sendJson(200, result);
           }
 

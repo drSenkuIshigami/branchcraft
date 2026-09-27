@@ -289,14 +289,41 @@ export interface LargeFileFinding {
   date: string;
 }
 
+export type AITraceType = 'banner' | 'trailer' | 'metadata' | 'file_marker' | 'comment';
+
 export interface AITraceFinding {
-  type: 'trailer' | 'metadata' | 'file_marker';
-  marker: string; // e.g., 'Co-authored-by: Claude', 'Generated-by: Cursor', '.cursorrules'
+  id?: string;
+  type: AITraceType;
+  category?: 'banner' | 'commit_trailer' | 'config_file' | 'code_watermark';
+  marker: string; // e.g., 'Built with AI Studio banner', 'Co-authored-by: Cursor', '.cursorrules'
   file_path?: string;
+  line_number?: number;
   commit_sha?: string;
   commit_subject?: string;
   date?: string;
   details: string;
+  snippet?: string;
+  can_auto_clean?: boolean;
+}
+
+export interface CleanAITracesOptions {
+  repoPath: string;
+  cleanBanners?: boolean;
+  cleanTrailersInHistory?: boolean;
+  cleanCommentWatermarks?: boolean;
+  removeConfigFiles?: boolean;
+  cleanHistoryBanners?: boolean;
+  createSafetyBackup?: boolean;
+}
+
+export interface CleanAITracesResult {
+  success: boolean;
+  cleaned_files: string[];
+  cleaned_commits_count: number;
+  total_traces_removed: number;
+  backup_ref?: string;
+  error?: string;
+  duration_ms: number;
 }
 
 export interface RepoAuditReport {

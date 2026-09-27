@@ -39,6 +39,7 @@ interface SearchAndReplaceModalProps {
   theme: Theme;
   onSelectCommit?: (sha: string) => void;
   onSelectFile?: (filePath: string) => void;
+  onOpenAISanitizer?: () => void;
   onRefresh?: () => void;
 }
 
@@ -50,6 +51,7 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
   theme: _theme,
   onSelectCommit,
   onSelectFile,
+  onOpenAISanitizer,
   onRefresh,
 }) => {
   // Search query inputs
@@ -363,6 +365,48 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
             </div>
           </div>
 
+          {/* Quick presets & helpers */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-zinc-400 font-medium">Quick search:</span>
+              {[
+                { label: '*code*', q: '*code*' },
+                { label: '*.com', q: '*.com' },
+                { label: 'Built with AI Studio', q: 'Built with AI Studio' },
+                { label: 'Co-authored-by: Cursor', q: 'Co-authored-by: Cursor' },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    setQuery(p.q);
+                    if (p.q.includes('*')) {
+                      setIsRegex(false);
+                    }
+                  }}
+                  className="px-1.5 py-0.5 rounded bg-zinc-200/60 dark:bg-zinc-800 hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 font-mono text-[10px] transition-colors cursor-pointer"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {onOpenAISanitizer && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenAISanitizer();
+                }}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 font-medium text-[10px] transition-colors cursor-pointer"
+                title="Automatically clean AI Studio banners and Cursor commit trailers"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Remove AI Signs Automatically</span>
+              </button>
+            )}
+          </div>
+
           {/* Row 2: Scope Tabs & Action Buttons */}
           <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
             {/* Scope Selector */}
@@ -621,9 +665,25 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
             {/* Commit History Pickaxe Results */}
             {searchResult?.commit_results && searchResult.commit_results.length > 0 && (
               <div className="space-y-2 mb-4">
-                <div className="flex items-center gap-2 px-1 text-xs font-semibold text-purple-600 dark:text-purple-400">
-                  <History className="w-4 h-4" />
-                  <span>Commits that modified &quot;{query}&quot; ({searchResult.commit_results.length})</span>
+                <div className="flex items-center justify-between px-1 text-xs">
+                  <div className="flex items-center gap-2 font-semibold text-purple-600 dark:text-purple-400">
+                    <History className="w-4 h-4" />
+                    <span>Commits that modified &quot;{query}&quot; ({searchResult.commit_results.length})</span>
+                  </div>
+                  {onOpenAISanitizer && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenAISanitizer();
+                      }}
+                      className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                      title="Automatically rewrite history to purge AI Studio banners and Cursor trailers"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Purge AI signs from history</span>
+                    </button>
+                  )}
                 </div>
                 <div className="rounded-xl border border-purple-500/20 divide-y divide-purple-500/10 bg-purple-500/5 overflow-hidden">
                   {searchResult.commit_results.slice(0, 50).map((c, i) => (

@@ -25,6 +25,7 @@ import {
   GitCompare,
   GitMerge,
   BookOpen,
+  Sparkles,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -45,6 +46,7 @@ interface SidebarProps {
   onOpenRepoDialog: () => void;
   onOpenHelpManual?: () => void;
   onOpenSearchReplace?: () => void;
+  onOpenAISanitizer?: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
   onOpenRenameBranch: (branchName: string) => void;
@@ -77,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenRepoDialog,
   onOpenHelpManual,
   onOpenSearchReplace,
+  onOpenAISanitizer,
   onSwitchBranch,
   onOpenCreateBranch,
   onOpenRenameBranch,
@@ -393,6 +396,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-zinc-200 dark:bg-zinc-800 text-zinc-500">
                 Ctrl+Shift+F
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* AI Signs & Banner Sanitizer */}
+        {onOpenAISanitizer && (
+          <div>
+            <button
+              type="button"
+              onClick={onOpenAISanitizer}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors hover:bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium cursor-pointer text-xs"
+              title="Automatically remove AI Studio banners, Cursor trailers, and config files"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                <span>Clean AI Signs</span>
+              </div>
+              <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-purple-500/15 text-purple-600 dark:text-purple-300">
+                1-Click
               </span>
             </button>
           </div>

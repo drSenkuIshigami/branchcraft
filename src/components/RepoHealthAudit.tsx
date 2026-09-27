@@ -41,6 +41,7 @@ import {
   installPreCommitHook,
   updateGitignoreAIDirectories,
 } from '../ipc';
+import { AISanitizerModal } from './AISanitizerModal';
 
 interface RepoHealthAuditProps {
   repoPath: string;
@@ -81,6 +82,7 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
 
   // Search filter inside findings
   const [filterQuery, setFilterQuery] = useState('');
+  const [isAISanitizerOpen, setIsAISanitizerOpen] = useState(false);
 
   const loadHealthData = async () => {
     if (!repoPath) return;
@@ -683,14 +685,25 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
                   className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <button
-                type="button"
-                onClick={onOpenPurgeWizard}
-                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>Scrub AI Trailers</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAISanitizerOpen(true)}
+                  className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  title="Automatically remove AI Studio banners, co-author trailers, and watermarks"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Auto Clean AI Signs...</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenPurgeWizard}
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>History Purge</span>
+                </button>
+              </div>
             </div>
 
             {filteredAITraces.length === 0 ? (
@@ -1077,6 +1090,18 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
           </div>
         )}
       </div>
+
+      {isAISanitizerOpen && (
+        <AISanitizerModal
+          isOpen={isAISanitizerOpen}
+          onClose={() => setIsAISanitizerOpen(false)}
+          repoPath={repoPath}
+          theme={_theme}
+          onSuccess={() => {
+            loadHealthData();
+          }}
+        />
+      )}
     </div>
   );
 };

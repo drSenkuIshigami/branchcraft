@@ -17,6 +17,7 @@ import {
   BookOpen,
   HelpCircle,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import type {
   BranchInfo,
@@ -147,6 +148,7 @@ import { ForceRelocateBranchModal } from '../components/ForceRelocateBranchModal
 import { RangeDiffViewerModal } from '../components/RangeDiffViewerModal';
 import { HelpManualModal, type HelpActionId } from '../components/HelpManualModal';
 import { SearchAndReplaceModal } from '../components/SearchAndReplaceModal';
+import { AISanitizerModal } from '../components/AISanitizerModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -181,6 +183,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [isSystemAuditOpen, setIsSystemAuditOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isSearchReplaceOpen, setIsSearchReplaceOpen] = useState(false);
+  const [isAISanitizerOpen, setIsAISanitizerOpen] = useState(false);
   const [commandLogs, setCommandLogs] = useState<LoggedCommand[]>([]);
 
   // Branch Management State
@@ -663,6 +666,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         break;
       case 'open_search_replace':
         setIsSearchReplaceOpen(true);
+        break;
+      case 'open_ai_sanitizer':
+        setIsAISanitizerOpen(true);
         break;
     }
   };
@@ -1992,6 +1998,17 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             </kbd>
           </button>
 
+          {/* Clean AI Signs (AI Sanitizer) */}
+          <button
+            type="button"
+            onClick={() => setIsAISanitizerOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 text-xs font-medium transition-colors cursor-pointer"
+            title="Automatically scrub Built with AI Studio banners, Cursor trailers, and config files"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+            <span className="hidden xl:inline">Clean AI Signs</span>
+          </button>
+
           {/* System Audit (Phase 5) */}
           <button
             type="button"
@@ -2079,6 +2096,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
           onOpenHelpManual={() => setIsHelpModalOpen(true)}
           onOpenSearchReplace={() => setIsSearchReplaceOpen(true)}
+          onOpenAISanitizer={() => setIsAISanitizerOpen(true)}
           onSwitchBranch={handleSwitchBranch}
           onOpenCreateBranch={handleOpenCreateBranch}
           onOpenRenameBranch={handleOpenRenameBranch}
@@ -2800,7 +2818,24 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             setSelectedFile(filePath);
             setSelectedView('working-tree');
           }}
+          onOpenAISanitizer={() => setIsAISanitizerOpen(true)}
           onRefresh={handleRefresh}
+        />
+      )}
+
+      {/* AI Signs & Signature Sanitizer Modal */}
+      {repoPath && (
+        <AISanitizerModal
+          isOpen={isAISanitizerOpen}
+          onClose={() => setIsAISanitizerOpen(false)}
+          repoPath={repoPath}
+          theme={theme}
+          onSuccess={() => {
+            handleRefresh();
+            setSystemToast({
+              message: 'Repository sanitized: AI banners, trailers, and watermarks removed',
+            });
+          }}
         />
       )}
 

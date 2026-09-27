@@ -38,7 +38,8 @@ export type HelpActionId =
   | 'open_command_log'
   | 'open_bisect_rerere'
   | 'open_submodules'
-  | 'open_search_replace';
+  | 'open_search_replace'
+  | 'open_ai_sanitizer';
 
 export interface HelpTopic {
   id: string;
@@ -55,6 +56,45 @@ export interface HelpTopic {
 }
 
 export const HELP_TOPICS: HelpTopic[] = [
+  // --- AI SIGNS & CO-AUTHOR SANITIZER ---
+  {
+    id: 'remove-ai-signs-banners-coauthors',
+    title: 'Remove AI Signs, Initial Commit Banners & Co-Authors Automatically (1-Click)',
+    category: 'audit',
+    keywords: [
+      'ai',
+      'ai studio',
+      'ghbanner',
+      'built with ai studio',
+      'cursor',
+      'copilot',
+      'co-authored-by',
+      'co-writer',
+      'remove ai',
+      'sanitize',
+      'clean ai signs',
+      'initial commit',
+      'watermark',
+      '.cursorrules',
+    ],
+    severity: 'safe',
+    symptom: 'Your repository or Initial Project Commit contains AI promotional signs (such as the "<div align=\'center\'>...GHBanner...<h1>Built with AI Studio</h2>...</div>" block in README.md), Cursor co-authors ("Co-authored-by: Cursor <cursor@cursor.sh>"), or config files (.cursorrules) that require tedious manual work to remove one by one.',
+    solutionSteps: [
+      'Click the "Clean AI Signs" button in the top header bar (or click "Clean AI Signs" in the sidebar Tools section).',
+      'The AI Sanitizer automatically audits your repository in seconds, detecting all promotional banners, Cursor commit trailers, .cursorrules config files, and code watermarks across your working files AND historical commits (including the root initial commit).',
+      'Click "View banner snippet to remove" to preview the exact AI Studio hero banner and trailers that will be purged.',
+      'Ensure "Rewrite History to Purge Initial Commit Banner" and "Scrub Co-Author Trailers from History" are checked so Git Workbench modifies the root commit itself.',
+      'Click "⚡ Deep Clean All AI Signs (1-Click)". Git Workbench automatically strips the banner from README.md, rewrites history so even the initial commit is 100% clean, deletes .cursorrules files, and removes all Cursor/Copilot co-author lines.',
+      'An automatic safety backup (refs/backups/pre-ai-clean-...) is recorded before rewriting, making the entire operation completely reversible.',
+    ],
+    actionId: 'open_ai_sanitizer',
+    actionLabel: 'Open Clean AI Signs Tool',
+    cliCommand: '# 1. Strip banners & Cursor trailers across all historical commits (including commit 1):\ngit filter-branch --force --tree-filter "python3 -c \\"import os, re; [os.remove(f) for f in [\'.cursorrules\'] if os.path.exists(f)]; [open(f,\'w\').write(re.sub(r\'(?si)<div\\\\s+align=[\\\\\\"\\\\x27]center[\\\\\\"\\\\x27]>.*?Built with AI Studio.*?</div>\\\\s*\',\'\',open(f).read())) for f in [\'README.md\'] if os.path.exists(f)]\\"" --msg-filter "python3 -c \\"import sys, re; msg = sys.stdin.read(); msg = re.sub(r\'(?im)^Co-authored-by:\\\\s*(?:Cursor|Copilot|Claude|ChatGPT|Gemini|v0).*$\\\\n?\', \'\', msg); sys.stdout.write(msg)\\"" -- --all',
+    tips: [
+      'You do NOT need to manually edit commits with git rebase -i or find and remove files one by one. The 1-click Deep Clean automatically rewrites history back to the initial commit cleanly.',
+      'Safety guarantee: Git Workbench creates a backup reference before rewriting history, so you can restore your original state anytime if needed.',
+    ],
+  },
   // --- SEARCH & REPLACE ---
   {
     id: 'search-and-replace',

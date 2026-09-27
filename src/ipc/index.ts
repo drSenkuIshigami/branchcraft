@@ -51,6 +51,8 @@ import type {
   SearchResponse,
   ReplaceFileOptions,
   ReplaceResponse,
+  CleanAITracesOptions,
+  CleanAITracesResult,
 } from '../types';
 
 /**
@@ -2308,4 +2310,31 @@ export async function replaceInFiles(
 
   return (await res.json()) as ReplaceResponse;
 }
+
+export async function cleanAITraces(
+  repoPath: string,
+  options: CleanAITracesOptions
+): Promise<CleanAITracesResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<CleanAITracesResult>('clean_ai_traces', { repoPath, options });
+    } catch {
+      // fallback to http
+    }
+  }
+
+  const res = await fetch('/api/git/clean_ai_traces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repoPath, options }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Clean AI traces failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as CleanAITracesResult;
+}
+
 
