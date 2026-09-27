@@ -408,6 +408,11 @@ export interface MergeExecutionOptions {
   branchName: string;
   strategy?: MergeStrategyType; // -X ours vs -X theirs vs -s ours
   message?: string;
+  fastForward?: 'default' | 'no-ff' | 'ff-only';
+  squash?: boolean;
+  noCommit?: boolean;
+  allowUnrelatedHistories?: boolean;
+  autostash?: boolean;
 }
 
 export interface ForceRelocateBranchPreview {

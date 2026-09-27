@@ -1018,10 +1018,13 @@ export function gitApiPlugin(): Plugin {
             const baseSha = typeof parsedUrl.query.base_sha === 'string' ? parsedUrl.query.base_sha : '';
             const oldSha = typeof parsedUrl.query.old_sha === 'string' ? parsedUrl.query.old_sha : '';
             const newSha = typeof parsedUrl.query.new_sha === 'string' ? parsedUrl.query.new_sha : '';
+            const creationFactor = parsedUrl.query.creation_factor
+              ? parseFloat(parsedUrl.query.creation_factor as string)
+              : undefined;
             if (!repoPath || !baseSha || !oldSha || !newSha) {
               return sendJson(400, { error: 'repo_path, base_sha, old_sha, and new_sha required' });
             }
-            const resData = await getRangeDiff(repoPath, baseSha, oldSha, newSha);
+            const resData = await getRangeDiff(repoPath, baseSha, oldSha, newSha, creationFactor);
             return sendJson(200, resData);
           }
 
@@ -1035,10 +1038,31 @@ export function gitApiPlugin(): Plugin {
                 ? (body.strategy as 'recursive-ours' | 'recursive-theirs' | 'strategy-ours')
                 : undefined;
             const message = typeof body.message === 'string' ? body.message : undefined;
+            const fastForward =
+              typeof body.fast_forward === 'string'
+                ? (body.fast_forward as 'default' | 'no-ff' | 'ff-only')
+                : undefined;
+            const squash = typeof body.squash === 'boolean' ? body.squash : undefined;
+            const noCommit = typeof body.no_commit === 'boolean' ? body.no_commit : undefined;
+            const allowUnrelatedHistories =
+              typeof body.allow_unrelated_histories === 'boolean'
+                ? body.allow_unrelated_histories
+                : undefined;
+            const autostash = typeof body.autostash === 'boolean' ? body.autostash : undefined;
+
             if (!repoPath || !branchName) {
               return sendJson(400, { error: 'repo_path and branch_name required' });
             }
-            const resData = await mergeWithOptions(repoPath, { branchName, strategy, message });
+            const resData = await mergeWithOptions(repoPath, {
+              branchName,
+              strategy,
+              message,
+              fastForward,
+              squash,
+              noCommit,
+              allowUnrelatedHistories,
+              autostash,
+            });
             return sendJson(200, resData);
           }
 
@@ -1060,10 +1084,11 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             const branchName = typeof body.branch_name === 'string' ? body.branch_name : '';
             const newSha = typeof body.new_sha === 'string' ? body.new_sha : '';
+            const createBackup = typeof body.create_backup === 'boolean' ? body.create_backup : true;
             if (!repoPath || !branchName || !newSha) {
               return sendJson(400, { error: 'repo_path, branch_name, and new_sha required' });
             }
-            const resData = await executeForceRelocateBranch(repoPath, branchName, newSha);
+            const resData = await executeForceRelocateBranch(repoPath, branchName, newSha, createBackup);
             return sendJson(200, resData);
           }
 

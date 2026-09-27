@@ -2121,10 +2121,17 @@ export async function getRangeDiff(
   repoPath: string,
   baseSha: string,
   oldSha: string,
-  newSha: string
+  newSha: string,
+  creationFactor?: number
 ): Promise<RangeDiffResult> {
   if (isTauriEnvironment()) {
-    return await invoke<RangeDiffResult>('get_range_diff', { repoPath, baseSha, oldSha, newSha });
+    return await invoke<RangeDiffResult>('get_range_diff', {
+      repoPath,
+      baseSha,
+      oldSha,
+      newSha,
+      creationFactor,
+    });
   }
 
   const params = new URLSearchParams({
@@ -2133,6 +2140,9 @@ export async function getRangeDiff(
     old_sha: oldSha,
     new_sha: newSha,
   });
+  if (creationFactor !== undefined) {
+    params.set('creation_factor', String(creationFactor));
+  }
   const res = await fetch(`/api/git/range_diff?${params.toString()}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to get range-diff`);
   return (await res.json()) as RangeDiffResult;
@@ -2154,6 +2164,11 @@ export async function mergeWithOptions(
       branch_name: options.branchName,
       strategy: options.strategy,
       message: options.message,
+      fast_forward: options.fastForward,
+      squash: options.squash,
+      no_commit: options.noCommit,
+      allow_unrelated_histories: options.allowUnrelatedHistories,
+      autostash: options.autostash,
     }),
   });
 
@@ -2195,20 +2210,27 @@ export async function previewForceRelocateBranch(
 export async function executeForceRelocateBranch(
   repoPath: string,
   branchName: string,
-  newSha: string
+  newSha: string,
+  createBackup = true
 ): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('execute_force_relocate_branch', {
       repoPath,
       branchName,
       newSha,
+      createBackup,
     });
   }
 
   const res = await fetch('/api/git/branch_force_relocate/execute', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo_path: repoPath, branch_name: branchName, new_sha: newSha }),
+    body: JSON.stringify({
+      repo_path: repoPath,
+      branch_name: branchName,
+      new_sha: newSha,
+      create_backup: createBackup,
+    }),
   });
 
   if (!res.ok) {

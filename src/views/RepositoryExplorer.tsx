@@ -2564,13 +2564,15 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         <RangeDiffViewerModal
           isOpen={isRangeDiffOpen}
           onClose={() => setIsRangeDiffOpen(false)}
-          onRunRangeDiff={async (baseSha, oldSha, newSha) => {
+          onRunRangeDiff={async (baseSha, oldSha, newSha, creationFactor) => {
             const start = performance.now();
-            const res = await getRangeDiff(repoPath, baseSha, oldSha, newSha);
-            recordCommand(
-              ['range-diff', `${baseSha}..${oldSha}`, `${baseSha}..${newSha}`],
-              Math.round(performance.now() - start)
-            );
+            const res = await getRangeDiff(repoPath, baseSha, oldSha, newSha, creationFactor);
+            const cmd = ['range-diff'];
+            if (creationFactor !== undefined) {
+              cmd.push(`--creation-factor=${Math.round(creationFactor)}`);
+            }
+            cmd.push(`${baseSha}..${oldSha}`, `${baseSha}..${newSha}`);
+            recordCommand(cmd, Math.round(performance.now() - start));
             return res;
           }}
         />
@@ -2584,12 +2586,18 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           branchName={forceRelocateTarget.branchName}
           targetSha={forceRelocateTarget.targetSha}
           targetSubject={forceRelocateTarget.targetSubject}
+          currentBranch={status?.current_branch || undefined}
           onPreview={async (branchName, newSha) => {
             return await previewForceRelocateBranch(repoPath, branchName, newSha);
           }}
-          onExecute={async (branchName, newSha) => {
+          onExecute={async (branchName, newSha, createBackup) => {
             const start = performance.now();
-            const res = await executeForceRelocateBranch(repoPath, branchName, newSha);
+            const res = await executeForceRelocateBranch(
+              repoPath,
+              branchName,
+              newSha,
+              createBackup
+            );
             recordCommand(
               res.command_run || ['branch', '-f', branchName, newSha],
               Math.round(performance.now() - start),
@@ -2597,10 +2605,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               res.exit_code,
               res.stderr
             );
-            setSystemToast({
-              message: `Branch ${branchName} pointer relocated to ${newSha.slice(0, 7)}`,
-            });
-            await handleRefresh();
+            if (res.success) {
+              setSystemToast({
+                message: `Branch ${branchName} pointer relocated to ${newSha.slice(0, 7)}${createBackup ? ' (safety backup created)' : ''}`,
+              });
+              await handleRefresh();
+            }
             return res;
           }}
         />

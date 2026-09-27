@@ -16,8 +16,13 @@ interface ForceRelocateBranchModalProps {
   branchName: string;
   targetSha: string;
   targetSubject?: string;
+  currentBranch?: string;
   onPreview: (branchName: string, newSha: string) => Promise<ForceRelocateBranchPreview>;
-  onExecute: (branchName: string, newSha: string) => Promise<OperationResult>;
+  onExecute: (
+    branchName: string,
+    newSha: string,
+    createBackup?: boolean
+  ) => Promise<OperationResult>;
 }
 
 export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> = ({
@@ -26,14 +31,18 @@ export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> =
   branchName,
   targetSha,
   targetSubject,
+  currentBranch,
   onPreview,
   onExecute,
 }) => {
   const [preview, setPreview] = useState<ForceRelocateBranchPreview | null>(null);
+  const [createBackup, setCreateBackup] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isRelocating, setIsRelocating] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isCurrentBranch = currentBranch ? currentBranch.trim() === branchName.trim() : false;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -59,10 +68,14 @@ export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> =
   if (!isOpen) return null;
 
   const handleExecute = async () => {
+    if (isCurrentBranch) {
+      setError('Cannot force relocate the active branch. Switch branches first or use Reset.');
+      return;
+    }
     setIsRelocating(true);
     setError(null);
     try {
-      await onExecute(branchName, targetSha);
+      await onExecute(branchName, targetSha, createBackup);
       onClose();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -187,9 +200,36 @@ export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> =
             </div>
           )}
 
+          {/* Active branch check */}
+          {isCurrentBranch && (
+            <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold block">Cannot force relocate active branch:</span>
+                Git prohibits <code>branch -f</code> on the currently checked-out branch (
+                <code>{branchName}</code>). To move HEAD, switch branches first or use the{' '}
+                <strong>Reset HEAD</strong> tool.
+              </div>
+            </div>
+          )}
+
+          {/* Backup Branch Option */}
+          <label className="flex items-start gap-2 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={createBackup}
+              onChange={(e) => setCreateBackup(e.target.checked)}
+              className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
+            />
+            <span className="text-[11px] text-zinc-600 dark:text-zinc-300">
+              Create automatic safety backup ref (<code>backup/{branchName}-&lt;timestamp&gt;</code>
+              ) before relocating.
+            </span>
+          </label>
+
           {/* Safety confirmation checkbox */}
           {hasLostCommits && (
-            <label className="flex items-start gap-2 cursor-pointer pt-2">
+            <label className="flex items-start gap-2 cursor-pointer pt-1">
               <input
                 type="checkbox"
                 checked={confirmed}
@@ -215,7 +255,9 @@ export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> =
             <button
               type="button"
               onClick={handleExecute}
-              disabled={isRelocating || isLoading || (hasLostCommits && !confirmed)}
+              disabled={
+                isRelocating || isLoading || isCurrentBranch || (hasLostCommits && !confirmed)
+              }
               className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <RotateCcw className="w-3.5 h-3.5" />

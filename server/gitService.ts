@@ -3754,12 +3754,23 @@ export async function getRangeDiff(
   repoPath: string,
   baseSha: string,
   oldHeadSha: string,
-  newHeadSha: string
+  newHeadSha: string,
+  creationFactor?: number
 ): Promise<RangeDiffResult> {
   const rootPath = await validateRepository(repoPath);
   const range1 = `${baseSha.trim()}..${oldHeadSha.trim()}`;
   const range2 = `${baseSha.trim()}..${newHeadSha.trim()}`;
-  const res = await runGit(rootPath, ['range-diff', range1, range2]);
+  const args = ['range-diff'];
+  if (
+    creationFactor !== undefined &&
+    !Number.isNaN(creationFactor) &&
+    creationFactor >= 0 &&
+    creationFactor <= 100
+  ) {
+    args.push(`--creation-factor=${Math.round(creationFactor)}`);
+  }
+  args.push(range1, range2);
+  const res = await runGit(rootPath, args);
 
   const output = res.stdout || res.stderr || 'No differences between ranges.';
   const entries: RangeDiffResult['diff_entries'] = [];
@@ -3805,7 +3816,34 @@ export async function mergeWithOptions(
     args.push('-s', 'ours');
   }
 
-  if (options.message?.trim()) {
+  // Fast-forward policy
+  if (options.fastForward === 'no-ff') {
+    args.push('--no-ff');
+  } else if (options.fastForward === 'ff-only') {
+    args.push('--ff-only');
+  }
+
+  // Squash merge
+  if (options.squash) {
+    args.push('--squash');
+  }
+
+  // No-commit (pause after merge stage before committing)
+  if (options.noCommit) {
+    args.push('--no-commit');
+  }
+
+  // Allow unrelated histories
+  if (options.allowUnrelatedHistories) {
+    args.push('--allow-unrelated-histories');
+  }
+
+  // Autostash
+  if (options.autostash) {
+    args.push('--autostash');
+  }
+
+  if (options.message?.trim() && !options.squash) {
     args.push('-m', options.message.trim());
   }
 
@@ -3873,9 +3911,32 @@ export async function previewForceRelocateBranch(
 export async function executeForceRelocateBranch(
   repoPath: string,
   branchName: string,
-  newSha: string
+  newSha: string,
+  createBackup: boolean = true
 ): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+
+  // Safety verification: Git refuses `branch -f` on currently checked out branch
+  const statusRes = await runGit(rootPath, ['symbolic-ref', '--short', 'HEAD']);
+  const currentBranch = statusRes.stdout.trim();
+  if (currentBranch === branchName.trim()) {
+    return {
+      success: false,
+      stdout: '',
+      stderr: `Cannot force update the currently checked out branch '${branchName}' via branch -f. To move HEAD to ${newSha.slice(0, 7)}, please switch branches first or use the 'Reset' operation.`,
+      exit_code: 1,
+      command_run: ['branch', '-f', branchName, newSha],
+      duration_ms: 0,
+    };
+  }
+
+  // Create automatic safety backup ref before repositioning
+  if (createBackup) {
+    const safeBranchName = branchName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const backupName = `backup/${safeBranchName}-${Date.now()}`;
+    await runGit(rootPath, ['branch', backupName, branchName.trim()]);
+  }
+
   const args = ['branch', '-f', branchName.trim(), newSha.trim()];
   const res = await runGit(rootPath, args);
   return {

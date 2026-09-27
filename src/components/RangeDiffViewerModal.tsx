@@ -13,7 +13,12 @@ import type { RangeDiffResult } from '../types';
 interface RangeDiffViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onRunRangeDiff: (baseSha: string, oldSha: string, newSha: string) => Promise<RangeDiffResult>;
+  onRunRangeDiff: (
+    baseSha: string,
+    oldSha: string,
+    newSha: string,
+    creationFactor?: number
+  ) => Promise<RangeDiffResult>;
 }
 
 export const RangeDiffViewerModal: React.FC<RangeDiffViewerModalProps> = ({
@@ -24,6 +29,7 @@ export const RangeDiffViewerModal: React.FC<RangeDiffViewerModalProps> = ({
   const [baseSha, setBaseSha] = useState('');
   const [oldSha, setOldSha] = useState('');
   const [newSha, setNewSha] = useState('');
+  const [creationFactor, setCreationFactor] = useState(60);
   const [result, setResult] = useState<RangeDiffResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +46,12 @@ export const RangeDiffViewerModal: React.FC<RangeDiffViewerModalProps> = ({
     setIsLoading(true);
     setError(null);
     try {
-      const data = await onRunRangeDiff(baseSha.trim(), oldSha.trim(), newSha.trim());
+      const data = await onRunRangeDiff(
+        baseSha.trim(),
+        oldSha.trim(),
+        newSha.trim(),
+        creationFactor
+      );
       setResult(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -133,10 +144,28 @@ export const RangeDiffViewerModal: React.FC<RangeDiffViewerModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-zinc-400 text-[11px]">
-              <Info className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Compares how the patches in a branch changed after rewriting or rebasing.</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-zinc-500 text-[11px]">
+                <Info className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+                <span>Creation factor:</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono text-xs">
+                {[50, 60, 80].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setCreationFactor(val)}
+                    className={`px-2 py-0.5 rounded text-[10px] cursor-pointer transition-colors ${
+                      creationFactor === val
+                        ? 'bg-cyan-500 text-white font-semibold'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    }`}
+                  >
+                    {val}%{val === 60 ? ' (default)' : ''}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <button
