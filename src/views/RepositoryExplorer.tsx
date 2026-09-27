@@ -14,6 +14,8 @@ import {
   SquareTerminal,
   CheckCircle2,
   ShieldCheck,
+  BookOpen,
+  HelpCircle,
 } from 'lucide-react';
 import type {
   BranchInfo,
@@ -142,6 +144,7 @@ import { BisectAndRerereModal } from '../components/BisectAndRerereModal';
 import { MergeBranchModal } from '../components/MergeBranchModal';
 import { ForceRelocateBranchModal } from '../components/ForceRelocateBranchModal';
 import { RangeDiffViewerModal } from '../components/RangeDiffViewerModal';
+import { HelpManualModal, type HelpActionId } from '../components/HelpManualModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
@@ -174,6 +177,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
   const [isCommandLogOpen, setIsCommandLogOpen] = useState(false);
   const [isSystemAuditOpen, setIsSystemAuditOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [commandLogs, setCommandLogs] = useState<LoggedCommand[]>([]);
 
   // Branch Management State
@@ -612,6 +616,70 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
       setError(msg);
     }
   };
+
+  const handlePerformHelpAction = (actionId: HelpActionId) => {
+    switch (actionId) {
+      case 'view_working_tree':
+        setSelectedView('working-tree');
+        break;
+      case 'view_graph':
+        setSelectedView('graph');
+        break;
+      case 'view_stashes':
+        setSelectedView('stashes');
+        break;
+      case 'view_reflog':
+        setSelectedView('reflog');
+        break;
+      case 'view_worktrees':
+        setSelectedView('worktrees');
+        break;
+      case 'view_health':
+        setSelectedView('health');
+        break;
+      case 'open_repo_modal':
+        setIsRepoModalOpen(true);
+        break;
+      case 'open_sync_modal':
+        setIsSyncModalOpen(true);
+        break;
+      case 'open_purge_wizard':
+        setIsPurgeWizardOpen(true);
+        break;
+      case 'open_system_audit':
+        setIsSystemAuditOpen(true);
+        break;
+      case 'open_command_log':
+        setIsCommandLogOpen(true);
+        break;
+      case 'open_bisect_rerere':
+        setIsBisectRerereOpen(true);
+        break;
+      case 'open_submodules':
+        setIsSubmodulesLfsOpen(true);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isInput =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable;
+
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setIsHelpModalOpen((prev) => !prev);
+      } else if (e.key === '?' && !isInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setIsHelpModalOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   const handleOpenSample = async () => {
     setLoading(true);
@@ -1911,6 +1979,20 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             <span className="hidden xl:inline">System Audit</span>
           </button>
 
+          {/* Help & Problem Solving Manual */}
+          <button
+            type="button"
+            onClick={() => setIsHelpModalOpen(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 text-xs font-medium transition-colors cursor-pointer"
+            title="Open Problem Solving & Troubleshooting Manual (F1 or ?)"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Help &amp; Manual</span>
+            <kbd className="hidden lg:inline-block px-1 py-0.2 text-[9px] font-mono bg-blue-500/15 text-blue-600 dark:text-blue-300 rounded border border-blue-500/20">
+              F1
+            </kbd>
+          </button>
+
           <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-700" />
 
           {/* Non-blocking Git CLI status badge */}
@@ -1971,6 +2053,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           selectedView={selectedView}
           onSelectView={setSelectedView}
           onOpenRepoDialog={() => setIsRepoModalOpen(true)}
+          onOpenHelpManual={() => setIsHelpModalOpen(true)}
           onSwitchBranch={handleSwitchBranch}
           onOpenCreateBranch={handleOpenCreateBranch}
           onOpenRenameBranch={handleOpenRenameBranch}
@@ -2667,6 +2750,14 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           }}
         />
       )}
+
+      {/* Help & Problem-Solving Manual Modal (Interactive Search & Step-by-Step Guides) */}
+      <HelpManualModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+        onPerformAction={handlePerformHelpAction}
+        theme={theme}
+      />
 
       {/* System Toast Notification */}
       {systemToast && (

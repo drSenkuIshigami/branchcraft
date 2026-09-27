@@ -24,6 +24,7 @@ import {
   Search,
   GitCompare,
   GitMerge,
+  BookOpen,
 } from 'lucide-react';
 import type { BranchInfo, RemoteInfo, StashInfo, StatusInfo, Theme } from '../types';
 
@@ -42,6 +43,7 @@ interface SidebarProps {
     view: 'graph' | 'working-tree' | 'stashes' | 'reflog' | 'worktrees' | 'health'
   ) => void;
   onOpenRepoDialog: () => void;
+  onOpenHelpManual?: () => void;
   onSwitchBranch: (name: string) => Promise<void>;
   onOpenCreateBranch: (startSha?: string, refName?: string) => void;
   onOpenRenameBranch: (branchName: string) => void;
@@ -72,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedView,
   onSelectView,
   onOpenRepoDialog,
+  onOpenHelpManual,
   onSwitchBranch,
   onOpenCreateBranch,
   onOpenRenameBranch,
@@ -352,6 +355,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </button>
         </div>
+
+        {/* Help & Problem Solving Manual */}
+        {onOpenHelpManual && (
+          <div>
+            <button
+              type="button"
+              onClick={onOpenHelpManual}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors bg-blue-500/5 hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium cursor-pointer border border-blue-500/20 text-xs shadow-xs"
+              title="Open Problem Solving Manual (F1 or ?)"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+                <span>Help &amp; Manual</span>
+              </div>
+              <span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-blue-500/15 text-blue-600 dark:text-blue-300">
+                F1
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Tags & Releases (Phase 3) */}
         <div>
