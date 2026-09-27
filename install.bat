@@ -97,6 +97,12 @@ echo.
 call npm install
 if %ERRORLEVEL% NEQ 0 (
     echo.
+    echo [NOTICE] Standard npm install encountered dependency conflicts.
+    echo Retrying with '--legacy-peer-deps'...
+    call npm install --legacy-peer-deps
+)
+if %ERRORLEVEL% NEQ 0 (
+    echo.
     echo [ERROR] npm install encountered errors during setup.
     echo Please review the error log above.
     echo.

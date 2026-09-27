@@ -95,7 +95,7 @@ if not exist "node_modules\" (
     if exist "install.bat" (
         call install.bat
     ) else (
-        call npm install
+        call npm install || call npm install --legacy-peer-deps
     )
     if %ERRORLEVEL% NEQ 0 (
         echo [ERROR] Dependency installation failed.
