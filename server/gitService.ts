@@ -3949,5 +3949,90 @@ export async function executeForceRelocateBranch(
   };
 }
 
+/**
+ * Prompts the operating system's native folder dialog (Windows, macOS, or Linux).
+ * Returns the selected absolute directory path, or null if canceled/unavailable.
+ */
+export async function pickFolderDialog(): Promise<{
+  path: string | null;
+  cancelled: boolean;
+  error?: string;
+}> {
+  const isWindows = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
+
+  if (isWindows) {
+    return new Promise((resolve) => {
+      const psCommand =
+        "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; " +
+        "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog; " +
+        "$dialog.Description = 'Select Git Repository'; " +
+        "$dialog.ShowNewFolderButton = $false; " +
+        "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($dialog.SelectedPath) } else { [Console]::Out.Write('__CANCELLED__') }";
+
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', psCommand],
+        (err, stdout) => {
+          if (err) {
+            return resolve({ path: null, cancelled: false, error: err.message });
+          }
+          const trimmed = (stdout || '').trim();
+          if (!trimmed || trimmed === '__CANCELLED__') {
+            return resolve({ path: null, cancelled: true });
+          }
+          return resolve({ path: trimmed, cancelled: false });
+        }
+      );
+    });
+  } else if (isMac) {
+    return new Promise((resolve) => {
+      const script =
+        'try\n' +
+        '  set chosenFolder to choose folder with prompt "Select Git Repository"\n' +
+        '  POSIX path of chosenFolder\n' +
+        'on error\n' +
+        '  "__CANCELLED__"\n' +
+        'end try';
+      execFile('osascript', ['-e', script], (err, stdout) => {
+        if (err) {
+          return resolve({ path: null, cancelled: false, error: err.message });
+        }
+        const trimmed = (stdout || '').trim();
+        if (!trimmed || trimmed === '__CANCELLED__') {
+          return resolve({ path: null, cancelled: true });
+        }
+        return resolve({ path: trimmed, cancelled: false });
+      });
+    });
+  } else {
+    // Linux: try zenity then kdialog
+    return new Promise((resolve) => {
+      execFile(
+        'zenity',
+        ['--file-selection', '--directory', '--title=Select Git Repository'],
+        (err, stdout) => {
+          if (!err && stdout && stdout.trim()) {
+            return resolve({ path: stdout.trim(), cancelled: false });
+          }
+          execFile('kdialog', ['--getexistingdirectory', '.'], (kerr, kstdout) => {
+            if (!kerr && kstdout && kstdout.trim()) {
+              return resolve({ path: kstdout.trim(), cancelled: false });
+            }
+            if (err && (err as any).code === 1) {
+              return resolve({ path: null, cancelled: true });
+            }
+            return resolve({
+              path: null,
+              cancelled: false,
+              error: 'Native OS dialog unavailable in this environment',
+            });
+          });
+        }
+      );
+    });
+  }
+}
+
 
 

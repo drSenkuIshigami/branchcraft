@@ -107,7 +107,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center gap-1.5 font-semibold text-zinc-800 dark:text-zinc-200 truncate">
             <FolderGit2 className="w-4 h-4 text-blue-500 shrink-0" />
             <span className="truncate">
-              {status ? status.root_path.split('/').pop() || 'Repository' : 'No Repository'}
+              {status
+                ? status.root_path.split(/[\\/]/).filter(Boolean).pop() || 'Repository'
+                : 'No Repository'}
             </span>
           </div>
           <button

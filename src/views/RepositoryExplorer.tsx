@@ -82,6 +82,7 @@ import {
   openRepository,
   openSampleRepository,
   openSystemLocation,
+  pickFolder,
   popStash,
   rebaseSkip,
   renameBranch,
@@ -570,9 +571,46 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   }, []);
 
+  const saveRecentRepo = (newPath: string) => {
+    try {
+      const raw = localStorage.getItem('git_workbench_recent_repos');
+      const existing: string[] = raw ? JSON.parse(raw) : [];
+      const updated = [newPath, ...existing.filter((p) => p !== newPath)].slice(0, 10);
+      localStorage.setItem('git_workbench_recent_repos', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
   const handleOpenPath = async (path: string) => {
-    await openRepository(path);
-    await loadRepositoryData(path);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await openRepository(path);
+      const targetPath = res.root_path || path;
+      setRepoPath(targetPath);
+      localStorage.setItem('git_workbench_repo_path', targetPath);
+      saveRecentRepo(targetPath);
+      await loadRepositoryData(targetPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBrowseFolder = async () => {
+    try {
+      const selected = await pickFolder();
+      if (selected && selected.trim()) {
+        await handleOpenPath(selected.trim());
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   const handleOpenSample = async () => {
@@ -1751,17 +1789,31 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-700" />
 
           {/* Repo button / selector */}
-          <button
-            type="button"
-            onClick={() => setIsRepoModalOpen(true)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-200/60 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300 transition-colors truncate max-w-xs"
-            title="Switch repository"
-          >
-            <FolderOpen className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-            <span className="truncate">
-              {status ? status.root_path.split('/').pop() : 'Open Repository...'}
-            </span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setIsRepoModalOpen(true)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-200/60 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300 transition-colors truncate max-w-xs cursor-pointer"
+              title="Open repository modal or view recent"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="truncate">
+                {status
+                  ? status.root_path.split(/[\\/]/).filter(Boolean).pop() || 'Repository'
+                  : 'Open Repository...'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBrowseFolder}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-200/60 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-xs text-zinc-700 dark:text-zinc-200 transition-colors cursor-pointer"
+              title="Open operating system folder selection dialog"
+            >
+              <FolderSearch className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="hidden md:inline text-[11px] font-medium">Open Folder...</span>
+            </button>
+          </div>
 
           {/* Quick Open System Location (Phase 2 / Phase 3) */}
           {status && (

@@ -94,6 +94,7 @@ import {
   mergeWithOptions,
   previewForceRelocateBranch,
   executeForceRelocateBranch,
+  pickFolderDialog,
 } from './gitService';
 
 export function gitApiPlugin(): Plugin {
@@ -140,6 +141,11 @@ export function gitApiPlugin(): Plugin {
             const samplePath = await createOrGetSampleRepo();
             const status = await getStatus(samplePath);
             return sendJson(200, { path: samplePath, status });
+          }
+
+          if (pathname === '/api/git/pick_folder' && (req.method === 'GET' || req.method === 'POST')) {
+            const result = await pickFolderDialog();
+            return sendJson(200, result);
           }
 
           if (pathname === '/api/git/open_repository' && req.method === 'POST') {

@@ -24,6 +24,8 @@ export function useTheme(): [Theme, (theme: Theme) => void, () => void] {
       root.classList.remove('dark');
       root.classList.add('light');
     }
+    root.setAttribute('data-theme', theme);
+    root.style.colorScheme = theme;
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 

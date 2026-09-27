@@ -48,9 +48,12 @@ export const AddWorktreeModal: React.FC<AddWorktreeModalProps> = ({
 
   // Derive repo parent dir and suggested name
   const { parentDir, repoName } = useMemo(() => {
-    const parts = repoPath.replace(/\/+$/, '').split('/');
+    const normalized = repoPath.replace(/[\\/]+$/, '');
+    const isWin = normalized.includes('\\');
+    const separator = isWin ? '\\' : '/';
+    const parts = normalized.split(/[\\/]/);
     const rName = parts[parts.length - 1] || 'repo';
-    const pDir = parts.slice(0, -1).join('/') || '/';
+    const pDir = parts.slice(0, -1).join(separator) || (isWin ? 'C:\\' : '/');
     return { parentDir: pDir, repoName: rName };
   }, [repoPath]);
 

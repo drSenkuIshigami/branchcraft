@@ -205,11 +205,23 @@ export async function getFileDiff(
 }
 
 /**
- * Phase 1: Opens native folder picker dialog
+ * Phase 1: Opens native folder picker dialog (OS dialog or browser API)
  */
 export async function pickFolder(): Promise<string | null> {
   if (isTauriEnvironment()) {
     return await invoke<string | null>('pick_folder');
+  }
+
+  try {
+    const res = await fetch('/api/git/pick_folder');
+    if (res.ok) {
+      const data = (await res.json()) as { path: string | null; cancelled: boolean; error?: string };
+      if (data && data.path) {
+        return data.path;
+      }
+    }
+  } catch {
+    // ignore
   }
 
   return null;
