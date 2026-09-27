@@ -26,25 +26,63 @@ echo [OK] !GIT_VERSION!
 :: 2. Check Node.js and npm
 echo.
 echo [2/3] Checking Node.js prerequisite...
+
+:: Check if node is directly in PATH
 where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Node.js is not installed or not available in PATH.
-    echo Please install Node.js (version 18, 20, or newer LTS) from:
-    echo https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
+    node -v >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        if exist "%ProgramFiles%\nodejs\node.exe" (
+            set "PATH=%ProgramFiles%\nodejs;%APPDATA%\npm;!PATH!"
+        ) else if exist "%ProgramFiles(x86)%\nodejs\node.exe" (
+            set "PATH=%ProgramFiles(x86)%\nodejs;%APPDATA%\npm;!PATH!"
+        ) else if exist "%LocalAppData%\Programs\nodejs\node.exe" (
+            set "PATH=%LocalAppData%\Programs\nodejs;!PATH!"
+        ) else if exist "%LocalAppData%\Programs\node\nodejs\node.exe" (
+            set "PATH=%LocalAppData%\Programs\node\nodejs;!PATH!"
+        )
+    )
+)
+
+where node >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    node -v >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] Node.js is not detected in your system PATH.
+        echo If you just installed Node.js, please close and reopen this
+        echo terminal window so Windows can load the updated PATH.
+        echo.
+        echo If Node.js is not yet installed, download LTS from:
+        echo   https://nodejs.org/
+        echo Recommended: Node.js 18, 20, or 22 LTS
+        echo.
+        pause
+        exit /b 1
+    )
 )
 for /f "tokens=*" %%n in ('node -v 2^>^&1') do set NODE_VERSION=%%n
 echo [OK] Node.js !NODE_VERSION!
 
 where npm >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] npm is not found in your system PATH.
-    echo Please check your Node.js installation.
-    echo.
-    pause
-    exit /b 1
+    npm -v >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        if exist "%ProgramFiles%\nodejs\npm.cmd" (
+            set "PATH=%ProgramFiles%\nodejs;%APPDATA%\npm;!PATH!"
+        )
+    )
+)
+
+where npm >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    npm -v >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] npm is not found in your system PATH.
+        echo Please verify your Node.js installation.
+        echo.
+        pause
+        exit /b 1
+    )
 )
 
 :: 3. Check node_modules dependencies
