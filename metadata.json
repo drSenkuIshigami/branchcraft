@@ -1,6 +1,6 @@
 {
   "name": "Git Workbench",
-  "description": "A local desktop Git workbench built with Tauri 2, Rust, React, and Vite.",
+  "description": "Blazing-fast, local-first visual Git client, interactive rebasing workbench, and repository rescue tool built with Tauri 2, Rust, and React.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
