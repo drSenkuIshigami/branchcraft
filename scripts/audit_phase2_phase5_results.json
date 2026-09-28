@@ -1,0 +1,143 @@
+[
+  {
+    "repo_dir": "/tmp/git-workbench-sample-repo",
+    "total_commits": 6,
+    "branches": [
+      "feature/visual-graph",
+      "* main"
+    ],
+    "tags": [
+      "v0.1.0",
+      "v0.2.0"
+    ],
+    "has_remotes": false,
+    "findings_phase2_trailers": [],
+    "findings_phase2_body": [],
+    "findings_phase5_author": [],
+    "findings_phase5_committer": [],
+    "timestamp_anomalies": [],
+    "commits": [
+      {
+        "sha": "f8a105e701b5c3bd22f7d14a411df39299233fe9",
+        "short_sha": "f8a105e",
+        "subject": "refactor(graph): switch to high-performance 2D canvas rendering",
+        "author": "Alex Mercer <alex@example.com>",
+        "author_date": "2026-09-28T07:18:31+00:00",
+        "committer": "Alex Mercer <alex@example.com>",
+        "committer_date": "2026-09-28T07:18:31+00:00",
+        "parents": [
+          "f124741cac59cb325261a2c0c895250e56fd2b1c"
+        ],
+        "signed": false,
+        "signature_status": "N",
+        "branches": [
+          "feature/visual-graph",
+          "main"
+        ],
+        "tags": [],
+        "trailers_count": 0
+      },
+      {
+        "sha": "d02cf5f99b0321b4c8a7f50bde6b082eab694124",
+        "short_sha": "d02cf5f",
+        "subject": "merge: integrate feature/visual-graph into main",
+        "author": "Alex Mercer <alex@example.com>",
+        "author_date": "2026-09-28T07:18:31+00:00",
+        "committer": "Alex Mercer <alex@example.com>",
+        "committer_date": "2026-09-28T07:18:31+00:00",
+        "parents": [
+          "f2c512f21046f3079e69dbf20797e45829149046",
+          "f8a105e701b5c3bd22f7d14a411df39299233fe9"
+        ],
+        "signed": false,
+        "signature_status": "N",
+        "branches": [
+          "main"
+        ],
+        "tags": [
+          "v0.2.0"
+        ],
+        "trailers_count": 0
+      },
+      {
+        "sha": "6929ac2657918d35359897f425785f0d05269700",
+        "short_sha": "6929ac2",
+        "subject": "feat(core): implement metrics calculation engine",
+        "author": "Alex Mercer <alex@example.com>",
+        "author_date": "2026-09-28T07:18:31+00:00",
+        "committer": "Alex Mercer <alex@example.com>",
+        "committer_date": "2026-09-28T07:18:31+00:00",
+        "parents": [
+          "510be1595af7d8964840cdd4ab7915334e35d296"
+        ],
+        "signed": false,
+        "signature_status": "N",
+        "branches": [
+          "feature/visual-graph",
+          "main"
+        ],
+        "tags": [
+          "v0.1.0"
+        ],
+        "trailers_count": 0
+      },
+      {
+        "sha": "f124741cac59cb325261a2c0c895250e56fd2b1c",
+        "short_sha": "f124741",
+        "subject": "feat(graph): add CommitGraph lane layout algorithm",
+        "author": "Alex Mercer <alex@example.com>",
+        "author_date": "2026-09-28T07:18:31+00:00",
+        "committer": "Alex Mercer <alex@example.com>",
+        "committer_date": "2026-09-28T07:18:31+00:00",
+        "parents": [
+          "6929ac2657918d35359897f425785f0d05269700"
+        ],
+        "signed": false,
+        "signature_status": "N",
+        "branches": [
+          "feature/visual-graph",
+          "main"
+        ],
+        "tags": [],
+        "trailers_count": 0
+      },
+      {
+        "sha": "f2c512f21046f3079e69dbf20797e45829149046",
+        "short_sha": "f2c512f",
+        "subject": "docs: update README documentation",
+        "author": "Alex Mercer <alex@example.com>",
+        "author_date": "2026-09-28T07:18:31+00:00",
+        "committer": "Alex Mercer <alex@example.com>",
+        "committer_date": "2026-09-28T07:18:31+00:00",
+        "parents": [
+          "6929ac2657918d35359897f425785f0d05269700"
+        ],
+        "signed": false,
+        "signature_status": "N",
+        "branches": [
+          "main"
+        ],
+        "tags": [],
+        "trailers_count": 0
+      },
+      {
+        "sha": "510be1595af7d8964840cdd4ab7915334e35d296",
+        "short_sha": "510be15",
+        "subject": "chore: initial commit with project scaffold",
+        "author": "Alex Mercer <alex@example.com>",
+        "author_date": "2026-09-28T07:18:31+00:00",
+        "committer": "Alex Mercer <alex@example.com>",
+        "committer_date": "2026-09-28T07:18:31+00:00",
+        "parents": [],
+        "signed": false,
+        "signature_status": "N",
+        "branches": [
+          "feature/visual-graph",
+          "main"
+        ],
+        "tags": [],
+        "trailers_count": 0
+      }
+    ]
+  }
+]
