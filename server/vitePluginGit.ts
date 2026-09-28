@@ -99,6 +99,31 @@ import {
   replaceInFiles,
   cleanAITraces,
 } from './gitService';
+import {
+  getCleanupEligibility,
+  buildWorkingTreeCleanupPreview,
+  applyWorkingTreeCleanup,
+  undoWorkingTreeCleanup,
+  buildHeadCommitCleanupPreview,
+  amendHeadCommitCleanup,
+  getConfigHookCleanupPreview,
+  applyConfigHookCleanup,
+  restoreConfigHookBackup,
+  buildHistoryRewriteScope,
+  acknowledgeHistoryRewrite,
+  createIsolatedRewriteWorkspace,
+  createRewriteBackup,
+  verifyRewriteBackup,
+  buildHistoryRewritePreview,
+  applyHistoryRewrite,
+  validateHistoryRewrite,
+  getHistoryRewriteResult,
+  buildRemotePublishScope,
+  acknowledgeRemotePublish,
+  publishRewrittenHistory,
+  getPostPublishChecklist,
+  exportPostPublishChecklist,
+} from './aiCleanupService';
 
 export function gitApiPlugin(): Plugin {
   return {
@@ -1128,6 +1153,204 @@ export function gitApiPlugin(): Plugin {
               return sendJson(400, { error: 'repo_path, branch_name, and new_sha required' });
             }
             const resData = await executeForceRelocateBranch(repoPath, branchName, newSha, createBackup);
+            return sendJson(200, resData);
+          }
+
+          // =========================================================================
+          // AI Artefact Cleanup & Controlled History Rewrite API Handlers
+          // =========================================================================
+
+          if (pathname === '/api/git/ai_cleanup/eligibility' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const findings = Array.isArray(body.findings) ? body.findings : [];
+            const resData = await getCleanupEligibility(repoPath, findings);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/working_tree/preview' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const ids = Array.isArray(body.selected_finding_ids) ? (body.selected_finding_ids as string[]) : [];
+            const resData = await buildWorkingTreeCleanupPreview(repoPath, ids);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/working_tree/apply' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const ids = Array.isArray(body.selected_finding_ids) ? (body.selected_finding_ids as string[]) : [];
+            const token = typeof body.confirmation_token === 'string' ? body.confirmation_token : '';
+            const resData = await applyWorkingTreeCleanup(repoPath, ids, token);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/working_tree/undo' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await undoWorkingTreeCleanup(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/head/preview' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const ids = Array.isArray(body.selected_finding_ids) ? (body.selected_finding_ids as string[]) : [];
+            const resData = await buildHeadCommitCleanupPreview(repoPath, ids);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/head/amend' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const ids = Array.isArray(body.selected_finding_ids) ? (body.selected_finding_ids as string[]) : [];
+            const token = typeof body.confirmation_token === 'string' ? body.confirmation_token : '';
+            const resData = await amendHeadCommitCleanup(repoPath, ids, token);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/config_hooks/preview' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const targets = Array.isArray(body.targets) ? (body.targets as any[]) : [];
+            const resData = await getConfigHookCleanupPreview(repoPath, targets);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/config_hooks/apply' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const targets = Array.isArray(body.targets) ? (body.targets as any[]) : [];
+            const token = typeof body.confirmation_token === 'string' ? body.confirmation_token : '';
+            const resData = await applyConfigHookCleanup(repoPath, targets, token);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/config_hooks/restore' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const backupId = typeof body.backup_id === 'string' ? body.backup_id : '';
+            const resData = await restoreConfigHookBackup(repoPath, backupId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/scope' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const ids = Array.isArray(body.selected_finding_ids) ? (body.selected_finding_ids as string[]) : [];
+            const refs = Array.isArray(body.selected_refs) ? (body.selected_refs as string[]) : [];
+            const resData = await buildHistoryRewriteScope(repoPath, ids, refs);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/acknowledge' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const cbState = (body.checkbox_state as any) || {};
+            const phrase = typeof body.typed_phrase === 'string' ? body.typed_phrase : '';
+            const resData = await acknowledgeHistoryRewrite(repoPath, opId, cbState, phrase);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/create_workspace' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await createIsolatedRewriteWorkspace(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/create_backup' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await createRewriteBackup(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/verify_backup' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await verifyRewriteBackup(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/preview' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await buildHistoryRewritePreview(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/apply' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await applyHistoryRewrite(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/validate' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await validateHistoryRewrite(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/history/result' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await getHistoryRewriteResult(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/publish/scope' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const remote = typeof body.selected_remote === 'string' ? body.selected_remote : 'origin';
+            const strategy = (body.selected_push_strategy as any) || 'selected_branch_force_with_lease';
+            const resData = await buildRemotePublishScope(repoPath, opId, remote, strategy);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/publish/acknowledge' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const cbState = (body.checkbox_state as any) || {};
+            const phrase = typeof body.typed_phrase === 'string' ? body.typed_phrase : '';
+            const resData = await acknowledgeRemotePublish(repoPath, opId, cbState, phrase);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/publish/execute' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await publishRewrittenHistory(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/publish/checklist' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await getPostPublishChecklist(repoPath, opId);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/ai_cleanup/publish/checklist/export' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const opId = typeof body.operation_id === 'string' ? body.operation_id : '';
+            const resData = await exportPostPublishChecklist(repoPath, opId);
             return sendJson(200, resData);
           }
 

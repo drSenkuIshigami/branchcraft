@@ -45,6 +45,24 @@
 | **3** | `prune_worktrees` | `repo_path: String` | `Result<OperationResult, String>` | **1** | Prunes stale administrative records |
 | **4** | `create_backup` | `repo_path: String, reason: String` | `Result<BackupRef, String>` | **0** | Automatic safety branch or bundle |
 | **4** | `filter_repo_remove_paths` | `mirror_path: String, paths: Vec<String>` | `Result<OperationResult, String>` | **4** | Purges files across history in mirror clone |
+| **4** | `get_cleanup_eligibility` | `repo_path: String, findings: Vec<Finding>` | `Result<Vec<ClassifiedFinding>, String>` | **0** | Revalidates and classifies AI artefacts against safety boundaries |
+| **4** | `build_working_tree_cleanup_preview` | `repo_path: String, selected_finding_ids: Vec<String>` | `Result<Vec<WorkingTreeEditPreview>, String>` | **0** | Unified line-level diff preview for working tree files |
+| **4** | `apply_working_tree_cleanup` | `repo_path: String, selected_finding_ids: Vec<String>, token: String` | `Result<WorkingTreeCleanupResult>, String>` | **1** | Applies line edits with in-memory undo buffer snapshot |
+| **4** | `undo_working_tree_cleanup` | `repo_path: String, operation_id: String` | `Result<WorkingTreeCleanupResult>, String>` | **1** | Restores original file content from memory snapshot |
+| **4** | `build_head_commit_cleanup_preview` | `repo_path: String, selected_finding_ids: Vec<String>` | `Result<HeadCommitAmendPreview>, String>` | **0** | Previews sanitized HEAD message and backup ref |
+| **4** | `amend_head_commit_cleanup` | `repo_path: String, selected_finding_ids: Vec<String>, token: String` | `Result<HeadCommitAmendResult>, String>` | **2–3** | Amends HEAD commit via temporary message file |
+| **4** | `build_history_rewrite_scope` | `repo_path: String, selected_finding_ids: Vec<String>, selected_refs: Vec<String>` | `Result<HistoryRewriteScope>, String>` | **0** | Calculates exact affected commits, tags, and descendant count |
+| **4** | `acknowledge_history_rewrite` | `repo_path: String, operation_id: String, checkbox_state, typed_phrase: String` | `Result<{ success: bool }, String>` | **4** | Enforces 5 mandatory checkboxes & exact phrase verification |
+| **4** | `create_isolated_rewrite_workspace` | `repo_path: String, operation_id: String` | `Result<RewriteOperation>, String>` | **0** | Creates disposable mirror clone in segregated temporary directory |
+| **4** | `create_rewrite_backup` | `repo_path: String, operation_id: String` | `Result<RewriteOperation>, String>` | **0** | Generates offline Git bundle backup (`pre-rewrite.bundle`) |
+| **4** | `verify_rewrite_backup` | `repo_path: String, operation_id: String` | `Result<RewriteOperation>, String>` | **0** | Verifies cryptographic integrity of Git bundle backup |
+| **4** | `apply_history_rewrite` | `repo_path: String, operation_id: String` | `Result<HistoryRewriteResult>, String>` | **4** | Filters mirror clone strictly without touching active working repo |
+| **4** | `validate_history_rewrite` | `repo_path: String, operation_id: String` | `Result<HistoryRewriteResult>, String>` | **0** | Runs `git fsck --full` on rewritten mirror clone |
+| **4** | `build_remote_publish_scope` | `repo_path: String, operation_id: String, remote: String, strategy: String` | `Result<RemotePublishScope>, String>` | **0** | Previews force-with-lease remote update scope |
+| **4** | `acknowledge_remote_publish` | `repo_path: String, operation_id: String, checkbox_state, typed_phrase: String` | `Result<{ success: bool }, String>` | **4** | Enforces 6 mandatory publication checkboxes & typed remote phrase |
+| **4** | `publish_rewritten_history` | `repo_path: String, operation_id: String` | `Result<RemotePublishResult>, String>` | **4** | Pushes rewritten refs via `--force-with-lease` |
+| **4** | `get_post_publish_checklist` | `repo_path: String, operation_id: String` | `Result<PostPublishChecklist>, String>` | **0** | Generates team coordination checklist |
+| **4** | `export_post_publish_checklist` | `repo_path: String, operation_id: String` | `Result<{ export_path: String, markdown: String }, String>` | **0** | Exports checklist as Markdown file |
 
 ---
 

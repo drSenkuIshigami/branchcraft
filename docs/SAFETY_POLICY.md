@@ -47,3 +47,31 @@ Future risk workflows (Phase 3 & 4) must follow this verified runbook:
 - **`git gc --prune=now --aggressive`:** Must **never** run automatically inside any wizard or cleanup loop. It must always be an independent, explicitly labeled action warning that unreferenced commits become unrecoverable.
 - **`git merge -X ours/theirs` vs `git merge -s ours`:** The UI must clearly differentiate these: `-X` sets a conflict-resolution preference while merging history; `-s ours` discards the other branch's changes entirely while recording a merge.
 - **AI-Trace Cleanup Policy:** Detection is strictly based on identifiable, verifiable artifacts (commit trailers, explicit tool directories, configured strings). It must never claim probabilistic code generation detection.
+
+---
+
+## 5. AI Artefact Cleanup & Controlled History Rewrite Policy
+
+### 5.1 Hard Safety Boundaries
+- **Authorship Non-Inference:** The system never infers AI authorship from code style, formatting, whitespace, or naming.
+- **Human Attribution Protection:** Human `Co-authored-by:`, `Signed-off-by:`, `Reviewed-by:`, `Acked-by:`, licenses, copyright, `NOTICE`, `SECURITY.md`, and compliance records are strictly preserved and disabled from deletion.
+- **Zero Identity Forgery:** Never forge or replace human author/committer identities.
+- **No Signature Fabrication:** Never alter Git signatures or pretend rewritten commits remain signed.
+- **External Record Limitations:** UI explicitly informs users that local cleanups cannot remove copies held in forks, remote caches, PR histories, or host provider audit logs.
+- **No Automatic GC:** Never run `git gc --prune=now --aggressive` automatically.
+
+### 5.2 Confirmation & Verification Workflow
+1. **Working Tree Cleanup (Risk 1):** Line-level minimal edits with unified diff preview, `git diff --check`, and immediate in-memory undo buffer.
+2. **HEAD Commit Amend (Risk 2 / Risk 3):** Generates `refs/heads/backup/pre-ai-cleanup-amend/<timestamp>` ref, checks for published/upstream state, and amends via validated temporary message file.
+3. **Isolated History Rewrite (Risk 4):**
+   - Active working clone is **never** touched during history filtering.
+   - Requires First Confirmation dialog with 5 mandatory checkboxes and exact typed phrase: `REWRITE SELECTED HISTORY`.
+   - Executes inside disposable mirror clone (`rewrite-workspaces/<operation-id>/repo.git`).
+   - Generates and verifies offline bundle backup (`pre-rewrite.bundle`) before applying filter.
+   - Runs `git fsck --full` in the mirror clone after rewrite.
+4. **Remote Rewrite Publication (Risk 4):**
+   - Gated on validated mirror rewrite.
+   - Requires Second Confirmation dialog with 6 mandatory checkboxes and exact typed phrase: `PUBLISH REWRITTEN HISTORY TO <REMOTE_NAME>`.
+   - Enforces `git push --force-with-lease` for selected branches.
+   - Generates interactive post-publish coordination checklist with Markdown export.
+

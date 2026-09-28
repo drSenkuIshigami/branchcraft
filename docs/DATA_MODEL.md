@@ -141,9 +141,73 @@ pub struct BackupRef {
 
 ---
 
+### 2.7 AI Cleanup & Controlled History Rewrite (Phase 4 Extension)
+
+```rust
+pub enum CleanupTargetKind {
+    WorkingTreeTextOccurrence,
+    HeadCommitMessageLine,
+    RepositoryConfigPath,
+    RepositoryHook,
+    HistoricalCommitMessage,
+    HistoricalTagMessage,
+    HistoricalGitNote,
+    HistoricalIdentityMapping,
+}
+
+pub enum CleanupRiskLevel {
+    Risk1WorkingTreeEdit,
+    Risk2LocalHeadAmend,
+    Risk3PublishedHeadAmend,
+    Risk2ConfigurationUntrack,
+    Risk3DestructiveLocalRemoval,
+    Risk4HistoryRewrite,
+    Risk4RemoteRewritePublication,
+}
+
+pub enum RewriteOperationStatus {
+    Draft,
+    ScopeReviewed,
+    FirstConfirmationPassed,
+    MirrorCreated,
+    BackupCreated,
+    BackupVerified,
+    PreviewReady,
+    RewriteRunning,
+    RewriteValidated,
+    RewriteCompletedLocally,
+    PushScopeReviewed,
+    SecondConfirmationPassed,
+    Publishing,
+    Published,
+    Failed,
+    Cancelled,
+}
+
+pub struct RewriteOperation {
+    pub operation_id: String,
+    pub source_repository_path: String,
+    pub isolated_workspace_path: String,
+    pub backup_bundle_path: String,
+    pub selected_finding_ids: Vec<String>,
+    pub selected_refs: Vec<String>,
+    pub selected_remote: Option<String>,
+    pub status: RewriteOperationStatus,
+    pub created_at: String,
+    pub updated_at: String,
+    pub rewritten_commits_count: Option<usize>,
+    pub rewritten_refs_count: Option<usize>,
+    pub bundle_verified: Option<bool>,
+    pub fsck_passed: Option<bool>,
+    pub error: Option<String>,
+}
+```
+
+---
+
 ## 3. Phase Evolution Roadmap
 - **Phase 0:** `GitAvailability` active; placeholders established.
 - **Phase 1:** `CommitInfo`, `BranchInfo`, `StatusInfo`, `FileChange` activated.
 - **Phase 2:** Hunk and staging patch models added (`DiffHunk`, `StagedHunk`).
 - **Phase 3:** Interactive rebase plan models (`RebaseTodoItem`, `ReflogEntry`, `WorktreeInfo`).
-- **Phase 4:** Secret scan reports, large file manifests, AI-trace audit findings.
+- **Phase 4:** Secret scan reports, large file manifests, AI-trace audit findings, controlled history rewrite models.

@@ -74,6 +74,16 @@
 - [x] `.gitignore` assistant adding `.cursor/`, `.cursorrules`, `.claude/`, `.cline/` to protect local workspace trees.
 - [x] Isolated manual trigger for `git gc --prune=now --aggressive` with typed confirmation string `PRUNE NOW` (never automated per SAFETY_POLICY.md).
 
+### 3.6 AI Artefact Cleanup & Controlled History Rewrite Verification
+- [x] **Working-Tree Cleanup:** Line-level preview, minimal diff edits, and in-memory rollback undo.
+- [x] **Human Attribution Protection:** Human `Co-authored-by:` and compliance licenses cannot be selected or deleted.
+- [x] **HEAD Commit Amend:** AI trailer removal, new commit SHA creation, and backup ref creation (`refs/heads/backup/pre-ai-cleanup-amend/<timestamp>`).
+- [x] **Isolated Mirror Rewrite:** History rewrite executes strictly in segregated mirror clone without touching active working repo.
+- [x] **Bundle Backup Integrity:** Verified standard Git bundle backup created before filter application.
+- [x] **Double Confirmation Guardrails:** First confirmation requires 5 checkboxes + typed `REWRITE SELECTED HISTORY`; second confirmation requires 6 checkboxes + typed `PUBLISH REWRITTEN HISTORY TO <REMOTE_NAME>`.
+- [x] **Controlled Remote Publish:** Gated on validated mirror rewrite; strictly uses `git push --force-with-lease`.
+- [x] **Post-Publish Checklist:** Interactive checklist with local Markdown export for collaborator coordination.
+
 ---
 
 ## 4. Phase 5 Test Checklist (Packaging, Hardening & Distribution)

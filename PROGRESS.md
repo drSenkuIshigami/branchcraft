@@ -161,3 +161,16 @@
 - [x] End-user documentation and screenshot manual (`docs/USER_MANUAL.md`).
 - [x] Final security audit (strictly local process bindings, zero telemetry, no embedded secrets).
 - [x] Semantic versioning release (`v1.0.0`).
+
+---
+
+## Controlled AI Artefact Cleanup & History Rewrite (Specification Extension)
+
+- [x] **Data Models & IPC Contracts:** Typed target kinds, risk levels (Risk 1 to 4), finding classifications, and 23 typed IPC wrappers with zero raw shell strings.
+- [x] **Hard Safety Boundaries:** Real human `Co-authored-by:`, `Signed-off-by:`, licenses, and copyright notices are protected from deletion; non-inference policy enforced.
+- [x] **Working Tree Cleanup (Risk 1):** Line-level diff preview, minimal line removals, and in-memory rollback undo.
+- [x] **HEAD Commit Metadata Cleanup (Risk 2 / Risk 3):** Reversible amend via temporary message file with automatic `backup/pre-ai-cleanup-amend/<timestamp>` ref creation.
+- [x] **Isolated Mirror History Rewrite (Risk 4):** Strictly executed inside a segregated disposable mirror clone without modifying the user's active working copy; mandatory 5-checkbox confirmation + typed `REWRITE SELECTED HISTORY`.
+- [x] **Cryptographic Backup & Verification:** Offline Git bundle (`pre-rewrite.bundle`) created and verified before filtering; `git fsck --full` verified after filtering.
+- [x] **Controlled Remote Publish (Risk 4):** Separate push workflow with 6-checkbox confirmation + typed `PUBLISH REWRITTEN HISTORY TO <REMOTE>`; strictly uses `--force-with-lease`.
+- [x] **Team Coordination Checklist:** Post-publish checklist generator with local Markdown export.

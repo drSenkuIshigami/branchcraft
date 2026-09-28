@@ -72,8 +72,16 @@
 | Subcommand | Pattern | Purpose |
 |---|---|---|
 | `bundle` | `["bundle", "create", "<file>", "--all"]` | Full repository offline backup |
+| `bundle` | `["bundle", "verify", "<file>"]` | Offline backup verification |
+| `clone` | `["clone", "--mirror", "<source>", "<mirror>"]` | Isolated disposable mirror clone |
+| `commit --amend` | `["commit", "--amend", "-F", "<temp-file>"]` | Safe HEAD amend with backup ref |
+| `branch` | `["branch", "<backup-ref>", "HEAD"]` | Automatic safety backup creation |
+| `rm` | `["rm", "--cached", "<path>"]` | Untrack file from index (disk file preserved) |
+| `push` | `["push", "--force-with-lease", "<remote>", "<refspec>"]` | Safe remote rewrite publication |
+| `fsck` | `["fsck", "--full"]` | Cryptographic integrity verification |
+| `diff` | `["diff", "--check"]` | Whitespace and merge conflict marker check |
 | `clean` | `["clean", "-nd"]` (dry-run) / `["clean", "-fd"]` (confirmed) | Clean untracked files |
-| `filter-repo` | Via separate process in mirror clone only | Secret and path purging |
+| `filter-repo` | Via separate process in mirror clone only | Secret, path, and AI trailer purging |
 
 ---
 
