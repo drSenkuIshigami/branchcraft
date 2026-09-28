@@ -130,3 +130,110 @@ pub struct BackupRef {
     pub created_at: String,
     pub reason: String,
 }
+
+/// Target classification for AI cleanup
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CleanupTargetKind {
+    WorkingTreeTextOccurrence,
+    HeadCommitMessageLine,
+    RepositoryConfigPath,
+    RepositoryHook,
+    HistoricalCommitMessage,
+    HistoricalTagMessage,
+    HistoricalGitNote,
+    HistoricalIdentityMapping,
+}
+
+/// Risk level classification for cleanup operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CleanupRiskLevel {
+    Risk1WorkingTreeEdit,
+    Risk2LocalHeadAmend,
+    Risk3PublishedHeadAmend,
+    Risk2ConfigurationUntrack,
+    Risk3DestructiveLocalRemoval,
+    Risk4HistoryRewrite,
+    Risk4RemoteRewritePublication,
+}
+
+/// Lifecycle status for isolated history rewrite operations
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum RewriteOperationStatus {
+    Draft,
+    ScopeReviewed,
+    FirstConfirmationPassed,
+    MirrorCreated,
+    BackupCreated,
+    BackupVerified,
+    PreviewReady,
+    RewriteRunning,
+    RewriteValidated,
+    RewriteCompletedLocally,
+    PushScopeReviewed,
+    SecondConfirmationPassed,
+    Publishing,
+    Published,
+    Failed,
+    Cancelled,
+}
+
+/// Finding classification for AI artifact scanning
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FindingClassification {
+    ExplicitToolAttributionFile,
+    ExplicitAiTrailerHead,
+    ExplicitAiTrailerHistory,
+    ExplicitAiBotIdentity,
+    ToolConfigurationFile,
+    AiAgentInstructionFile,
+    HumanAttribution,
+    LegalComplianceMaterial,
+    AmbiguousGenericReference,
+    ExternalProviderRecord,
+    SignedCommitMetadata,
+}
+
+/// Classified finding evaluated against safety rules
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassifiedFinding {
+    pub id: String,
+    pub kind: CleanupTargetKind,
+    pub classification: FindingClassification,
+    pub risk_level: CleanupRiskLevel,
+    pub selectable: bool,
+    pub selected_by_default: bool,
+    pub file_path: Option<String>,
+    pub line_number: Option<usize>,
+    pub commit_sha: Option<String>,
+    pub commit_subject: Option<String>,
+    pub matched_text: String,
+    pub proposed_edit: Option<String>,
+    pub author_identity: Option<String>,
+    pub committer_identity: Option<String>,
+    pub is_signed: Option<bool>,
+    pub is_head: Option<bool>,
+    pub branches: Option<Vec<String>>,
+    pub tags: Option<Vec<String>>,
+    pub explanation: String,
+}
+
+/// Rewrite operation state tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RewriteOperation {
+    pub operation_id: String,
+    pub source_repository_path: String,
+    pub isolated_workspace_path: String,
+    pub backup_bundle_path: String,
+    pub selected_finding_ids: Vec<String>,
+    pub selected_refs: Vec<String>,
+    pub selected_remote: Option<String>,
+    pub status: RewriteOperationStatus,
+    pub created_at: String,
+    pub updated_at: String,
+    pub rewritten_commits_count: Option<usize>,
+    pub rewritten_refs_count: Option<usize>,
+    pub bundle_verified: Option<bool>,
+    pub fsck_passed: Option<bool>,
+    pub error: Option<String>,
+}
+

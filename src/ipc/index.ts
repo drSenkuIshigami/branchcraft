@@ -53,6 +53,21 @@ import type {
   ReplaceResponse,
   CleanAITracesOptions,
   CleanAITracesResult,
+  ClassifiedFinding,
+  WorkingTreeEditPreview,
+  WorkingTreeCleanupResult,
+  HeadCommitAmendPreview,
+  HeadCommitAmendResult,
+  ConfigHookTarget,
+  ConfigHookCleanupPreview,
+  ConfigHookCleanupResult,
+  HistoryRewriteScope,
+  HistoryRewritePreview,
+  HistoryRewriteResult,
+  RemotePublishScope,
+  RemotePublishResult,
+  PostPublishChecklist,
+  RewriteOperation,
 } from '../types';
 
 /**
@@ -2336,5 +2351,657 @@ export async function cleanAITraces(
 
   return (await res.json()) as CleanAITracesResult;
 }
+
+// =========================================================================
+// AI Artefact Cleanup & Controlled History Rewrite IPC Commands
+// =========================================================================
+
+export async function getCleanupEligibility(
+  repoPath: string,
+  findings: any[]
+): Promise<ClassifiedFinding[]> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<ClassifiedFinding[]>('get_cleanup_eligibility', { repoPath, findings });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/eligibility', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, findings }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Eligibility check failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as ClassifiedFinding[];
+}
+
+export async function buildWorkingTreeCleanupPreview(
+  repoPath: string,
+  selectedFindingIds: string[]
+): Promise<WorkingTreeEditPreview[]> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<WorkingTreeEditPreview[]>('build_working_tree_cleanup_preview', {
+        repoPath,
+        selectedFindingIds,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/working_tree/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, selected_finding_ids: selectedFindingIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Preview failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as WorkingTreeEditPreview[];
+}
+
+export async function applyWorkingTreeCleanup(
+  repoPath: string,
+  selectedFindingIds: string[],
+  confirmationToken: string
+): Promise<WorkingTreeCleanupResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<WorkingTreeCleanupResult>('apply_working_tree_cleanup', {
+        repoPath,
+        selectedFindingIds,
+        confirmationToken,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/working_tree/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      selected_finding_ids: selectedFindingIds,
+      confirmation_token: confirmationToken,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Working tree cleanup failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as WorkingTreeCleanupResult;
+}
+
+export async function undoWorkingTreeCleanup(
+  repoPath: string,
+  operationId: string
+): Promise<WorkingTreeCleanupResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<WorkingTreeCleanupResult>('undo_working_tree_cleanup', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/working_tree/undo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Undo cleanup failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as WorkingTreeCleanupResult;
+}
+
+export async function buildHeadCommitCleanupPreview(
+  repoPath: string,
+  selectedFindingIds: string[]
+): Promise<HeadCommitAmendPreview> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HeadCommitAmendPreview>('build_head_commit_cleanup_preview', {
+        repoPath,
+        selectedFindingIds,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/head/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, selected_finding_ids: selectedFindingIds }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'HEAD preview failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HeadCommitAmendPreview;
+}
+
+export async function amendHeadCommitCleanup(
+  repoPath: string,
+  selectedFindingIds: string[],
+  confirmationToken: string
+): Promise<HeadCommitAmendResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HeadCommitAmendResult>('amend_head_commit_cleanup', {
+        repoPath,
+        selectedFindingIds,
+        confirmationToken,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/head/amend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      selected_finding_ids: selectedFindingIds,
+      confirmation_token: confirmationToken,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Amend HEAD failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HeadCommitAmendResult;
+}
+
+export async function getConfigHookCleanupPreview(
+  repoPath: string,
+  targets: ConfigHookTarget[]
+): Promise<ConfigHookCleanupPreview> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<ConfigHookCleanupPreview>('get_config_hook_cleanup_preview', {
+        repoPath,
+        targets,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/config_hooks/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, targets }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Config preview failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as ConfigHookCleanupPreview;
+}
+
+export async function applyConfigHookCleanup(
+  repoPath: string,
+  targets: ConfigHookTarget[],
+  confirmationToken: string
+): Promise<ConfigHookCleanupResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<ConfigHookCleanupResult>('apply_config_hook_cleanup', {
+        repoPath,
+        targets,
+        confirmationToken,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/config_hooks/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, targets, confirmation_token: confirmationToken }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Config cleanup failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as ConfigHookCleanupResult;
+}
+
+export async function restoreConfigHookBackup(
+  repoPath: string,
+  backupId: string
+): Promise<ConfigHookCleanupResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<ConfigHookCleanupResult>('restore_config_hook_backup', {
+        repoPath,
+        backupId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/config_hooks/restore', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, backup_id: backupId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Restore backup failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as ConfigHookCleanupResult;
+}
+
+export async function buildHistoryRewriteScope(
+  repoPath: string,
+  selectedFindingIds: string[],
+  selectedRefs: string[]
+): Promise<HistoryRewriteScope> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HistoryRewriteScope>('build_history_rewrite_scope', {
+        repoPath,
+        selectedFindingIds,
+        selectedRefs,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/scope', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      selected_finding_ids: selectedFindingIds,
+      selected_refs: selectedRefs,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to build rewrite scope' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HistoryRewriteScope;
+}
+
+export async function acknowledgeHistoryRewrite(
+  repoPath: string,
+  operationId: string,
+  checkboxState: {
+    understand_new_shas: boolean;
+    understand_signature_loss: boolean;
+    understand_collaborator_impact: boolean;
+    understand_external_copies: boolean;
+    reviewed_scope: boolean;
+  },
+  typedPhrase: string
+): Promise<{ success: boolean; error?: string }> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<{ success: boolean; error?: string }>('acknowledge_history_rewrite', {
+        repoPath,
+        operationId,
+        checkboxState,
+        typedPhrase,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/acknowledge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      operation_id: operationId,
+      checkbox_state: checkboxState,
+      typed_phrase: typedPhrase,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Acknowledgement failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as { success: boolean; error?: string };
+}
+
+export async function createIsolatedRewriteWorkspace(
+  repoPath: string,
+  operationId: string
+): Promise<RewriteOperation> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<RewriteOperation>('create_isolated_rewrite_workspace', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/create_workspace', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Workspace creation failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as RewriteOperation;
+}
+
+export async function createRewriteBackup(
+  repoPath: string,
+  operationId: string
+): Promise<RewriteOperation> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<RewriteOperation>('create_rewrite_backup', { repoPath, operationId });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/create_backup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Backup creation failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as RewriteOperation;
+}
+
+export async function verifyRewriteBackup(
+  repoPath: string,
+  operationId: string
+): Promise<RewriteOperation> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<RewriteOperation>('verify_rewrite_backup', { repoPath, operationId });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/verify_backup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Backup verification failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as RewriteOperation;
+}
+
+export async function buildHistoryRewritePreview(
+  repoPath: string,
+  operationId: string
+): Promise<HistoryRewritePreview> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HistoryRewritePreview>('build_history_rewrite_preview', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Preview failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HistoryRewritePreview;
+}
+
+export async function applyHistoryRewrite(
+  repoPath: string,
+  operationId: string
+): Promise<HistoryRewriteResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HistoryRewriteResult>('apply_history_rewrite', { repoPath, operationId });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Rewrite execution failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HistoryRewriteResult;
+}
+
+export async function validateHistoryRewrite(
+  repoPath: string,
+  operationId: string
+): Promise<HistoryRewriteResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HistoryRewriteResult>('validate_history_rewrite', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Validation failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HistoryRewriteResult;
+}
+
+export async function getHistoryRewriteResult(
+  repoPath: string,
+  operationId: string
+): Promise<HistoryRewriteResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<HistoryRewriteResult>('get_history_rewrite_result', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/history/result', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get rewrite result' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as HistoryRewriteResult;
+}
+
+export async function buildRemotePublishScope(
+  repoPath: string,
+  operationId: string,
+  selectedRemote: string,
+  selectedPushStrategy: 'selected_branch_force_with_lease' | 'mirror_update'
+): Promise<RemotePublishScope> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<RemotePublishScope>('build_remote_publish_scope', {
+        repoPath,
+        operationId,
+        selectedRemote,
+        selectedPushStrategy,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/publish/scope', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      operation_id: operationId,
+      selected_remote: selectedRemote,
+      selected_push_strategy: selectedPushStrategy,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Publish scope failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as RemotePublishScope;
+}
+
+export async function acknowledgeRemotePublish(
+  repoPath: string,
+  operationId: string,
+  checkboxState: {
+    verified_remote_url: boolean;
+    reviewed_refs: boolean;
+    notify_collaborators: boolean;
+    understand_old_clones: boolean;
+    secret_rotation_acknowledged: boolean;
+    cannot_remove_external: boolean;
+  },
+  typedPhrase: string
+): Promise<{ success: boolean; error?: string }> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<{ success: boolean; error?: string }>('acknowledge_remote_publish', {
+        repoPath,
+        operationId,
+        checkboxState,
+        typedPhrase,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/publish/acknowledge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      operation_id: operationId,
+      checkbox_state: checkboxState,
+      typed_phrase: typedPhrase,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Acknowledgement failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as { success: boolean; error?: string };
+}
+
+export async function publishRewrittenHistory(
+  repoPath: string,
+  operationId: string
+): Promise<RemotePublishResult> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<RemotePublishResult>('publish_rewritten_history', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/publish/execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Publish execution failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as RemotePublishResult;
+}
+
+export async function getPostPublishChecklist(
+  repoPath: string,
+  operationId: string
+): Promise<PostPublishChecklist> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<PostPublishChecklist>('get_post_publish_checklist', {
+        repoPath,
+        operationId,
+      });
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/publish/checklist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Checklist failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as PostPublishChecklist;
+}
+
+export async function exportPostPublishChecklist(
+  repoPath: string,
+  operationId: string
+): Promise<{ export_path: string; markdown: string }> {
+  if (isTauriEnvironment()) {
+    try {
+      return await invoke<{ export_path: string; markdown: string }>(
+        'export_post_publish_checklist',
+        { repoPath, operationId }
+      );
+    } catch {
+      // fallback to http
+    }
+  }
+  const res = await fetch('/api/git/ai_cleanup/publish/checklist/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, operation_id: operationId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Export failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as { export_path: string; markdown: string };
+}
+
+
 
 

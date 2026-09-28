@@ -515,3 +515,246 @@ export interface ReplaceResponse {
   error?: string;
 }
 
+// =========================================================================
+// AI Artefact Cleanup & Controlled History Rewrite Data Models
+// =========================================================================
+
+export type CleanupTargetKind =
+  | 'WorkingTreeTextOccurrence'
+  | 'HeadCommitMessageLine'
+  | 'RepositoryConfigPath'
+  | 'RepositoryHook'
+  | 'HistoricalCommitMessage'
+  | 'HistoricalTagMessage'
+  | 'HistoricalGitNote'
+  | 'HistoricalIdentityMapping';
+
+export type CleanupRiskLevel =
+  | 'Risk1WorkingTreeEdit'
+  | 'Risk2LocalHeadAmend'
+  | 'Risk3PublishedHeadAmend'
+  | 'Risk2ConfigurationUntrack'
+  | 'Risk3DestructiveLocalRemoval'
+  | 'Risk4HistoryRewrite'
+  | 'Risk4RemoteRewritePublication';
+
+export type RewriteOperationStatus =
+  | 'Draft'
+  | 'ScopeReviewed'
+  | 'FirstConfirmationPassed'
+  | 'MirrorCreated'
+  | 'BackupCreated'
+  | 'BackupVerified'
+  | 'PreviewReady'
+  | 'RewriteRunning'
+  | 'RewriteValidated'
+  | 'RewriteCompletedLocally'
+  | 'PushScopeReviewed'
+  | 'SecondConfirmationPassed'
+  | 'Publishing'
+  | 'Published'
+  | 'Failed'
+  | 'Cancelled';
+
+export type FindingClassification =
+  | 'explicit_tool_attribution_file'
+  | 'explicit_ai_trailer_head'
+  | 'explicit_ai_trailer_history'
+  | 'explicit_ai_bot_identity'
+  | 'tool_configuration_file'
+  | 'ai_agent_instruction_file'
+  | 'human_attribution' // Disabled from removal
+  | 'legal_compliance_material' // Disabled from removal
+  | 'ambiguous_generic_reference' // Disabled by default
+  | 'external_provider_record' // Disabled from local modification
+  | 'signed_commit_metadata'; // Warning flag
+
+export interface ClassifiedFinding {
+  id: string;
+  kind: CleanupTargetKind;
+  classification: FindingClassification;
+  risk_level: CleanupRiskLevel;
+  selectable: boolean;
+  selected_by_default: boolean;
+  file_path?: string;
+  line_number?: number;
+  commit_sha?: string;
+  commit_subject?: string;
+  matched_text: string;
+  proposed_edit?: string;
+  author_identity?: string;
+  committer_identity?: string;
+  is_signed?: boolean;
+  is_head?: boolean;
+  branches?: string[];
+  tags?: string[];
+  explanation: string;
+}
+
+export interface WorkingTreeEditPreview {
+  file_path: string;
+  line_range: [number, number];
+  matched_text: string;
+  surrounding_context: string;
+  proposed_diff: string;
+  proposed_edit: string;
+  selectable: boolean;
+  is_binary: boolean;
+  is_protected: boolean;
+}
+
+export interface WorkingTreeCleanupResult {
+  operation_id: string;
+  success: boolean;
+  changed_files: string[];
+  diff_check_stdout: string;
+  status_short_stdout: string;
+  undo_available: boolean;
+  error?: string;
+  duration_ms: number;
+}
+
+export interface HeadCommitAmendPreview {
+  commit_sha: string;
+  subject: string;
+  author: string;
+  committer: string;
+  is_signed: boolean;
+  has_upstream: boolean;
+  risk_level: CleanupRiskLevel;
+  original_message: string;
+  proposed_message: string;
+  removed_lines: string[];
+  backup_ref: string;
+}
+
+export interface HeadCommitAmendResult {
+  success: boolean;
+  old_commit_sha: string;
+  new_commit_sha: string;
+  backup_ref: string;
+  signature_invalidated: boolean;
+  recovery_instructions: string;
+  error?: string;
+}
+
+export interface ConfigHookTarget {
+  id: string;
+  path: string;
+  kind: 'config_file' | 'hook';
+  status: 'tracked' | 'untracked' | 'ignored';
+  action: 'keep' | 'gitignore' | 'git_rm_cached' | 'remove_untracked' | 'disable_hook';
+  backup_path?: string;
+  is_agent_instruction: boolean; // e.g. CLAUDE.md, never default remove
+}
+
+export interface ConfigHookCleanupPreview {
+  targets: ConfigHookTarget[];
+  estimated_risk: CleanupRiskLevel;
+}
+
+export interface ConfigHookCleanupResult {
+  success: boolean;
+  actions_taken: { path: string; action: string; backup_id?: string }[];
+  backup_id?: string;
+  error?: string;
+}
+
+export interface HistoryRewriteScope {
+  operation_id: string;
+  selected_finding_ids: string[];
+  affected_commits: {
+    sha: string;
+    short_sha: string;
+    subject: string;
+    is_signed: boolean;
+    author: string;
+    date: string;
+  }[];
+  affected_refs: string[];
+  affected_branches: string[];
+  affected_tags: string[];
+  descendant_commits_count: number;
+  has_remotes: boolean;
+  remotes: string[];
+  lines_to_remove: string[];
+  paths_to_remove: string[];
+  identity_mappings: { old_identity: string; new_identity: string }[];
+  signature_warning: boolean;
+  disclaimer: string;
+}
+
+export interface HistoryRewritePreview {
+  operation_id: string;
+  affected_commits_count: number;
+  sample_message_transformations: {
+    sha: string;
+    before: string;
+    after: string;
+  }[];
+  paths_to_remove: string[];
+  identity_mappings: { old_identity: string; new_identity: string }[];
+}
+
+export interface RewriteOperation {
+  operation_id: string;
+  source_repository_path: string;
+  isolated_workspace_path: string;
+  backup_bundle_path: string;
+  selected_finding_ids: string[];
+  selected_refs: string[];
+  selected_remote?: string;
+  status: RewriteOperationStatus;
+  created_at: string;
+  updated_at: string;
+  rewritten_commits_count?: number;
+  rewritten_refs_count?: number;
+  bundle_verified?: boolean;
+  fsck_passed?: boolean;
+  error?: string;
+}
+
+export interface HistoryRewriteResult {
+  operation_id: string;
+  status: RewriteOperationStatus;
+  backup_bundle_path: string;
+  bundle_verified: boolean;
+  isolated_workspace_path: string;
+  rewritten_refs: string[];
+  rewritten_commits_count: number;
+  fsck_valid: boolean;
+  signature_warning: string;
+  remaining_findings_count: number;
+  clear_status_message: string;
+  error?: string;
+}
+
+export interface RemotePublishScope {
+  operation_id: string;
+  remote_name: string;
+  sanitized_remote_url: string;
+  current_mirror_refs: string[];
+  remote_refs_to_change: string[];
+  strategy: 'selected_branch_force_with_lease' | 'mirror_update';
+  requires_second_confirmation: boolean;
+  confirmation_phrase: string;
+}
+
+export interface RemotePublishResult {
+  operation_id: string;
+  success: boolean;
+  remote_name: string;
+  updated_refs: string[];
+  stdout: string;
+  stderr: string;
+  error?: string;
+}
+
+export interface PostPublishChecklist {
+  operation_id: string;
+  completed_at: string;
+  items: { task: string; completed: boolean; recommendation: string }[];
+  export_markdown: string;
+}
+
+
