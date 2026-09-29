@@ -104,6 +104,9 @@ export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> =
                 <span className="font-mono font-semibold text-zinc-700 dark:text-zinc-300">
                   {branchName}
                 </span>
+                <span className="ml-2 px-1.5 py-0.2 rounded text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-300 font-mono font-semibold">
+                  Warning Level 3
+                </span>
               </p>
             </div>
           </div>
@@ -124,6 +127,19 @@ export const ForceRelocateBranchModal: React.FC<ForceRelocateBranchModalProps> =
               <span>{error}</span>
             </div>
           )}
+
+          {/* Requested CLI command */}
+          <div className="space-y-1">
+            <div className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center justify-between">
+              <span>Requested Operation</span>
+              <span className="text-amber-600 dark:text-amber-400 normal-case font-normal">
+                Recommended: create backup ref before relocating
+              </span>
+            </div>
+            <div className="p-2 rounded bg-zinc-950 text-zinc-200 font-mono text-xs border border-zinc-800 select-all">
+              git branch -f {branchName} {targetSha.slice(0, 7)}
+            </div>
+          </div>
 
           {/* Relocation summary */}
           <div className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 flex items-center justify-between font-mono">

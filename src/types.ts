@@ -93,6 +93,8 @@ export interface OperationResult {
   exit_code: number;
   command_run: string[];
   duration_ms: number;
+  backup_ref?: string;
+  backup_declined?: boolean;
 }
 
 export interface StashInfo {
@@ -250,9 +252,35 @@ export interface AddWorktreeOptions {
   lock_reason?: string;
 }
 
-// Phase 4: Automated Safety, Backups, History Purging & Repository Health
+// User-Controlled Safety Policy & Warning Levels (0–4)
+export type WarningLevel = 0 | 1 | 2 | 3 | 4;
+export type RiskLevel = WarningLevel; // Backwards-compatible alias
 
-export type RiskLevel = 0 | 1 | 2 | 3 | 4;
+export type PushMode = 'normal' | 'force_with_lease' | 'raw_force' | 'mirror';
+
+export interface PushOptions {
+  remote: string;
+  branch?: string;
+  mode?: PushMode;
+  setUpstream?: boolean;
+}
+
+export type CleanMode = 'f' | 'fd' | 'fdx';
+
+export interface CleanWorkingTreeOptions {
+  mode: CleanMode;
+  dryRun?: boolean;
+  path?: string;
+}
+
+export interface CleanResult {
+  dry_run: boolean;
+  cleaned_items: string[];
+  output: string;
+  exit_code: number;
+}
+
+export type GcMode = 'standard' | 'prune_now' | 'aggressive';
 
 export interface BackupRef {
   id: string;

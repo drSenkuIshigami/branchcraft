@@ -856,7 +856,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                       <th className="p-2.5 w-10 text-center">Select</th>
                       <th className="p-2.5">Category</th>
                       <th className="p-2.5">Target / Location</th>
-                      <th className="p-2.5">Risk Level</th>
+                      <th className="p-2.5">Warning Level</th>
                       <th className="p-2.5">Status &amp; Safety Boundary</th>
                     </tr>
                   </thead>
@@ -1021,7 +1021,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                       <span className="font-bold text-purple-600">{headPreview.commit_sha.slice(0, 8)}</span>
                     </div>
                     <div>
-                      <span className="text-zinc-400">Risk Level:</span>{' '}
+                      <span className="text-zinc-400">Warning Level:</span>{' '}
                       <span className="text-blue-500 font-bold">{headPreview.risk_level}</span>
                     </div>
                     <div>

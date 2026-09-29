@@ -1,16 +1,17 @@
 # Command Allowlist & Execution Policy
 
-> **Status:** Active Standard (Phase 0)  
-> **Notice:** This document defines the exhaustive list of Git subcommands and argument validation patterns permitted in Git Workbench. Any command not explicitly listed here is prohibited by the Rust Git adapter.
+> **Status:** Active Standard  
+> **Notice:** This document defines the exhaustive list of Git subcommands and argument validation patterns permitted in Git Workbench under the User-Controlled Safety Policy.
 
 ---
 
 ## 1. Architectural Rules of Execution
 
-1. **Zero Shell Usage:** Every Git command is invoked via `std::process::Command::new("git")` with arguments passed as separate strings (`.arg()` or `.args()`). Never use `/bin/sh`, `bash -c`, or `cmd.exe /c`.
+1. **Zero Shell Usage:** Every Git command is invoked directly via process execution (`execFile` / `Command::new("git")`) with arguments passed as separate token arrays (`args: string[]`). Never use `/bin/sh`, `bash -c`, or `cmd.exe /c`.
 2. **Strict Argument Validation:** Parameters such as branch names, paths, and commit hashes are sanitized and validated against safe regex patterns before process invocation.
-3. **No Dynamic CLI String Construction:** The frontend can never send an arbitrary command line to be executed. The frontend invokes a specific Rust IPC function which maps strictly to an allowlisted command pattern.
+3. **No Shell Injections:** "No feature restrictions" does not mean allowing command injection. Arbitrary shell strings, pipes (`|`), shell metacharacters (`&&`, `;`, `>`), and untyped raw shell commands are strictly forbidden. All operations remain strongly typed and routed through validated argument arrays.
 4. **Tokenized Logging:** The executed token vector is recorded in the `OperationResult` structure to provide complete transparency in the audit log without exposing sensitive credential tokens.
+5. **No Downgrades:** Operations selected by the user are executed exactly as confirmed (e.g. `--force` executes `--force`, not downgraded to `--force-with-lease`).
 
 ---
 
@@ -22,73 +23,57 @@
 
 ---
 
-## 3. Allowed Git Subcommands by Phase
+## 3. Allowed Git Subcommands
 
-### Phase 0
-| Subcommand | Pattern | Purpose |
-|---|---|---|
-| `version` | `["--version"]` | System PATH availability check |
-
-### Phase 1 (Repository Explorer)
-| Subcommand | Pattern | Purpose |
-|---|---|---|
-| `rev-parse` | `["rev-parse", "--is-inside-work-tree"]` | Validate repository root |
-| `status` | `["status", "--porcelain=v2", "--branch", "--untracked-files=all"]` | Query index & tree state |
-| `for-each-ref` | `["for-each-ref", "--format=...", "refs/heads/", "refs/remotes/"]` | List all branches |
-| `remote` | `["remote", "-v"]` | List configured remotes |
-| `log` | `["log", "--all", "--topo-order", "--pretty=format:..."]` | Fetch graph data |
-| `show` | `["show", "--stat", "--patch", "<sha>"]` | Inspect commit details |
-| `diff` | `["diff", "--", "<path>"]` | Working tree vs index diff |
-| `diff-tree` | `["diff-tree", "-r", "--no-commit-id", "--name-status", "<sha>"]` | Files modified in commit |
-| `blame` | `["blame", "-w", "-L", "<range>", "--", "<path>"]` | File line attribution |
-
-### Phase 2 (Daily Operations)
-| Subcommand | Pattern | Purpose |
-|---|---|---|
-| `add` | `["add", "--", "<path>"]` | Stage file |
-| `restore` | `["restore", "--staged", "--", "<path>"]` | Unstage file |
-| `restore` | `["restore", "--", "<path>"]` | Discard working tree changes (preview required) |
-| `commit` | `["commit", "-m", "<message>"]` | Create new commit |
-| `commit --amend` | `["commit", "--amend", "-m", "<message>"]` | Amend HEAD message |
-| `switch` | `["switch", "<branch>"]` / `["switch", "-c", "<branch>"]` | Switch or create branch |
-| `branch -m` | `["branch", "-m", "<old>", "<new>"]` | Rename branch |
-| `branch -d` | `["branch", "-d", "<branch>"]` | Delete merged branch |
-| `fetch` | `["fetch", "--prune", "<remote>"]` | Fetch upstream changes |
-| `push` | `["push", "--force-with-lease", "<remote>", "<branch>"]` | Safe upstream push |
-| `stash` | `["stash", "push", "-m", "<message>"]`, `["stash", "pop"]`, `["stash", "list"]` | Stash management |
-
-### Phase 3 (Power Tools)
-| Subcommand | Pattern | Purpose |
-|---|---|---|
-| `rebase -i` | Controlled via sequencer todo script | Visual interactive rebase |
-| `cherry-pick` | `["cherry-pick", "<sha>"]` | Apply specific commit |
-| `revert` | `["revert", "<sha>"]` / `["revert", "-m", "1", "<sha>"]` | Revert commit |
-| `reset` | `["reset", "--soft"\|"--mixed"\|"--hard", "<target>"]` | Reset HEAD pointer |
-| `worktree` | `["worktree", "add"\|"list"\|"remove", ...]` | Worktree management |
-| `bisect` | `["bisect", "start"\|"good"\|"bad"\|"reset"]` | Binary search regression |
-| `reflog` | `["reflog", "show", "-n", "<limit>"]` | Audit and recovery |
-
-### Phase 4 (History Rewrites & Safety)
-| Subcommand | Pattern | Purpose |
-|---|---|---|
-| `bundle` | `["bundle", "create", "<file>", "--all"]` | Full repository offline backup |
-| `bundle` | `["bundle", "verify", "<file>"]` | Offline backup verification |
-| `clone` | `["clone", "--mirror", "<source>", "<mirror>"]` | Isolated disposable mirror clone |
-| `commit --amend` | `["commit", "--amend", "-F", "<temp-file>"]` | Safe HEAD amend with backup ref |
-| `branch` | `["branch", "<backup-ref>", "HEAD"]` | Automatic safety backup creation |
-| `rm` | `["rm", "--cached", "<path>"]` | Untrack file from index (disk file preserved) |
-| `push` | `["push", "--force-with-lease", "<remote>", "<refspec>"]` | Safe remote rewrite publication |
-| `fsck` | `["fsck", "--full"]` | Cryptographic integrity verification |
-| `diff` | `["diff", "--check"]` | Whitespace and merge conflict marker check |
-| `clean` | `["clean", "-nd"]` (dry-run) / `["clean", "-fd"]` (confirmed) | Clean untracked files |
-| `filter-repo` | Via separate process in mirror clone only | Secret, path, and AI trailer purging |
+| Subcommand | Tokenized Arguments Pattern | Warning Level | Purpose |
+|---|---|:---:|---|
+| `version` | `["--version"]` | 0 | System PATH availability check |
+| `status` | `["status", "--porcelain=v2", "--branch", "--untracked-files=all"]` | 0 | Query index & tree state |
+| `log` | `["log", "--all", "--topo-order", ...]` | 0 | Fetch graph data |
+| `show` | `["show", "--stat", "--patch", "<sha>"]` | 0 | Inspect commit details |
+| `diff` | `["diff", "--", "<path>"]` | 0 | Working tree vs index diff |
+| `blame` | `["blame", "-w", "-L", "<range>", "--", "<path>"]` | 0 | File line attribution |
+| `add` | `["add", "--", "<path>"]` or `["add", "-A"]` | 1 | Stage changes |
+| `restore` | `["restore", "--staged", "--", "<path>"]` | 1 | Unstage file |
+| `restore` | `["restore", "--", "<path>"]` | 1 | Discard tracked file changes |
+| `commit` | `["commit", "-m", "<message>"]` | 1 | Create new commit |
+| `commit --amend`| `["commit", "--amend", ...]` | 2 | Amend latest commit (backup optional) |
+| `switch` | `["switch", "<branch>"]` / `["switch", "-c", "<branch>"]` | 1 | Switch or create branch |
+| `branch -m` | `["branch", "-m", "<old>", "<new>"]` | 1 | Rename branch |
+| `branch -d` | `["branch", "-d", "<branch>"]` | 1 | Delete merged branch |
+| `branch -D` | `["branch", "-D", "<branch>"]` | 3 | Force delete unmerged branch |
+| `branch -f` | `["branch", "-f", "<branch>", "<target>"]` | 3 | Force relocate branch to target SHA |
+| `fetch` | `["fetch", "--prune", "<remote>"]` | 0 | Fetch upstream changes |
+| `push` | `["push", "<remote>", "<branch>"]` | 1 | Normal upstream push |
+| `push --force-with-lease` | `["push", "--force-with-lease", "<remote>", "<branch>"]` | 2 | Safe force push (Recommended) |
+| `push --force` | `["push", "--force", "<remote>", "<branch>"]` | 3 | Raw force push (Exact user choice) |
+| `push --mirror` | `["push", "--mirror", "<remote>"]` | 3/4 | Mirror push to remote |
+| `push --delete` | `["push", "<remote>", "--delete", "<ref>"]` | 3 | Delete remote branch or tag |
+| `stash` | `["stash", "push", ...]` / `["stash", "pop"]` | 1 | Stash management |
+| `reset --soft` | `["reset", "--soft", "<target>"]` | 2 | Soft reset |
+| `reset --mixed`| `["reset", "--mixed", "<target>"]` | 2 | Mixed reset (preserve working files) |
+| `reset --hard` | `["reset", "--hard", "<target>"]` | 3 | Hard reset (backup ref optional) |
+| `clean -n` | `["clean", "-n", "-f", "-d", "-x"]` | 0 | Dry-run untracked clean preview |
+| `clean -f` | `["clean", "-f", ...]` | 2 | Clean untracked files |
+| `clean -fd` | `["clean", "-fd", ...]` | 3 | Clean untracked files & directories |
+| `clean -fdx`| `["clean", "-fdx", ...]` | 3 | Clean untracked and ignored files |
+| `cherry-pick` | `["cherry-pick", "<sha>"]` | 2 | Apply specific commit |
+| `revert` | `["revert", "<sha>"]` | 2 | Revert commit |
+| `rebase` | `["rebase", "-i", ...]` / sequencer | 2/3 | Rebase (including pushed branches) |
+| `merge` | `["merge", "-X", "ours"\|"theirs", ...]` | 2 | Merge branch with strategy |
+| `merge -s` | `["merge", "-s", "ours", ...]` | 2 | Discarding merge strategy |
+| `gc` | `["gc"]` | 1 | Standard repository cleanup |
+| `gc --prune=now` | `["gc", "--prune=now"]` | 2 | Aggressive pruning of loose objects |
+| `gc --prune=now --aggressive` | `["gc", "--prune=now", "--aggressive"]` | 3 | Deep repack & permanent purge |
+| `bundle` | `["bundle", "create"\|"verify", ...]` | 1 | Offline bundle backup |
+| `filter-repo` | Via isolated mirror OR direct working copy | 4 | Complete history rewrite |
+| `fsck` | `["fsck", "--full"]` | 0 | Cryptographic repository verification |
 
 ---
 
-## 4. Forbidden Commands & Flags
+## 4. Forbidden Operations & Invariants
 
-The following are strictly blocked by the adapter architecture:
-- Arbitrary shell piping (`|`, `&&`, `;`, `>`).
-- Raw `git push --force` without explicit multi-step override (default is `--force-with-lease`).
-- Automated background `git gc --prune=now --aggressive` without dedicated explicit user confirmation.
-- Modifying hooks or config outside defined local safety hooks (`commit-msg`).
+The following remain forbidden:
+- Passing unvalidated strings to a shell command interpreter (`sh -c`, `bash -c`, `cmd.exe /c`, PowerShell strings).
+- Allowing arbitrary user-supplied CLI injection flags (e.g. `--exec`, `--upload-pack`).
+- Command injection vectors; all arguments must strictly match allowlisted token formats.

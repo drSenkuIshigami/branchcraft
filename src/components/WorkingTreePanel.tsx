@@ -22,6 +22,7 @@ import type {
   RebaseStatus,
 } from '../types';
 import { DiscardConfirmModal } from './DiscardConfirmModal';
+import { CleanUntrackedModal } from './CleanUntrackedModal';
 import { CommitBox, type CommitAuthorOptions } from './CommitBox';
 import { ConflictResolutionSection } from './ConflictResolutionSection';
 import { ActiveRebasePanel } from './ActiveRebasePanel';
@@ -92,6 +93,7 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   const [discardTarget, setDiscardTarget] = useState<{ path: string; isUntracked: boolean } | null>(
     null
   );
+  const [isCleanModalOpen, setIsCleanModalOpen] = useState(false);
 
   if (!status) {
     return (
@@ -353,6 +355,15 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
                   <FileQuestion className="w-4 h-4" />
                   <span>Untracked Files ({untracked.length})</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCleanModalOpen(true)}
+                  className="px-2 py-0.5 text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded border border-rose-500/20 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Clean untracked files with git clean (-f, -fd, -fdx)"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Clean (git clean)...</span>
+                </button>
               </div>
               <div className="space-y-0.5">
                 {untracked.map((path) =>
@@ -388,6 +399,17 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
         }}
         theme={theme}
       />
+
+      {/* Clean Untracked Files Modal (git clean -f, -fd, -fdx) */}
+      {status?.root_path && (
+        <CleanUntrackedModal
+          isOpen={isCleanModalOpen}
+          onClose={() => setIsCleanModalOpen(false)}
+          repoPath={status.root_path}
+          onSuccess={onRefresh}
+          theme={theme}
+        />
+      )}
     </div>
   );
 };

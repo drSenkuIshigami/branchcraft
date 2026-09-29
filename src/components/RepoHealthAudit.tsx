@@ -35,7 +35,7 @@ import {
   runGitFsck,
   getBackups,
   createBackup,
-  runManualAggressiveGC,
+  runGitGC,
   getGitHooksStatus,
   installCommitMsgHook,
   installPreCommitHook,
@@ -73,6 +73,7 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
 
   // Manual GC state (Isolated, explicit trigger)
   const [isGcRunning, setIsGcRunning] = useState(false);
+  const [gcMode, setGcMode] = useState<'standard' | 'prune_now' | 'aggressive'>('aggressive');
   const [gcConfirmationInput, setGcConfirmationInput] = useState('');
   const [gcResultMsg, setGcResultMsg] = useState<string | null>(null);
 
@@ -160,19 +161,20 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
     }
   };
 
-  const handleRunAggressiveGC = async () => {
-    if (!repoPath || gcConfirmationInput.trim() !== 'PRUNE NOW') return;
+  const handleRunGC = async () => {
+    if (!repoPath) return;
+    if (gcMode === 'aggressive' && gcConfirmationInput.trim() !== 'PRUNE NOW') return;
     setIsGcRunning(true);
     setGcResultMsg(null);
     try {
-      const res = await runManualAggressiveGC(repoPath);
+      const res = await runGitGC(repoPath, gcMode);
       setGcResultMsg(res.stdout);
       setGcConfirmationInput('');
       // Refresh fsck and report
       await loadHealthData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(`Failed to execute aggressive GC: ${msg}`);
+      setError(`Failed to execute GC: ${msg}`);
     } finally {
       setIsGcRunning(false);
     }
@@ -1038,53 +1040,138 @@ export const RepoHealthAudit: React.FC<RepoHealthAuditProps> = ({
               </div>
             </div>
 
-            {/* Section 3: Isolated Manual Aggressive GC (Strict Safety Policy Compliance) */}
-            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/5 dark:bg-rose-500/10 space-y-3">
-              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
-                <Trash2 className="w-4 h-4 shrink-0" />
-                <h3 className="text-sm font-semibold">
-                  Isolated Repository Compaction &amp; Prune (`git gc --prune=now --aggressive`)
-                </h3>
-              </div>
-              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs space-y-1.5">
-                <div className="font-semibold flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  <span>Strict Safety Warning: Irreversible Garbage Collection</span>
+            {/* Section 3: Manual Garbage Collection with Full User Choice Model */}
+            <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100 font-semibold text-sm">
+                  <Trash2 className="w-4 h-4 text-rose-500" />
+                  <span>Repository Garbage Collection (`git gc`)</span>
                 </div>
-                <p className="leading-relaxed">
-                  In accordance with <code>SAFETY_POLICY.md</code>, aggressive garbage collection is{' '}
-                  <strong>never</strong> automated inside any wizard. Running this command
-                  permanently prunes all unreferenced, dangling commits and repacks loose objects.
-                  Once pruned, orphan commits cannot be rescued via reflog!
-                </p>
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 font-mono">
+                  Warning Level {gcMode === 'aggressive' ? '3' : gcMode === 'prune_now' ? '2' : '1'}
+                </span>
               </div>
 
-              <div className="space-y-2 pt-1">
-                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Type{' '}
-                  <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
-                    PRUNE NOW
-                  </span>{' '}
-                  to confirm manual garbage collection:
-                </label>
-                <div className="flex flex-col sm:flex-row gap-2">
+              {/* Mode selector */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <label
+                  className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                    gcMode === 'standard'
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
                   <input
-                    type="text"
-                    value={gcConfirmationInput}
-                    onChange={(e) => setGcConfirmationInput(e.target.value)}
-                    placeholder="PRUNE NOW"
-                    className="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    type="radio"
+                    name="gc-mode"
+                    value="standard"
+                    checked={gcMode === 'standard'}
+                    onChange={() => setGcMode('standard')}
+                    className="sr-only"
                   />
+                  <div>Standard (`git gc`)</div>
+                  <div className="text-[10px] font-normal opacity-80">Repack &amp; light cleanup</div>
+                </label>
+
+                <label
+                  className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                    gcMode === 'prune_now'
+                      ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="gc-mode"
+                    value="prune_now"
+                    checked={gcMode === 'prune_now'}
+                    onChange={() => setGcMode('prune_now')}
+                    className="sr-only"
+                  />
+                  <div>Prune Now (`--prune=now`)</div>
+                  <div className="text-[10px] font-normal opacity-80">Prune loose objects</div>
+                </label>
+
+                <label
+                  className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                    gcMode === 'aggressive'
+                      ? 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold'
+                      : 'border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="gc-mode"
+                    value="aggressive"
+                    checked={gcMode === 'aggressive'}
+                    onChange={() => setGcMode('aggressive')}
+                    className="sr-only"
+                  />
+                  <div>Aggressive Repack</div>
+                  <div className="text-[10px] font-normal opacity-80">Deep compaction &amp; purge</div>
+                </label>
+              </div>
+
+              {/* Warning box */}
+              {gcMode === 'aggressive' ? (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs space-y-1.5">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Warning Level 3: Irreversible Object Prune</span>
+                  </div>
+                  <p className="leading-relaxed text-[11px]">
+                    Permanently prunes all unreferenced, dangling commits and aggressively repacks packfiles.
+                    Once pruned, orphan commits cannot be rescued via reflog!
+                  </p>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[11px]">
+                  <span>Optimizes repository storage by packing loose objects. Unreachable objects are handled according to Git configuration.</span>
+                </div>
+              )}
+
+              {/* Exact command and execution */}
+              <div className="space-y-2 pt-1">
+                <div className="p-2 rounded bg-zinc-950 text-zinc-200 font-mono text-xs border border-zinc-800">
+                  git gc{gcMode === 'prune_now' ? ' --prune=now' : gcMode === 'aggressive' ? ' --prune=now --aggressive' : ''}
+                </div>
+
+                {gcMode === 'aggressive' ? (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={gcConfirmationInput}
+                      onChange={(e) => setGcConfirmationInput(e.target.value)}
+                      placeholder="Type PRUNE NOW to confirm"
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRunGC}
+                      disabled={isGcRunning || gcConfirmationInput.trim() !== 'PRUNE NOW'}
+                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shrink-0 cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{isGcRunning ? 'Executing GC...' : 'Execute git gc --prune=now --aggressive'}</span>
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={handleRunAggressiveGC}
-                    disabled={isGcRunning || gcConfirmationInput.trim() !== 'PRUNE NOW'}
-                    className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shrink-0 cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                    onClick={handleRunGC}
+                    disabled={isGcRunning}
+                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isGcRunning ? 'Compacting & Pruning...' : 'Run Aggressive GC'}</span>
+                    <span>{isGcRunning ? 'Executing GC...' : `Execute git gc${gcMode === 'prune_now' ? ' --prune=now' : ''}`}</span>
                   </button>
-                </div>
+                )}
+
+                {gcResultMsg && (
+                  <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-mono">
+                    {gcResultMsg}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,38 +1,36 @@
-//! Safety Engine & Risk Classification Architecture
+//! Safety Engine & Warning Level Classification Architecture
 //!
-//! # 5-Tier Risk Classification Model
+//! # User-Controlled Safety Policy & Warning Levels (0–4)
 //!
-//! - **Level 0 (Read-Only):**
-//!   Queries like `git status`, `git log`, `git diff`. Direct execution without prompt.
+//! Philosophy:
+//! “No feature restriction. Full Git capability with clear risk warnings,
+//! effect previews where feasible, explicit informed user consent, and complete
+//! local audit visibility.”
 //!
-//! - **Level 1 (Easily Reversible):**
-//!   Operations like `git add`, `git restore --staged`, `git commit`. Confirmation or Undo where appropriate.
+//! - **Level 0 (Read-Only / Informational):**
+//!   Queries like `git status`, `git log`, `git diff`. Direct execution.
 //!
-//! - **Level 2 (Local History Rewrite):**
-//!   Operations like `commit --amend`, `reset --soft/--mixed`, local unpublished rebase.
-//!   Requires preview + explicit confirmation + lightweight restore point (`backup/pre-<op>-<timestamp>`).
-//!   Does NOT require a full bundle backup by default.
+//! - **Level 1 (Normal State Change):**
+//!   Operations like `git add`, `git restore --staged`, `git commit`. Confirmation where useful.
 //!
-//! - **Level 3 (Destructive / Published):**
-//!   Operations like `reset --hard`, `clean -fd`, rebase on published branches, force-push.
-//!   Requires mandatory automatic backup + preview diff + two-step confirmation.
-//!   Default push flag must always be `--force-with-lease` (never raw `--force`).
+//! - **Level 2 (Local History / State Change):**
+//!   Operations like `commit --amend`, `reset --soft/--mixed`. Single confirmation; backup offered.
 //!
-//! - **Level 4 (Security & History Purge):**
-//!   Operations like `git filter-repo`, secret removal, large file purges.
-//!   Executed strictly in a separate mirror clone (`git clone --mirror`), with mandatory bundle backup,
-//!   typed confirmation string, and a separate explicit push step.
+//! - **Level 3 (Destructive or Remote-Impacting):**
+//!   Operations like `reset --hard`, `clean -fdx`, `branch -D`, `branch -f`, `git push --force`.
+//!   Strong warning, preview, explicit confirmation checkboxes. User chooses whether to create backup ref.
 //!
-//! # Phase 0 Security Invariant
-//!
-//! All destructive operation logic, backup engines, and purge wizards remain dormant
-//! until their planned activation in Phase 4.
+//! - **Level 4 (Repository-wide / History-Rewrite / Permanent):**
+//!   Operations like `git filter-repo`, history-wide message/author rewrites.
+//!   Critical warning, detailed impact list, typed confirmation, isolated mirror clone or direct working copy by user choice.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RiskLevel {
+pub enum WarningLevel {
     Level0ReadOnly,
-    Level1Reversible,
-    Level2LocalRewrite,
-    Level3Destructive,
-    Level4SecurityPurge,
+    Level1NormalStateChange,
+    Level2LocalHistoryChange,
+    Level3DestructiveOrRemote,
+    Level4RepositoryWideRewrite,
 }
+
+pub type RiskLevel = WarningLevel;

@@ -42,6 +42,7 @@ import type {
   LfsDiagnostics,
   BisectStatus,
   RerereStatus,
+  PushMode,
 } from '../types';
 import {
   abortConflictOperation,
@@ -58,6 +59,7 @@ import {
   createStash,
   createTag,
   deleteBranch,
+  deleteRemoteRef,
   deleteTag,
   discardHunk,
   discardPath,
@@ -1127,13 +1129,13 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
-  const handleResetHard = async () => {
+  const handleResetHard = async (createBackup = true) => {
     if (!repoPath) return;
     const start = performance.now();
     const cmdTokens = ['reset', '--hard', 'HEAD'];
 
     try {
-      const res = await resetHard(repoPath);
+      const res = await resetHard(repoPath, createBackup);
       recordCommand(
         cmdTokens,
         Math.round(performance.now() - start),
@@ -1201,20 +1203,56 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     remote = 'origin',
     branch?: string,
     forceWithLease = false,
-    setUpstream = false
+    setUpstream = false,
+    mode?: PushMode
   ) => {
     if (!repoPath) return;
     const start = performance.now();
+    const effectiveMode = mode || (forceWithLease ? 'force_with_lease' : 'normal');
     const cmdTokens = [
       'push',
-      ...(setUpstream ? ['-u'] : []),
-      ...(forceWithLease ? ['--force-with-lease'] : []),
+      ...(setUpstream && effectiveMode !== 'mirror' ? ['-u'] : []),
+      ...(effectiveMode === 'force_with_lease'
+        ? ['--force-with-lease']
+        : effectiveMode === 'raw_force'
+        ? ['--force']
+        : effectiveMode === 'mirror'
+        ? ['--mirror']
+        : []),
       remote,
-      ...(branch ? [branch] : []),
+      ...(effectiveMode !== 'mirror' && branch ? [branch] : []),
     ];
 
     try {
-      const res = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream);
+      const res = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream, mode);
+      recordCommand(
+        cmdTokens,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      await loadRepositoryData(repoPath);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      recordCommand(cmdTokens, Math.round(performance.now() - start), false, 1, msg);
+      setError(msg);
+      throw err;
+    }
+  };
+
+  const handleDeleteRemoteRef = async (
+    remote: string,
+    refType: 'branch' | 'tag',
+    refName: string
+  ) => {
+    if (!repoPath) return;
+    const start = performance.now();
+    const target = refType === 'tag' ? `refs/tags/${refName}` : refName;
+    const cmdTokens = ['push', remote, '--delete', target];
+
+    try {
+      const res = await deleteRemoteRef(repoPath, remote, refType, refName);
       recordCommand(
         cmdTokens,
         Math.round(performance.now() - start),
@@ -1772,15 +1810,15 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     }
   };
 
-  const handleConfirmReset = async (mode: ResetMode) => {
+  const handleConfirmReset = async (mode: ResetMode, createBackup = true) => {
     if (!repoPath || !resetTargetModal) return;
     setResetLoading(true);
     const start = performance.now();
     try {
-      const res = await resetToTarget(repoPath, resetTargetModal.targetRef, mode);
+      const res = await resetToTarget(repoPath, resetTargetModal.targetRef, mode, createBackup);
       recordCommand(res.command_run, res.duration_ms, res.success, res.exit_code, res.stderr);
       setSystemToast({
-        message: `Successfully reset HEAD to ${resetTargetModal.targetRef} (--${mode})`,
+        message: `Successfully reset HEAD to ${resetTargetModal.targetRef} (--${mode})${res.backup_declined ? ' (backup declined)' : ''}`,
         commandSnippet: `git reset --${mode} ${resetTargetModal.targetRef}`,
       });
       setResetTargetModal(null);
@@ -2406,6 +2444,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         onFetch={handleFetch}
         onPull={handlePull}
         onPush={handlePush}
+        onDeleteRemoteRef={handleDeleteRemoteRef}
       />
 
       {/* Open Repository Modal */}

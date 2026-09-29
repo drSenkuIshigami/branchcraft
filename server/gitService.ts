@@ -1031,17 +1031,36 @@ export async function branchFromStash(
   };
 }
 
-export async function resetHard(repoPath: string): Promise<OperationResult> {
+export async function resetHard(repoPath: string, createBackup = true): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+  let backupRef: string | undefined = undefined;
+  let backupDuration = 0;
+
+  if (createBackup) {
+    const timestamp = Date.now();
+    backupRef = `backup/pre-reset-hard-${timestamp}`;
+    const backupRes = await runGit(rootPath, ['branch', backupRef, 'HEAD']);
+    backupDuration = backupRes.duration_ms;
+  }
+
   const args = ['reset', '--hard', 'HEAD'];
   const res = await runGit(rootPath, args);
+  let stdout = res.stdout;
+  if (backupRef) {
+    stdout = `[Safety backup created at refs/heads/${backupRef}]\n` + stdout;
+  } else {
+    stdout = `[Safety backup declined by user]\n` + stdout;
+  }
+
   return {
     success: res.code === 0,
-    stdout: res.stdout,
+    stdout,
     stderr: res.stderr,
     exit_code: res.code,
-    command_run: args,
-    duration_ms: res.duration_ms,
+    command_run: backupRef ? ['branch', backupRef, 'HEAD', '&&', ...args] : args,
+    duration_ms: res.duration_ms + backupDuration,
+    backup_ref: backupRef,
+    backup_declined: !createBackup,
   };
 }
 
@@ -1220,7 +1239,8 @@ export async function gitPush(
   remote = 'origin',
   branch?: string,
   forceWithLease = false,
-  setUpstream = false
+  setUpstream = false,
+  mode?: 'normal' | 'force_with_lease' | 'raw_force' | 'mirror'
 ): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
   const trimmedRemote = remote.trim();
@@ -1228,17 +1248,25 @@ export async function gitPush(
     throw new Error('Invalid remote name');
   }
 
+  const effectiveMode = mode || (forceWithLease ? 'force_with_lease' : 'normal');
+
   const args = ['push'];
   if (setUpstream) {
     args.push('-u');
   }
-  if (forceWithLease) {
-    // Safe standard as per SAFETY_POLICY.md and COMMAND_ALLOWLIST.md
+  if (effectiveMode === 'force_with_lease') {
     args.push('--force-with-lease');
+  } else if (effectiveMode === 'raw_force') {
+    // User explicitly chose raw --force; do not silently downgrade
+    args.push('--force');
+  } else if (effectiveMode === 'mirror') {
+    // User explicitly chose --mirror
+    args.push('--mirror');
   }
+
   args.push(trimmedRemote);
 
-  if (branch && branch.trim()) {
+  if (effectiveMode !== 'mirror' && branch && branch.trim()) {
     validateBranchName(branch.trim());
     args.push(branch.trim());
   }
@@ -1247,6 +1275,36 @@ export async function gitPush(
   return {
     success: res.code === 0,
     stdout: res.stdout,
+    stderr: res.stderr,
+    exit_code: res.code,
+    command_run: args,
+    duration_ms: res.duration_ms,
+  };
+}
+
+export async function deleteRemoteRef(
+  repoPath: string,
+  remote = 'origin',
+  refType: 'branch' | 'tag',
+  refName: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const trimmedRemote = remote.trim();
+  const trimmedRef = refName.trim();
+  if (!trimmedRemote || /[\s;&|><]/.test(trimmedRemote)) {
+    throw new Error('Invalid remote name');
+  }
+  if (!trimmedRef || /[\s;&|><]/.test(trimmedRef)) {
+    throw new Error('Invalid ref name');
+  }
+  validateBranchName(trimmedRef);
+
+  const target = refType === 'tag' ? `refs/tags/${trimmedRef}` : trimmedRef;
+  const args = ['push', trimmedRemote, '--delete', target];
+  const res = await runGit(rootPath, args);
+  return {
+    success: res.code === 0,
+    stdout: res.stdout || `Remote ${refType} ${trimmedRef} successfully deleted from ${trimmedRemote}.`,
     stderr: res.stderr,
     exit_code: res.code,
     command_run: args,
@@ -2439,7 +2497,8 @@ export async function getReflog(repoPath: string, limit = 100): Promise<ReflogEn
 export async function resetToTarget(
   repoPath: string,
   target: string,
-  mode: 'soft' | 'mixed' | 'hard' = 'mixed'
+  mode: 'soft' | 'mixed' | 'hard' = 'mixed',
+  createBackup = true
 ): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
 
@@ -2450,12 +2509,14 @@ export async function resetToTarget(
   let backupRef: string | undefined = undefined;
   let backupDuration = 0;
 
-  // Level 3 Safety Policy: When performing --hard reset, create an automatic backup branch first!
+  // Warning Level 3: When performing --hard reset, offer backup branch; allow user to intentionally decline
   if (mode === 'hard') {
-    const timestamp = Date.now();
-    backupRef = `backup/pre-reset-${timestamp}`;
-    const backupRes = await runGit(rootPath, ['branch', backupRef, 'HEAD']);
-    backupDuration = backupRes.duration_ms;
+    if (createBackup) {
+      const timestamp = Date.now();
+      backupRef = `backup/pre-reset-${timestamp}`;
+      const backupRes = await runGit(rootPath, ['branch', backupRef, 'HEAD']);
+      backupDuration = backupRes.duration_ms;
+    }
   }
 
   const flag = mode === 'soft' ? '--soft' : mode === 'hard' ? '--hard' : '--mixed';
@@ -2463,8 +2524,12 @@ export async function resetToTarget(
   const res = await runGit(rootPath, args);
 
   let stdout = res.stdout;
-  if (backupRef) {
-    stdout = `[Safety Backup created at refs/heads/${backupRef}]\n` + stdout;
+  if (mode === 'hard') {
+    if (backupRef) {
+      stdout = `[Safety backup created at refs/heads/${backupRef}]\n` + stdout;
+    } else {
+      stdout = `[Safety backup declined by user]\n` + stdout;
+    }
   }
 
   return {
@@ -2474,6 +2539,8 @@ export async function resetToTarget(
     exit_code: res.code,
     command_run: backupRef ? ['branch', backupRef, 'HEAD', '&&', ...args] : args,
     duration_ms: res.duration_ms + backupDuration,
+    backup_ref: backupRef,
+    backup_declined: mode === 'hard' && !createBackup,
   };
 }
 
@@ -3395,17 +3462,70 @@ export async function pushMirrorToRemote(
  * Must never run automatically inside any wizard or cleanup loop.
  * It is always an independent, explicitly labeled action warning that unreferenced commits become unrecoverable.
  */
-export async function runManualAggressiveGC(repoPath: string): Promise<OperationResult> {
+export async function runGitGC(
+  repoPath: string,
+  mode: 'standard' | 'prune_now' | 'aggressive' = 'standard'
+): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
-  const args = ['gc', '--prune=now', '--aggressive'];
+  const args = ['gc'];
+  if (mode === 'prune_now') {
+    args.push('--prune=now');
+  } else if (mode === 'aggressive') {
+    args.push('--prune=now', '--aggressive');
+  }
+
   const res = await runGit(rootPath, args);
   return {
     success: res.code === 0,
-    stdout: res.stdout || 'Garbage collection completed. Loose objects pruned and packfiles repacked.',
+    stdout: res.stdout || `Git garbage collection (${mode}) completed successfully.`,
     stderr: res.stderr,
     exit_code: res.code,
     command_run: args,
     duration_ms: res.duration_ms,
+  };
+}
+
+export async function runManualAggressiveGC(repoPath: string): Promise<OperationResult> {
+  return runGitGC(repoPath, 'aggressive');
+}
+
+export async function cleanWorkingTree(
+  repoPath: string,
+  mode: 'f' | 'fd' | 'fdx' = 'fd',
+  dryRun = false,
+  targetPath?: string
+): Promise<{
+  dry_run: boolean;
+  cleaned_items: string[];
+  output: string;
+  exit_code: number;
+}> {
+  const rootPath = await validateRepository(repoPath);
+  const args = ['clean'];
+  if (dryRun) {
+    args.push('-n');
+  } else {
+    args.push('-f');
+  }
+  if (mode.includes('d')) {
+    args.push('-d');
+  }
+  if (mode.includes('x')) {
+    args.push('-x');
+  }
+  if (targetPath && targetPath.trim()) {
+    args.push('--', targetPath.trim());
+  }
+
+  const res = await runGit(rootPath, args);
+  const lines = (res.stdout || '').split('\n').filter(Boolean);
+  const items = lines.map((l) => l.replace(/^Would remove\s+|^Removing\s+/, '').trim()).filter(Boolean);
+
+  return {
+    dry_run: dryRun,
+    cleaned_items: items,
+    output: res.stdout || res.stderr,
+    exit_code: res.code,
   };
 }
 

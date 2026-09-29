@@ -53,6 +53,10 @@ import type {
   ReplaceResponse,
   CleanAITracesOptions,
   CleanAITracesResult,
+  PushMode,
+  CleanMode,
+  CleanResult,
+  GcMode,
   ClassifiedFinding,
   WorkingTreeEditPreview,
   WorkingTreeCleanupResult,
@@ -727,15 +731,15 @@ export async function branchFromStash(
   return (await res.json()) as OperationResult;
 }
 
-export async function resetHard(repoPath: string): Promise<OperationResult> {
+export async function resetHard(repoPath: string, createBackup = true): Promise<OperationResult> {
   if (isTauriEnvironment()) {
-    return await invoke<OperationResult>('reset_hard', { repoPath });
+    return await invoke<OperationResult>('reset_hard', { repoPath, createBackup });
   }
 
   const res = await fetch('/api/git/reset_hard', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo_path: repoPath }),
+    body: JSON.stringify({ repo_path: repoPath, create_backup: createBackup }),
   });
 
   if (!res.ok) {
@@ -825,7 +829,8 @@ export async function gitPush(
   remote = 'origin',
   branch?: string,
   forceWithLease = false,
-  setUpstream = false
+  setUpstream = false,
+  mode?: PushMode
 ): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('push', {
@@ -834,6 +839,7 @@ export async function gitPush(
       branch,
       forceWithLease,
       setUpstream,
+      mode,
     });
   }
 
@@ -846,11 +852,105 @@ export async function gitPush(
       branch,
       force_with_lease: forceWithLease,
       set_upstream: setUpstream,
+      mode,
     }),
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Failed to push' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function deleteRemoteRef(
+  repoPath: string,
+  remote = 'origin',
+  refType: 'branch' | 'tag',
+  refName: string
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('delete_remote_ref', {
+      repoPath,
+      remote,
+      refType,
+      refName,
+    });
+  }
+
+  const res = await fetch('/api/git/delete_remote_ref', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      remote,
+      ref_type: refType,
+      ref_name: refName,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to delete remote reference' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+export async function cleanWorkingTree(
+  repoPath: string,
+  mode: CleanMode = 'fd',
+  dryRun = false,
+  targetPath?: string
+): Promise<CleanResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<CleanResult>('clean_working_tree', {
+      repoPath,
+      mode,
+      dryRun,
+      targetPath,
+    });
+  }
+
+  const res = await fetch('/api/git/clean', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      mode,
+      dry_run: dryRun,
+      target_path: targetPath,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to clean working tree' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as CleanResult;
+}
+
+export async function runGitGC(
+  repoPath: string,
+  mode: GcMode = 'standard'
+): Promise<OperationResult> {
+  if (isTauriEnvironment()) {
+    return await invoke<OperationResult>('run_git_gc', { repoPath, mode });
+  }
+
+  const res = await fetch('/api/git/gc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      mode,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to run garbage collection' }));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
 
@@ -1545,16 +1645,17 @@ export async function getReflog(repoPath: string, limit = 100): Promise<ReflogEn
 export async function resetToTarget(
   repoPath: string,
   target: string,
-  mode: ResetMode = 'mixed'
+  mode: ResetMode = 'mixed',
+  createBackup = true
 ): Promise<OperationResult> {
   if (isTauriEnvironment()) {
-    return await invoke<OperationResult>('reset_to_target', { repoPath, target, mode });
+    return await invoke<OperationResult>('reset_to_target', { repoPath, target, mode, createBackup });
   }
 
   const res = await fetch('/api/git/reflog/reset', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ repo_path: repoPath, target, mode }),
+    body: JSON.stringify({ repo_path: repoPath, target, mode, create_backup: createBackup }),
   });
 
   if (!res.ok) {

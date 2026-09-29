@@ -98,6 +98,9 @@ import {
   searchRepository,
   replaceInFiles,
   cleanAITraces,
+  deleteRemoteRef,
+  cleanWorkingTree,
+  runGitGC,
 } from './gitService';
 import {
   getCleanupEligibility,
@@ -472,8 +475,9 @@ export function gitApiPlugin(): Plugin {
           if (pathname === '/api/git/reset_hard' && req.method === 'POST') {
             const body = await readBody();
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const createBackup = body.create_backup !== false;
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
-            const resData = await resetHard(repoPath);
+            const resData = await resetHard(repoPath, createBackup);
             return sendJson(200, resData);
           }
 
@@ -518,8 +522,40 @@ export function gitApiPlugin(): Plugin {
             const branch = typeof body.branch === 'string' ? body.branch : undefined;
             const forceWithLease = Boolean(body.force_with_lease);
             const setUpstream = Boolean(body.set_upstream);
+            const mode = typeof body.mode === 'string' ? (body.mode as any) : undefined;
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
-            const resData = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream);
+            const resData = await gitPush(repoPath, remote, branch, forceWithLease, setUpstream, mode);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/delete_remote_ref' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const remote = typeof body.remote === 'string' ? body.remote : 'origin';
+            const refType = body.ref_type === 'tag' ? 'tag' : 'branch';
+            const refName = typeof body.ref_name === 'string' ? body.ref_name : '';
+            if (!repoPath || !refName) return sendJson(400, { error: 'repo_path and ref_name required' });
+            const resData = await deleteRemoteRef(repoPath, remote, refType, refName);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/clean' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const mode = body.mode === 'f' || body.mode === 'fd' || body.mode === 'fdx' ? body.mode : 'fd';
+            const dryRun = Boolean(body.dry_run);
+            const targetPath = typeof body.target_path === 'string' ? body.target_path : undefined;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await cleanWorkingTree(repoPath, mode, dryRun, targetPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/gc' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const mode = body.mode === 'prune_now' || body.mode === 'aggressive' ? body.mode : 'standard';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await runGitGC(repoPath, mode);
             return sendJson(200, resData);
           }
 
@@ -781,8 +817,9 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             const target = typeof body.target === 'string' ? body.target : '';
             const mode = body.mode === 'soft' || body.mode === 'hard' ? body.mode : 'mixed';
+            const createBackup = body.create_backup !== false;
             if (!repoPath || !target) return sendJson(400, { error: 'repo_path and target required' });
-            const resData = await resetToTarget(repoPath, target, mode);
+            const resData = await resetToTarget(repoPath, target, mode, createBackup);
             return sendJson(200, resData);
           }
 

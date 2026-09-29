@@ -160,7 +160,7 @@ export const HistoryPurgeWizard: React.FC<HistoryPurgeWizardProps> = ({
                   Level 4 History Purge Wizard
                 </h2>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white uppercase tracking-wider">
-                  Risk Level 4
+                  Warning Level 4
                 </span>
               </div>
               <p className="text-xs text-zinc-500">
