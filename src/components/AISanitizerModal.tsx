@@ -75,9 +75,22 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
   isOpen,
   onClose,
   repoPath,
-  theme: _theme,
+  theme,
   onSuccess,
 }) => {
+  const isDark = theme === 'dark';
+  const getTabClass = (tab: TabMode) => {
+    if (activeTab === tab) {
+      return 'bg-purple-600 text-white font-semibold shadow-xs ring-1 ring-purple-400/50';
+    }
+    return isDark
+      ? 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 hover:text-white border border-zinc-650 border-zinc-700 font-medium'
+      : 'bg-white text-zinc-800 hover:bg-zinc-50 hover:text-zinc-950 border border-zinc-300 font-medium shadow-2xs';
+  };
+  const cardClass = isDark
+    ? 'p-3.5 rounded-xl border border-zinc-700 bg-zinc-800/90 text-zinc-100 space-y-2'
+    : 'p-3.5 rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-xs space-y-2';
+
   const [activeTab, setActiveTab] = useState<TabMode>('quick');
   const [scanning, setScanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
@@ -462,28 +475,22 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-5 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 flex items-center gap-2 overflow-x-auto text-xs shrink-0 font-medium">
+        <div className={`px-5 py-2.5 border-b flex items-center gap-2 overflow-x-auto text-xs shrink-0 font-medium ${
+          isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-zinc-100 border-zinc-200'
+        }`}>
           <button
             type="button"
             onClick={() => setActiveTab('quick')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'quick'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('quick')}`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
             <span>1-Click Cleaner</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('review')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'review'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('review')}`}
           >
             <Shield className="w-3.5 h-3.5 text-blue-400" />
             <span>Scope &amp; Eligibility</span>
@@ -491,7 +498,9 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                 activeTab === 'review'
                   ? 'bg-purple-700 text-white'
-                  : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+                  : isDark
+                  ? 'bg-zinc-700 text-zinc-200'
+                  : 'bg-zinc-200 text-zinc-700'
               }`}
             >
               {classifiedFindings.length}
@@ -504,15 +513,11 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               setActiveTab('working_tree');
               handleLoadWorkingTreePreview();
             }}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'working_tree'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('working_tree')}`}
           >
             <FileCode className="w-3.5 h-3.5 text-emerald-400" />
             <span>Working Tree</span>
-            <span className="text-[10px] opacity-75 font-mono">(Warning 1)</span>
+            <span className="text-[10px] opacity-80 font-mono">(Warning 1)</span>
           </button>
 
           <button
@@ -521,53 +526,37 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               setActiveTab('head_amend');
               handleLoadHeadPreview();
             }}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'head_amend'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('head_amend')}`}
           >
             <GitCommit className="w-3.5 h-3.5 text-amber-400" />
             <span>HEAD Commit</span>
-            <span className="text-[10px] opacity-75 font-mono">(Warning 2)</span>
+            <span className="text-[10px] opacity-80 font-mono">(Warning 2)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('history_rewrite')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'history_rewrite'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('history_rewrite')}`}
           >
             <History className="w-3.5 h-3.5 text-rose-400" />
             <span>History Rewrite</span>
-            <span className="text-[10px] opacity-75 font-mono">(Warning 4)</span>
+            <span className="text-[10px] opacity-80 font-mono">(Warning 4)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('remote_publish')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'remote_publish'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('remote_publish')}`}
           >
             <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
             <span>Remote Publish</span>
-            <span className="text-[10px] opacity-75 font-mono">(Warning 4)</span>
+            <span className="text-[10px] opacity-80 font-mono">(Warning 4)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('checklist')}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
-              activeTab === 'checklist'
-                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
-                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
-            }`}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${getTabClass('checklist')}`}
           >
             <FileText className="w-3.5 h-3.5 text-zinc-400" />
             <span>Post-Publish Checklist</span>
@@ -612,9 +601,9 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
 
               {/* Detected Traces Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
+                <div className={cardClass}>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <span className="font-semibold text-xs flex items-center gap-1.5">
                       <FileCode className="w-4 h-4 text-purple-500" />
                       HTML &amp; Markdown Banners ({banners.length})
                     </span>
@@ -623,13 +612,13 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                     </span>
                   </div>
                   {banners.length === 0 ? (
-                    <p className="text-[11px] text-zinc-400">No promotional banners found in files.</p>
+                    <p className={`text-[11px] ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>No promotional banners found in files.</p>
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {banners.map((b, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px]">
-                          <div className="font-mono text-zinc-800 dark:text-zinc-200 font-medium">{b.file_path}</div>
-                          <div className="text-[10px] text-zinc-500 line-clamp-2 font-mono bg-zinc-100 dark:bg-zinc-800 p-1 rounded mt-1">
+                        <div key={i} className={`p-2 rounded-lg border text-[11px] ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-200' : 'bg-zinc-50 border-zinc-200 text-zinc-800'}`}>
+                          <div className="font-mono font-medium">{b.file_path}</div>
+                          <div className={`text-[10px] line-clamp-2 font-mono p-1 rounded mt-1 ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-600'}`}>
                             {b.snippet || b.details}
                           </div>
                         </div>
@@ -638,9 +627,9 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
+                <div className={cardClass}>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <span className="font-semibold text-xs flex items-center gap-1.5">
                       <History className="w-4 h-4 text-blue-500" />
                       Commit Co-Author Trailers ({trailers.length})
                     </span>
@@ -649,25 +638,25 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                     </span>
                   </div>
                   {trailers.length === 0 ? (
-                    <p className="text-[11px] text-zinc-400">No AI trailers in commit history.</p>
+                    <p className={`text-[11px] ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>No AI trailers in commit history.</p>
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {trailers.map((t, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px]">
+                        <div key={i} className={`p-2 rounded-lg border text-[11px] ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-200' : 'bg-zinc-50 border-zinc-200 text-zinc-800'}`}>
                           <div className="flex items-center justify-between font-mono text-[10px]">
                             <span className="text-purple-600 dark:text-purple-400 font-bold">{t.commit_sha?.slice(0, 7)}</span>
                             <span className="text-zinc-400 truncate max-w-xs">{t.commit_subject}</span>
                           </div>
-                          <div className="text-zinc-700 dark:text-zinc-300 font-mono text-[10px] mt-1">{t.marker}</div>
+                          <div className={`font-mono text-[10px] mt-1 ${isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>{t.marker}</div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
+                <div className={cardClass}>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <span className="font-semibold text-xs flex items-center gap-1.5">
                       <Layers className="w-4 h-4 text-amber-500" />
                       AI Config / Rules Files ({files.length})
                     </span>
@@ -676,11 +665,11 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                     </span>
                   </div>
                   {files.length === 0 ? (
-                    <p className="text-[11px] text-zinc-400">No .cursorrules or AI config files found.</p>
+                    <p className={`text-[11px] ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>No .cursorrules or AI config files found.</p>
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {files.map((f, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px] font-mono">
+                        <div key={i} className={`p-2 rounded-lg border text-[11px] font-mono ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-200' : 'bg-zinc-50 border-zinc-200 text-zinc-800'}`}>
                           {f.file_path}
                         </div>
                       ))}
@@ -688,9 +677,9 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
+                <div className={cardClass}>
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                    <span className="font-semibold text-xs flex items-center gap-1.5">
                       <FileCode className="w-4 h-4 text-emerald-500" />
                       In-Code Watermarks ({comments.length})
                     </span>
@@ -699,13 +688,13 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                     </span>
                   </div>
                   {comments.length === 0 ? (
-                    <p className="text-[11px] text-zinc-400">No in-code comments or watermarks found.</p>
+                    <p className={`text-[11px] ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>No in-code comments or watermarks found.</p>
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {comments.map((c, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px]">
-                          <div className="font-mono text-zinc-800 dark:text-zinc-200 truncate">{c.file_path}</div>
-                          <div className="text-[10px] text-zinc-500 font-mono truncate">{c.marker}</div>
+                        <div key={i} className={`p-2 rounded-lg border text-[11px] ${isDark ? 'bg-zinc-900 border-zinc-700 text-zinc-200' : 'bg-zinc-50 border-zinc-200 text-zinc-800'}`}>
+                          <div className="font-mono truncate">{c.file_path}</div>
+                          <div className={`text-[10px] font-mono truncate ${isDark ? 'text-zinc-400' : 'text-zinc-500'}`}>{c.marker}</div>
                         </div>
                       ))}
                     </div>
