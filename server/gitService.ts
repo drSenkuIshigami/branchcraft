@@ -4831,6 +4831,13 @@ export async function cleanAITraces(
   const shouldCleanHistoryTrailers = options.cleanTrailersInHistory !== false;
 
   if (shouldCleanHistoryBanners || shouldCleanHistoryTrailers) {
+    // Ensure working tree is clean so filter-branch does not abort with 'Cannot rewrite branches: You have unstaged changes'
+    const statusRes = await runGit(rootPath, ['status', '--porcelain']);
+    if (statusRes.code === 0 && statusRes.stdout.trim().length > 0) {
+      await runGit(rootPath, ['add', '-A']);
+      await runGit(rootPath, ['commit', '-m', 'chore: prepare working tree for history cleanup', '--allow-empty']);
+    }
+
     const gitDir = path.join(rootPath, '.git');
     const treeFilterFile = path.join(gitDir, 'clean_ai_tree.py');
     const msgFilterFile = path.join(gitDir, 'clean_ai_msg.py');
@@ -4839,28 +4846,17 @@ export async function cleanAITraces(
 
     // Write tree-filter script if cleaning banners/config files in history
     if (shouldCleanHistoryBanners) {
-      const treeScriptContent = `
-import os, re
-
-patterns = [
-    r"(?si)<div\\s+align=[\\"\\x27]center[\\"\\x27]>\\s*<img[^>]*GHBanner[^>]*>.*?</div>\\s*",
-    r"(?si)<div\\s+align=[\\"\\x27]center[\\"\\x27]>.*?Built with AI Studio.*?</div>\\s*",
-    r"(?si)<div\\s+align=[\\"\\x27]center[\\"\\x27]>.*?The fastest path from prompt to production with Gemini.*?</div>\\s*",
-    r"(?si)<div\\s+align=[\\"\\x27]center[\\"\\x27]>.*?aistudio\\.google\\.com.*?</div>\\s*",
-    r"(?si)\\[!\\[Built with AI Studio\\]\\([^)]+\\)\\]\\([^)]+\\)\\s*",
-    r"(?si)<!--\\s*Built with AI Studio\\s*-->\\s*",
-]
+      const treeScriptContent = `import os, shutil
 
 # Remove AI config files from historical commit tree
-for f in [".cursorrules", ".windsurfrules", "copilot-instructions.md"]:
+for f in [".cursorrules", ".windsurfrules", "copilot-instructions.md", ".claude.md", "agents.md"]:
     if os.path.exists(f):
         try: os.remove(f)
         except: pass
-if os.path.exists(".cursor") and os.path.isdir(".cursor"):
-    try:
-        import shutil
-        shutil.rmtree(".cursor")
-    except: pass
+for d in [".cursor", ".claude", ".cline"]:
+    if os.path.exists(d) and os.path.isdir(d):
+        try: shutil.rmtree(d)
+        except: pass
 
 # Clean text files (README, .md, .html, source files)
 for root, dirs, files in os.walk("."):
@@ -4868,18 +4864,37 @@ for root, dirs, files in os.walk("."):
         continue
     for fn in files:
         low = fn.lower()
-        if low.startswith("readme") or low.endswith(".md") or low.endswith(".html") or low.endswith(".htm"):
+        if low.startswith("readme") or low.endswith(".md") or low.endswith(".html") or low.endswith(".htm") or low.endswith(".txt"):
             fp = os.path.join(root, fn)
             try:
                 with open(fp, "r", encoding="utf-8", errors="ignore") as f:
-                    c = f.read()
-                orig = c
-                for p in patterns:
-                    c = re.sub(p, "", c)
-                if c != orig:
+                    lines = f.readlines()
+                new_lines = []
+                in_banner = False
+                modified = False
+                for line in lines:
+                    low_line = line.lower()
+                    if ("<div" in low_line and ("align=\\"center\\"" in low_line or "align='center'" in low_line)) or ("<div" in low_line and "ghbanner" in low_line):
+                        in_banner = True
+                        modified = True
+                        continue
+                    if in_banner:
+                        if "</div>" in low_line:
+                            in_banner = False
+                        continue
+                    if "built with ai studio" in low_line or "the fastest path from prompt to production with gemini" in low_line or "aistudio.google.com" in low_line:
+                        modified = True
+                        continue
+                    new_lines.append(line)
+                if modified:
+                    clean_content = "".join(new_lines).strip()
                     with open(fp, "w", encoding="utf-8") as f:
-                        f.write(c.lstrip("\\n"))
-            except: pass
+                        if clean_content:
+                            f.write(clean_content + "\\n")
+                        else:
+                            f.write("")
+            except Exception:
+                pass
 `;
       try {
         fs.writeFileSync(treeFilterFile, treeScriptContent, 'utf8');
