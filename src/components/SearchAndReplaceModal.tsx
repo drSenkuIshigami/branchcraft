@@ -728,7 +728,7 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
                   className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs overflow-hidden"
                 >
                   {/* File Header */}
-                  <div className="px-3.5 py-2 bg-zinc-50 dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 text-xs">
+                  <div className="px-3.5 py-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 text-xs">
                     <button
                       type="button"
                       onClick={() => toggleFileCollapse(fileRes.file_path)}
@@ -791,7 +791,7 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
                       {fileRes.matches.map((m, mIdx) => (
                         <div
                           key={mIdx}
-                          className="p-2.5 flex items-start gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 transition-colors group"
+                          className="p-2.5 flex items-start gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors group"
                         >
                           {/* Line Number */}
                           <span className="w-10 text-right text-zinc-400 dark:text-zinc-500 select-none shrink-0 font-medium pt-0.5">

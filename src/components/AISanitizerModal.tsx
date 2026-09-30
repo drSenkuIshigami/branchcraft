@@ -462,31 +462,40 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-5 py-2 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/60 dark:bg-zinc-850/60 flex items-center gap-2 overflow-x-auto text-xs shrink-0 font-medium">
+        <div className="px-5 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 flex items-center gap-2 overflow-x-auto text-xs shrink-0 font-medium">
           <button
             type="button"
             onClick={() => setActiveTab('quick')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'quick'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            1-Click Cleaner
+            <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+            <span>1-Click Cleaner</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('review')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'review'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <Shield className="w-3.5 h-3.5" />
-            Scope &amp; Eligibility ({classifiedFindings.length})
+            <Shield className="w-3.5 h-3.5 text-blue-400" />
+            <span>Scope &amp; Eligibility</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                activeTab === 'review'
+                  ? 'bg-purple-700 text-white'
+                  : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+              }`}
+            >
+              {classifiedFindings.length}
+            </span>
           </button>
 
           <button
@@ -495,14 +504,15 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               setActiveTab('working_tree');
               handleLoadWorkingTreePreview();
             }}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'working_tree'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <FileCode className="w-3.5 h-3.5" />
-            Working Tree (Risk 1)
+            <FileCode className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Working Tree</span>
+            <span className="text-[10px] opacity-75 font-mono">(Warning 1)</span>
           </button>
 
           <button
@@ -511,53 +521,56 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               setActiveTab('head_amend');
               handleLoadHeadPreview();
             }}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'head_amend'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <GitCommit className="w-3.5 h-3.5" />
-            HEAD Commit (Risk 2)
+            <GitCommit className="w-3.5 h-3.5 text-amber-400" />
+            <span>HEAD Commit</span>
+            <span className="text-[10px] opacity-75 font-mono">(Warning 2)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('history_rewrite')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'history_rewrite'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <History className="w-3.5 h-3.5" />
-            Isolated History Rewrite (Risk 4)
+            <History className="w-3.5 h-3.5 text-rose-400" />
+            <span>History Rewrite</span>
+            <span className="text-[10px] opacity-75 font-mono">(Warning 4)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('remote_publish')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'remote_publish'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <UploadCloud className="w-3.5 h-3.5" />
-            Remote Publish (Risk 4)
+            <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
+            <span>Remote Publish</span>
+            <span className="text-[10px] opacity-75 font-mono">(Warning 4)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('checklist')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs ${
               activeTab === 'checklist'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-purple-600 text-white font-semibold shadow-sm ring-1 ring-purple-400/50'
+                : 'bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-white border border-zinc-300 dark:border-zinc-700 font-medium'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
-            Post-Publish Checklist
+            <FileText className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Post-Publish Checklist</span>
           </button>
         </div>
 
@@ -599,7 +612,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
 
               {/* Detected Traces Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-850 space-y-2">
+                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                       <FileCode className="w-4 h-4 text-purple-500" />
@@ -614,9 +627,9 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {banners.map((b, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-750 text-[11px]">
+                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px]">
                           <div className="font-mono text-zinc-800 dark:text-zinc-200 font-medium">{b.file_path}</div>
-                          <div className="text-[10px] text-zinc-500 line-clamp-2 font-mono bg-zinc-100 dark:bg-zinc-800/80 p-1 rounded mt-1">
+                          <div className="text-[10px] text-zinc-500 line-clamp-2 font-mono bg-zinc-100 dark:bg-zinc-800 p-1 rounded mt-1">
                             {b.snippet || b.details}
                           </div>
                         </div>
@@ -625,7 +638,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-850 space-y-2">
+                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                       <History className="w-4 h-4 text-blue-500" />
@@ -640,7 +653,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {trailers.map((t, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-750 text-[11px]">
+                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px]">
                           <div className="flex items-center justify-between font-mono text-[10px]">
                             <span className="text-purple-600 dark:text-purple-400 font-bold">{t.commit_sha?.slice(0, 7)}</span>
                             <span className="text-zinc-400 truncate max-w-xs">{t.commit_subject}</span>
@@ -652,7 +665,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-850 space-y-2">
+                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                       <Layers className="w-4 h-4 text-amber-500" />
@@ -667,7 +680,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {files.map((f, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-750 text-[11px] font-mono">
+                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px] font-mono">
                           {f.file_path}
                         </div>
                       ))}
@@ -675,7 +688,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   )}
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-850 space-y-2">
+                <div className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/90 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                       <FileCode className="w-4 h-4 text-emerald-500" />
@@ -690,7 +703,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   ) : (
                     <div className="space-y-1.5 max-h-36 overflow-y-auto">
                       {comments.map((c, i) => (
-                        <div key={i} className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-750 text-[11px]">
+                        <div key={i} className="p-2 rounded-lg bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700 text-[11px]">
                           <div className="font-mono text-zinc-800 dark:text-zinc-200 truncate">{c.file_path}</div>
                           <div className="text-[10px] text-zinc-500 font-mono truncate">{c.marker}</div>
                         </div>
@@ -730,7 +743,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               </div>
 
               {/* Cleaning Options Checklist */}
-              <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-850/50 space-y-2.5">
+              <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 space-y-2.5">
                 <h4 className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">1-Click Sanitization Targets:</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   <label className="flex items-start gap-2 cursor-pointer p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
@@ -851,7 +864,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
 
               <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden text-xs">
                 <table className="w-full text-left">
-                  <thead className="bg-zinc-50 dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-500">
+                  <thead className="bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-500">
                     <tr>
                       <th className="p-2.5 w-10 text-center">Select</th>
                       <th className="p-2.5">Category</th>
@@ -866,7 +879,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                       return (
                         <tr
                           key={cf.id}
-                          className={`hover:bg-zinc-50/50 dark:hover:bg-zinc-850/50 ${
+                          className={`hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50 ${
                             !cf.selectable ? 'opacity-60 bg-zinc-50/30 dark:bg-zinc-900/30' : ''
                           }`}
                         >
@@ -989,7 +1002,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               </div>
 
               {wtCleanupResult && (
-                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-850 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1 font-mono">
+                <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs space-y-1 font-mono">
                   <div className="text-emerald-600 font-semibold flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Working Tree Cleaned</span>
@@ -1006,7 +1019,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
             <div className="space-y-4">
               <div>
                 <h3 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">
-                  Current HEAD Commit Metadata Cleanup (Risk 2 / Risk 3)
+                  Current HEAD Commit Metadata Cleanup (Warning 2 / Warning 3)
                 </h3>
                 <p className="text-[11px] text-zinc-500">
                   Amends the latest local commit to remove explicit AI trailers. Automatically creates a backup reference.
@@ -1014,7 +1027,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               </div>
 
               {headPreview && (
-                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850 text-xs space-y-3">
+                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs space-y-3">
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div>
                       <span className="text-zinc-400">Target Commit:</span>{' '}
@@ -1081,14 +1094,14 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               <div>
                 <h3 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                   <History className="w-4 h-4 text-purple-600" />
-                  Isolated History Rewrite (Risk 4)
+                  Isolated History Rewrite (Warning 4)
                 </h3>
                 <p className="text-[11px] text-zinc-500">
                   Executes inside a disposable mirror clone. Your active working copy is never touched during filtering.
                 </p>
               </div>
 
-              <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850 text-xs space-y-3">
+              <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs space-y-3">
                 <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200 font-medium">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
                   <span>Controlled Safety Workflow:</span>
@@ -1139,7 +1152,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               <div>
                 <h3 className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                   <UploadCloud className="w-4 h-4 text-blue-600" />
-                  Controlled Remote Publication (Risk 4)
+                  Controlled Remote Publication (Warning 4)
                 </h3>
                 <p className="text-[11px] text-zinc-500">
                   Separated workflow. Requires validated local rewrite result and mandatory Second Confirmation modal.
@@ -1151,7 +1164,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   Remote publication is unavailable until an isolated history rewrite has completed and verified locally.
                 </div>
               ) : (
-                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850 text-xs space-y-3">
+                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs space-y-3">
                   <div className="text-zinc-800 dark:text-zinc-200 font-medium">
                     Validated Rewrite Ready for Controlled Publication
                   </div>
@@ -1215,7 +1228,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
               {checklist ? (
                 <div className="space-y-2">
                   {checklist.items.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-850 text-xs space-y-1">
+                    <div key={idx} className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs space-y-1">
                       <div className="font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
                         <Check className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                         <span>{item.task}</span>

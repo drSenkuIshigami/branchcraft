@@ -805,7 +805,7 @@ export const HelpManualModal: React.FC<HelpManualModalProps> = ({
                     {currentTopic.solutionSteps.map((step, idx) => (
                       <div
                         key={idx}
-                        className="flex items-start gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-850/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                        className="flex items-start gap-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
                       >
                         <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
                           {idx + 1}
