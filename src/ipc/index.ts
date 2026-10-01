@@ -94,15 +94,18 @@ export async function getGitAvailability(): Promise<GitAvailability> {
     if (res.ok) {
       return (await res.json()) as GitAvailability;
     }
-  } catch {
-    // ignore
+    return {
+      available: false,
+      version: null,
+      error: `Git check failed (HTTP ${res.status})`,
+    };
+  } catch (err: unknown) {
+    return {
+      available: false,
+      version: null,
+      error: err instanceof Error ? err.message : 'Could not reach the local Git service',
+    };
   }
-
-  return {
-    available: true,
-    version: 'git version 2.34.1',
-    error: null,
-  };
 }
 
 /**
