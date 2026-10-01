@@ -2729,20 +2729,24 @@ export async function modifyCommitAuthorDate(
   const fullTargetSha = targetRevRes.code === 0 ? targetRevRes.stdout.trim() : target!;
   const shortSha = fullTargetSha.slice(0, 7);
 
-  const scriptContent = `
-const fs = require('fs');
-const filePath = process.argv[1];
-const targetSha = process.env.TARGET_COMMIT_SHA;
-let content = fs.readFileSync(filePath, 'utf8');
-const lines = content.split('\\n');
-const updated = lines.map(line => {
-  if (line.startsWith('pick ') && (line.includes(targetSha) || line.includes(targetSha.slice(0, 7)))) {
-    return line.replace(/^pick /, 'edit ');
-  }
-  return line;
-});
-fs.writeFileSync(filePath, updated.join('\\n'), 'utf8');
-`.trim();
+  const scriptContent = [
+    'const fs = require("fs");',
+    'let filePath = process.argv[process.argv.length - 1];',
+    'if (filePath && filePath.length > 3 && filePath[0] === "/" && filePath[2] === "/") {',
+    '  const drive = filePath[1].toUpperCase();',
+    '  if (drive >= "A" && drive <= "Z") filePath = drive + ":" + filePath.slice(2);',
+    '}',
+    'const targetSha = process.env.TARGET_COMMIT_SHA || "";',
+    'const content = fs.readFileSync(filePath, "utf8");',
+    'const lines = content.split(/\\r?\\n/);',
+    'const updated = lines.map((line) => {',
+    '  if (line.startsWith("pick ") && targetSha && (line.includes(targetSha) || line.includes(targetSha.slice(0, 7)))) {',
+    '    return line.replace(/^pick /, "edit ");',
+    '  }',
+    '  return line;',
+    '});',
+    'fs.writeFileSync(filePath, updated.join("\\n"), "utf8");',
+  ].join('\n');
 
   const tempScriptPath = path.join(
     os.tmpdir(),
@@ -2759,9 +2763,9 @@ fs.writeFileSync(filePath, updated.join('\\n'), 'utf8');
     }
 
     const rebaseStart = await runGit(rootPath, rebaseArgs, undefined, {
-      GIT_SEQUENCE_EDITOR: `node "${tempScriptPath}"`,
+      GIT_SEQUENCE_EDITOR: `"${process.execPath}" "${tempScriptPath}"`,
       TARGET_COMMIT_SHA: fullTargetSha,
-      GIT_EDITOR: 'cat',
+      GIT_EDITOR: `"${process.execPath}" -e "process.exit(0)"`,
     });
 
     if (rebaseStart.code !== 0) {
