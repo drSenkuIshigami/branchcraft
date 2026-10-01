@@ -205,3 +205,18 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 <p align="center">
   Built with ❤️ for developers who love clean Git history, fast tools, and peace of mind.
 </p>
+
+---
+
+<div align="center">
+
+<br/>
+
+**10,000,000,000%**
+
+### Ten billion percent: every impossible system is just an unsolved problem.
+
+<sub>Senku Ishigami · <a href="https://github.com/drSenkuIshigami">drSenkuIshigami</a></sub>
+
+</div>
+
