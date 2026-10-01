@@ -18,14 +18,18 @@ import {
   HelpCircle,
   Search,
   Sparkles,
+  Cpu,
+  Zap,
   Layers,
   Play,
   SkipForward,
   XCircle,
   FileEdit,
 } from 'lucide-react';
+import { loadWorkloadMode, saveWorkloadMode } from '../state/workloadMode';
 import type {
   BranchInfo,
+  WorkloadMode,
   CommitDetail,
   CommitInfo,
   ConflictResolutionType,
@@ -176,6 +180,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [repoPath, setRepoPath] = useState<string | null>(() => {
     return localStorage.getItem('git_workbench_repo_path');
   });
+  const [workloadMode, setWorkloadMode] = useState<WorkloadMode>(() => loadWorkloadMode());
   const [status, setStatus] = useState<StatusInfo | null>(null);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
@@ -2141,6 +2146,53 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
           <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-700" />
 
+          <button
+            type="button"
+            aria-pressed={Boolean(workloadMode.useGpu)}
+            onClick={() => {
+              const next = { ...workloadMode, useGpu: !workloadMode.useGpu };
+              setWorkloadMode(next);
+              saveWorkloadMode(next);
+            }}
+            title={
+              workloadMode.useGpu
+                ? 'GPU is on. File search runs on the GPU.'
+                : 'GPU is off. File search runs on the CPU.'
+            }
+            className={`flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors cursor-pointer ${
+              workloadMode.useGpu
+                ? 'bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300'
+                : 'bg-zinc-200/60 dark:bg-zinc-800/80 border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            <span>GPU</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={Boolean(workloadMode.fast)}
+            onClick={() => {
+              const next = { ...workloadMode, fast: !workloadMode.fast };
+              setWorkloadMode(next);
+              saveWorkloadMode(next);
+            }}
+            title={
+              workloadMode.fast
+                ? 'Fast mode is on. File work uses about all CPU cores.'
+                : 'Fast mode is off. Worker count follows the current CPU load.'
+            }
+            className={`flex items-center gap-1 px-2 py-1 rounded border text-xs font-medium transition-colors cursor-pointer ${
+              workloadMode.fast
+                ? 'bg-orange-500/20 border-orange-500/40 text-orange-700 dark:text-orange-300'
+                : 'bg-zinc-200/60 dark:bg-zinc-800/80 border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300'
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>Fast</span>
+          </button>
+
+          <div className="h-4 w-px bg-zinc-300 dark:bg-zinc-700" />
+
           {/* Non-blocking Git CLI status badge */}
           <GitStatusBadge />
 
@@ -3043,6 +3095,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           }}
           onOpenAISanitizer={() => setIsAISanitizerOpen(true)}
           onRefresh={handleRefresh}
+          workloadMode={workloadMode}
         />
       )}
 
@@ -3053,6 +3106,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           onClose={() => setIsAISanitizerOpen(false)}
           repoPath={repoPath}
           theme={theme}
+          workloadMode={workloadMode}
           onSuccess={() => {
             handleRefresh();
             setSystemToast({

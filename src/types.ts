@@ -334,6 +334,11 @@ export interface AITraceFinding {
   can_auto_clean?: boolean;
 }
 
+export interface WorkloadMode {
+  useGpu?: boolean;
+  fast?: boolean;
+}
+
 export interface CleanAITracesOptions {
   repoPath: string;
   cleanBanners?: boolean;
@@ -342,6 +347,7 @@ export interface CleanAITracesOptions {
   removeConfigFiles?: boolean;
   cleanHistoryBanners?: boolean;
   createSafetyBackup?: boolean;
+  workload?: WorkloadMode;
 }
 
 export interface WorkloadPlan {
@@ -545,6 +551,7 @@ export interface ReplaceFileOptions {
   isCaseSensitive?: boolean;
   isWholeWord?: boolean;
   lineNumbers?: number[];
+  workload?: WorkloadMode;
 }
 
 export interface ReplaceResponse {

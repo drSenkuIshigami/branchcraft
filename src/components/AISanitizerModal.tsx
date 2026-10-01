@@ -37,6 +37,7 @@ import type {
   RemotePublishScope,
   RemotePublishResult,
   PostPublishChecklist,
+  WorkloadMode,
 } from '../types';
 import {
   auditRepositoryHistory,
@@ -60,6 +61,7 @@ import {
   getPostPublishChecklist,
   exportPostPublishChecklist,
 } from '../ipc';
+import { loadWorkloadMode } from '../state/workloadMode';
 
 interface AISanitizerModalProps {
   isOpen: boolean;
@@ -67,6 +69,7 @@ interface AISanitizerModalProps {
   repoPath: string;
   theme: Theme;
   onSuccess?: () => void;
+  workloadMode?: WorkloadMode;
 }
 
 type TabMode = 'quick' | 'review' | 'working_tree' | 'head_amend' | 'history_rewrite' | 'remote_publish' | 'checklist';
@@ -77,6 +80,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
   repoPath,
   theme,
   onSuccess,
+  workloadMode,
 }) => {
   const isDark = theme === 'dark';
   const getTabClass = (tab: TabMode) => {
@@ -194,6 +198,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
       cleanTrailersInHistory: mode === 'working_tree' ? false : cleanTrailersInHistory,
       cleanHistoryBanners: mode === 'working_tree' ? false : cleanHistoryBanners,
       createSafetyBackup: createBackup,
+      workload: workloadMode ?? loadWorkloadMode(),
     };
 
     try {

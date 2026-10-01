@@ -93,18 +93,33 @@ function chooseWorkers(fileCount: number, cores: number, busy: number, freeMb: n
 }
 
 /**
- * Decide how many CPU workers to use for this run from the machine's current load.
- * Text matching is not sent to the GPU: copying file contents there costs more than the search.
+ * Choose CPU workers for this run.
+ * Fast mode uses every logical CPU. Otherwise the count follows the current load.
+ * The GPU switch is applied by the caller: this plan only records that it was requested.
  */
-export async function planFileWorkload(fileCount: number): Promise<WorkloadPlan> {
-  const [busy, gpuName] = await Promise.all([sampleCpuBusy(150), probeGpu()]);
+export async function planFileWorkload(
+  fileCount: number,
+  mode?: { useGpu?: boolean; fast?: boolean }
+): Promise<WorkloadPlan> {
+  const fast = Boolean(mode?.fast);
+  const useGpu = Boolean(mode?.useGpu);
+  const [busy, gpuName] = await Promise.all([sampleCpuBusy(120), probeGpu()]);
   const logicalCpus = Math.max(1, os.cpus().length);
   const freeMb = Math.round(os.freemem() / (1024 * 1024));
-  const workers = chooseWorkers(fileCount, logicalCpus, busy, freeMb);
+  let workers = fast
+    ? Math.max(1, Math.min(fileCount, logicalCpus))
+    : chooseWorkers(fileCount, logicalCpus, busy, freeMb);
+  if (fast && freeMb < 256) workers = 1;
   const busyPct = Math.round(busy * 100);
-  const gpuSentence = gpuName
-    ? `GPU ${gpuName} is present and was not used, because matching text in files is faster on the CPU.`
-    : 'No GPU was detected. Matching text stays on the CPU.';
+  const pace = fast
+    ? `Fast mode is using ${workers} of ${logicalCpus} CPU cores (${busyPct}% busy, ${freeMb} MB free).`
+    : `Dynamic mode is using ${workers} of ${logicalCpus} CPU cores (${busyPct}% busy, ${freeMb} MB free).`;
+  const device = useGpu
+    ? ' GPU is selected.'
+    : gpuName
+      ? ` CPU is selected. ${gpuName} stays idle.`
+      : ' CPU is selected.';
+  const memory = fast && freeMb < 256 ? ' Free memory is too low to use every core.' : '';
   return {
     workers,
     file_count: fileCount,
@@ -113,6 +128,6 @@ export async function planFileWorkload(fileCount: number): Promise<WorkloadPlan>
     free_memory_mb: freeMb,
     gpu_name: gpuName,
     gpu_used: false,
-    summary: `Using ${workers} worker${workers === 1 ? '' : 's'} on ${logicalCpus} CPU cores (${busyPct}% busy, ${freeMb} MB free). ${gpuSentence}`,
+    summary: `${pace}${device}${memory}`,
   };
 }

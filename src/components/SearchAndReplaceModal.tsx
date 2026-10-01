@@ -28,8 +28,10 @@ import type {
   SearchFileResult,
   ReplaceResponse,
   Theme,
+  WorkloadMode,
 } from '../types';
 import { searchRepository, replaceInFiles } from '../ipc';
+import { loadWorkloadMode } from '../state/workloadMode';
 
 interface SearchAndReplaceModalProps {
   isOpen: boolean;
@@ -41,6 +43,7 @@ interface SearchAndReplaceModalProps {
   onSelectFile?: (filePath: string) => void;
   onOpenAISanitizer?: () => void;
   onRefresh?: () => void;
+  workloadMode?: WorkloadMode;
 }
 
 export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
@@ -53,6 +56,7 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
   onSelectFile,
   onOpenAISanitizer,
   onRefresh,
+  workloadMode,
 }) => {
   // Search query inputs
   const [query, setQuery] = useState('');
@@ -176,6 +180,7 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
         isWholeWord,
         isRegex,
         lineNumbers,
+        workload: workloadMode ?? loadWorkloadMode(),
       });
 
       if (res.success) {
