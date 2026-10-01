@@ -4831,11 +4831,12 @@ export async function cleanAITraces(
   const shouldCleanHistoryTrailers = options.cleanTrailersInHistory !== false;
 
   if (shouldCleanHistoryBanners || shouldCleanHistoryTrailers) {
-    // Ensure working tree is clean so filter-branch does not abort with 'Cannot rewrite branches: You have unstaged changes'
+    // Discard any working-tree edits from step 2 before history rewrite,
+    // because filter-branch will rewrite all commits and check out the clean tree directly without creating unwanted intermediate commits.
     const statusRes = await runGit(rootPath, ['status', '--porcelain']);
     if (statusRes.code === 0 && statusRes.stdout.trim().length > 0) {
-      await runGit(rootPath, ['add', '-A']);
-      await runGit(rootPath, ['commit', '-m', 'chore: prepare working tree for history cleanup', '--allow-empty']);
+      await runGit(rootPath, ['reset', '--hard', 'HEAD']);
+      await runGit(rootPath, ['clean', '-fd']);
     }
 
     const gitDir = path.join(rootPath, '.git');
