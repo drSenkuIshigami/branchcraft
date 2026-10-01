@@ -1970,9 +1970,9 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       {/* Top Application Bar */}
-      <header className="h-11 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 px-3 flex items-center justify-between shrink-0 select-none">
+      <header className="min-h-11 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/80 px-3 py-1 flex flex-wrap items-center gap-x-3 gap-y-1 shrink-0 select-none">
         {/* Left: App Brand & Current Branch */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full">
           <div className="flex items-center gap-2 font-bold text-sm tracking-tight text-zinc-900 dark:text-zinc-100">
             <div className="w-6 h-6 rounded bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xs">
               <FolderGit2 className="w-3.5 h-3.5" />
@@ -1987,7 +1987,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
             <button
               type="button"
               onClick={() => setIsRepoModalOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-200/60 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300 transition-colors truncate max-w-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-200/60 dark:hover:bg-zinc-800 text-xs font-mono text-zinc-700 dark:text-zinc-300 transition-colors truncate max-w-[10rem] sm:max-w-xs cursor-pointer"
               title="Open repository modal or view recent"
             >
               <FolderOpen className="w-3.5 h-3.5 text-blue-500 shrink-0" />
@@ -2035,7 +2035,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
         </div>
 
         {/* Right: Controls, Audit Log, Git Status, Theme */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 flex-wrap items-center justify-end gap-2 min-w-[12rem] max-w-full">
           {/* Remote Sync Button & Indicator (Phase 2) */}
           {status && (
             <button
