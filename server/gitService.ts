@@ -148,6 +148,23 @@ export async function validateRepository(repoPath: string): Promise<string> {
   return topRes.stdout.trim();
 }
 
+/** Git on Windows prints `C:/repo`. `path.resolve` returns `C:\\repo`. Compare the resolved forms. */
+function isInsideRepository(rootPath: string, candidatePath: string): boolean {
+  const root = path.resolve(rootPath);
+  const candidate = path.resolve(candidatePath);
+  const rootCmp = process.platform === 'win32' ? root.toLowerCase() : root;
+  const candidateCmp = process.platform === 'win32' ? candidate.toLowerCase() : candidate;
+  return candidateCmp === rootCmp || candidateCmp.startsWith(rootCmp + path.sep);
+}
+
+function resolveInsideRepository(rootPath: string, relativePath: string): string {
+  const resolved = path.resolve(rootPath, relativePath);
+  if (!isInsideRepository(rootPath, resolved)) {
+    throw new Error('Access outside repository root is forbidden');
+  }
+  return resolved;
+}
+
 export async function getStatus(repoPath: string): Promise<StatusInfo> {
   const rootPath = await validateRepository(repoPath);
   const res = await runGit(rootPath, [
@@ -2536,11 +2553,12 @@ export async function executeInteractiveRebase(
 }
 
 /**
- * Lists all tracked and untracked files in the repository (excluding .git and ignored files)
+ * Files in the commit being edited. Untracked files are omitted: an early commit
+ * often has no .gitignore, so node_modules would otherwise fill the list.
  */
 export async function listRepositoryFiles(repoPath: string): Promise<string[]> {
   const rootPath = await validateRepository(repoPath);
-  const res = await runGit(rootPath, ['ls-files', '-co', '--exclude-standard']);
+  const res = await runGit(rootPath, ['ls-files']);
   if (res.code !== 0) return [];
   return res.stdout
     .split('\n')
@@ -2557,10 +2575,7 @@ export async function getFileContent(
   relativePath: string
 ): Promise<{ path: string; content: string; exists: boolean }> {
   const rootPath = await validateRepository(repoPath);
-  const resolved = path.resolve(rootPath, relativePath);
-  if (!resolved.startsWith(rootPath)) {
-    throw new Error('Access outside repository root is forbidden');
-  }
+  const resolved = resolveInsideRepository(rootPath, relativePath);
   if (!fs.existsSync(resolved)) {
     return { path: relativePath, content: '', exists: false };
   }
@@ -2578,10 +2593,7 @@ export async function saveFileContent(
   autoStage?: boolean
 ): Promise<{ success: boolean; staged: boolean }> {
   const rootPath = await validateRepository(repoPath);
-  const resolved = path.resolve(rootPath, relativePath);
-  if (!resolved.startsWith(rootPath)) {
-    throw new Error('Access outside repository root is forbidden');
-  }
+  const resolved = resolveInsideRepository(rootPath, relativePath);
   fs.mkdirSync(path.dirname(resolved), { recursive: true });
   fs.writeFileSync(resolved, content, 'utf8');
   let staged = false;
@@ -3526,7 +3538,7 @@ export async function auditRepositoryHistory(
       const ext = path.extname(f).toLowerCase();
       if (['.md', '.html', '.htm', '.tsx', '.ts', '.jsx', '.js'].includes(ext) || f === 'README' || f === 'index.html') {
         const fullP = path.resolve(rootPath, f);
-        if (fullP.startsWith(rootPath) && fs.existsSync(fullP)) {
+        if (isInsideRepository(rootPath, fullP) && fs.existsSync(fullP)) {
           try {
             const content = fs.readFileSync(fullP, 'utf8');
 
@@ -5039,8 +5051,7 @@ export async function replaceInFiles(
 
   for (const relPath of options.filePaths) {
     const fullPath = path.resolve(rootPath, relPath);
-    // Security check: ensure path stays within repository
-    if (!fullPath.startsWith(rootPath)) {
+    if (!isInsideRepository(rootPath, fullPath)) {
       continue;
     }
     if (!fs.existsSync(fullPath)) {
@@ -5161,7 +5172,7 @@ export async function cleanAITraces(
 
   for (const relPath of files) {
     const fullPath = path.resolve(rootPath, relPath);
-    if (!fullPath.startsWith(rootPath) || !fs.existsSync(fullPath)) continue;
+    if (!isInsideRepository(rootPath, fullPath) || !fs.existsSync(fullPath)) continue;
 
     const baseName = path.basename(relPath).toLowerCase();
 
