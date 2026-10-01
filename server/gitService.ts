@@ -128,10 +128,23 @@ export async function checkGitAvailability(): Promise<GitAvailability> {
   }
 }
 
+export function sampleRepositoryPath(): string {
+  return path.join(os.tmpdir(), 'git-workbench-sample-repo');
+}
+
+function samePath(left: string, right: string): boolean {
+  const a = path.resolve(left);
+  const b = path.resolve(right);
+  if (process.platform === 'win32') {
+    return a.toLowerCase() === b.toLowerCase();
+  }
+  return a === b;
+}
+
 export async function validateRepository(repoPath: string): Promise<string> {
-  const sampleDir = '/tmp/git-workbench-sample-repo';
+  const sampleDir = sampleRepositoryPath();
   if (
-    repoPath === sampleDir &&
+    samePath(repoPath, sampleDir) &&
     (!fs.existsSync(repoPath) || !fs.existsSync(path.join(repoPath, '.git')))
   ) {
     await createOrGetSampleRepo();
@@ -1475,12 +1488,11 @@ export async function openSystemLocation(
 
 
 /**
- * Initializes or resets a realistic, isolated demo Git repository in /tmp/git-workbench-sample
- * Contains multiple commits, feature branch, merge commit, tag, and staged/unstaged changes.
- * Perfectly mirrors real-world repositories for instant interactive testing!
+ * Initializes or returns the demo repository under the OS temp directory.
+ * Contains multiple commits, a feature branch, a merge commit, a tag, and staged/unstaged changes.
  */
 export async function createOrGetSampleRepo(): Promise<string> {
-  const targetDir = '/tmp/git-workbench-sample-repo';
+  const targetDir = sampleRepositoryPath();
 
   if (fs.existsSync(path.join(targetDir, '.git'))) {
     return targetDir;
@@ -1888,6 +1900,9 @@ export async function cherryPickAbort(repoPath: string): Promise<OperationResult
 
 export async function createDemoCherryPickConflict(repoPath: string): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+  if (!samePath(rootPath, sampleRepositoryPath())) {
+    throw new Error('Demo conflicts only run in the sample repository. Open the demo sandbox first.');
+  }
   const sideBranch = `cherry-demo-source-${Date.now()}`;
   const targetBranch = `cherry-demo-target-${Date.now()}`;
   const filePath = path.join(rootPath, 'src', 'metrics-cherry.txt');
@@ -2016,6 +2031,9 @@ export async function revertAbort(repoPath: string): Promise<OperationResult> {
 
 export async function createDemoRevertConflict(repoPath: string): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+  if (!samePath(rootPath, sampleRepositoryPath())) {
+    throw new Error('Demo conflicts only run in the sample repository. Open the demo sandbox first.');
+  }
   const demoBranch = `revert-demo-${Date.now()}`;
   const filePath = path.join(rootPath, 'src', 'metrics-revert.txt');
 
@@ -2058,6 +2076,9 @@ export async function createDemoRevertConflict(repoPath: string): Promise<Operat
  */
 export async function createDemoConflict(repoPath: string): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+  if (!samePath(rootPath, sampleRepositoryPath())) {
+    throw new Error('Demo conflicts only run in the sample repository. Open the demo sandbox first.');
+  }
   const conflictBranch = `conflict-demo-${Date.now()}`;
   const filePath = path.join(rootPath, 'src', 'index.js');
 

@@ -161,6 +161,12 @@ import { AISanitizerModal } from '../components/AISanitizerModal';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { GitStatusBadge } from '../components/GitStatusBadge';
 
+function isDemoSandboxPath(repoPath: string | null): boolean {
+  if (!repoPath) return false;
+  const normalized = repoPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  return normalized.endsWith('/git-workbench-sample-repo');
+}
+
 interface RepositoryExplorerProps {
   theme: Theme;
   onToggleTheme: () => void;
@@ -2300,9 +2306,15 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onContinueConflict={handleContinueConflict}
                   onSkipConflict={handleSkipConflict}
                   onAbortConflict={handleAbortConflict}
-                  onCreateDemoConflict={handleCreateDemoConflict}
-                  onCreateDemoCherryPickConflict={handleCreateDemoCherryPickConflict}
-                  onCreateDemoRevertConflict={handleCreateDemoRevertConflict}
+                  onCreateDemoConflict={
+                    isDemoSandboxPath(repoPath) ? handleCreateDemoConflict : undefined
+                  }
+                  onCreateDemoCherryPickConflict={
+                    isDemoSandboxPath(repoPath) ? handleCreateDemoCherryPickConflict : undefined
+                  }
+                  onCreateDemoRevertConflict={
+                    isDemoSandboxPath(repoPath) ? handleCreateDemoRevertConflict : undefined
+                  }
                   onRebaseContinue={handleRebaseContinue}
                   onRebaseSkip={handleRebaseSkip}
                   onRebaseAbort={handleRebaseAbort}
