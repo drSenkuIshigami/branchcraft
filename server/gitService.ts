@@ -2185,6 +2185,140 @@ export async function getDetailedRebaseStatus(repoPath: string): Promise<RebaseS
   };
 }
 
+function execFileText(command: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`${stdout || ''} ${stderr || ''} ${error.message}`.trim()));
+        return;
+      }
+      resolve(String(stdout || ''));
+    });
+  });
+}
+
+function caseCollisionGroups(files: string[]): string[][] {
+  const groups = new Map<string, string[]>();
+  for (const file of files) {
+    const key = file.replace(/\\/g, '/').toLowerCase();
+    const list = groups.get(key) ?? [];
+    list.push(file.replace(/\\/g, '/'));
+    groups.set(key, list);
+  }
+  return [...groups.values()].filter((group) => group.length > 1);
+}
+
+async function directoryIsCaseSensitive(dir: string): Promise<boolean> {
+  try {
+    const stdout = await execFileText('fsutil.exe', ['file', 'queryCaseSensitiveInfo', dir]);
+    return /\bis enabled\b/i.test(stdout);
+  } catch {
+    return false;
+  }
+}
+
+async function enableCaseSensitiveDirectory(dir: string): Promise<void> {
+  const hold = path.join(path.dirname(dir), `.workbench-case-hold-${Date.now()}`);
+  await fs.promises.mkdir(hold);
+  const moved: string[] = [];
+  try {
+    for (const name of await fs.promises.readdir(dir)) {
+      await fs.promises.rename(path.join(dir, name), path.join(hold, name));
+      moved.push(name);
+    }
+    await execFileText('fsutil.exe', ['file', 'setCaseSensitiveInfo', dir, 'enable']);
+  } finally {
+    for (const name of moved) {
+      const from = path.join(hold, name);
+      const to = path.join(dir, name);
+      if (fs.existsSync(from) && !fs.existsSync(to)) {
+        await fs.promises.rename(from, to);
+      }
+    }
+    const leftovers = fs.existsSync(hold) ? await fs.promises.readdir(hold) : [];
+    if (leftovers.length === 0 && fs.existsSync(hold)) {
+      await fs.promises.rmdir(hold);
+    }
+  }
+}
+
+/**
+ * `Install.sh` and `install.sh` are different Git files. On Windows they share
+ * one path, so the worktree stays dirty, autostash is applied straight back,
+ * and rebase never starts. Mark the folder case-sensitive and check both out.
+ */
+async function prepareCaseCollisionWorktree(rootPath: string): Promise<void> {
+  if (process.platform !== 'win32') return;
+
+  const listed = await runGit(rootPath, ['-c', 'core.ignorecase=false', 'ls-files']);
+  if (listed.code !== 0) return;
+  const groups = caseCollisionGroups(
+    listed.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+  );
+  if (groups.length === 0) return;
+
+  const colliding = groups.flat();
+  if (!(await directoryIsCaseSensitive(rootPath))) {
+    try {
+      await enableCaseSensitiveDirectory(rootPath);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      const pairs = groups.map((group) => group.join(' and ')).join('; ');
+      throw new Error(
+        `Autostash cannot start because ${pairs} differ only by case. Windows keeps one file, so Git reports unstaged changes and puts the stash straight back. Git Workbench could not mark this folder case-sensitive: ${reason}`
+      );
+    }
+  }
+
+  const preserved: Array<{ rel: string; bytes: Buffer }> = [];
+  for (const group of groups) {
+    const parentRel = path.posix.dirname(group[0]);
+    const parentAbs = parentRel === '.' ? rootPath : path.join(rootPath, parentRel);
+    let onDisk = group[0];
+    try {
+      const base = path.posix.basename(group[0]).toLowerCase();
+      const found = fs.readdirSync(parentAbs).find((name) => name.toLowerCase() === base);
+      if (found) onDisk = parentRel === '.' ? found : `${parentRel}/${found}`;
+    } catch {
+      // Parent is missing; checkout-index recreates it.
+    }
+    const hashed = await runGit(rootPath, ['hash-object', '--', onDisk]);
+    const digest = hashed.stdout.trim();
+    const known = new Set<string>();
+    for (const rel of group) {
+      const blob = await runGit(rootPath, ['-c', 'core.ignorecase=false', 'rev-parse', `HEAD:${rel}`]);
+      if (blob.code === 0 && blob.stdout.trim()) known.add(blob.stdout.trim());
+    }
+    if (digest && !known.has(digest) && fs.existsSync(path.join(rootPath, onDisk))) {
+      preserved.push({ rel: onDisk, bytes: fs.readFileSync(path.join(rootPath, onDisk)) });
+    }
+  }
+
+  const checkout = await runGit(rootPath, [
+    '-c',
+    'core.ignorecase=false',
+    'checkout-index',
+    '-f',
+    '--',
+    ...colliding,
+  ]);
+  if (checkout.code !== 0) {
+    throw new Error(
+      `Could not check out case-colliding paths (${colliding.join(', ')}): ${checkout.stderr || checkout.stdout}`
+    );
+  }
+  for (const saved of preserved) {
+    const dest = path.join(rootPath, saved.rel);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, saved.bytes);
+  }
+
+  await runGit(rootPath, ['config', 'core.ignorecase', 'false']);
+}
+
 /**
  * Phase 3 Step 1: Execute interactive rebase plan
  */
@@ -2196,6 +2330,20 @@ export async function executeInteractiveRebase(
   autostash?: boolean
 ): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+
+  try {
+    await prepareCaseCollisionWorktree(rootPath);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      success: false,
+      stdout: '',
+      stderr: message,
+      exit_code: 1,
+      command_run: ['rebase', '-i'],
+      duration_ms: 0,
+    };
+  }
 
   let effectiveIsRoot = Boolean(isRoot || baseSha === '--root');
   if (!effectiveIsRoot && baseSha) {
@@ -2209,19 +2357,6 @@ export async function executeInteractiveRebase(
       }
     } catch {
       // Fallback
-    }
-  }
-
-  // Pre-emptive safe stash: If autostash requested and working tree has uncommitted/untracked changes,
-  // cleanly stash them with -u before launching rebase so git never hits the "cannot rebase: You have unstaged changes" bug
-  if (autostash) {
-    try {
-      const statusRes = await runGit(rootPath, ['status', '--porcelain']);
-      if (statusRes.code === 0 && statusRes.stdout.trim().length > 0) {
-        await runGit(rootPath, ['stash', 'push', '-u', '-m', 'Workbench auto-stash before interactive rebase']);
-      }
-    } catch {
-      // Ignore and allow git rebase to handle
     }
   }
 
