@@ -180,7 +180,7 @@ export const SearchAndReplaceModal: React.FC<SearchAndReplaceModalProps> = ({
 
       if (res.success) {
         setSuccessToast(
-          `Replaced ${res.total_replacements_count} occurrence(s) across ${res.replaced_files_count} file(s).`
+          `Replaced ${res.total_replacements_count} occurrence(s) across ${res.replaced_files_count} file(s). ${res.workload?.summary ?? ''}`.trim()
         );
         // Refresh working tree in background
         if (onRefresh) {

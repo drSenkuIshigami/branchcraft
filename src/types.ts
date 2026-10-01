@@ -344,6 +344,17 @@ export interface CleanAITracesOptions {
   createSafetyBackup?: boolean;
 }
 
+export interface WorkloadPlan {
+  workers: number;
+  file_count: number;
+  logical_cpus: number;
+  cpu_busy_ratio: number;
+  free_memory_mb: number;
+  gpu_name: string | null;
+  gpu_used: boolean;
+  summary: string;
+}
+
 export interface CleanAITracesResult {
   success: boolean;
   cleaned_files: string[];
@@ -352,6 +363,7 @@ export interface CleanAITracesResult {
   backup_ref?: string;
   error?: string;
   duration_ms: number;
+  workload?: WorkloadPlan;
 }
 
 export interface RepoAuditReport {
@@ -541,6 +553,7 @@ export interface ReplaceResponse {
   total_replacements_count: number;
   modified_files: string[];
   error?: string;
+  workload?: WorkloadPlan;
 }
 
 // =========================================================================

@@ -590,6 +590,7 @@ export const AISanitizerModal: React.FC<AISanitizerModalProps> = ({
                   </div>
                   <p className="text-zinc-600 dark:text-zinc-300">
                     Removed <strong>{result.total_traces_removed}</strong> AI signatures/artifacts in {result.duration_ms}ms.
+                    {result.workload?.summary ? ` ${result.workload.summary}` : ''}
                   </p>
                   {result.backup_ref && (
                     <p className="text-[11px] text-zinc-400 font-mono">
