@@ -3565,21 +3565,18 @@ export async function auditRepositoryHistory(
           try {
             const content = fs.readFileSync(fullP, 'utf8');
 
-            // Detect Built with AI Studio or GHBanner
-            if (
-              content.includes('GHBanner') ||
-              content.includes('Built with AI Studio') ||
-              content.includes('The fastest path from prompt to production with Gemini') ||
-              content.includes('aistudio.google.com/apps')
-            ) {
+            const bannerHit = content.match(
+              /<div\s+align=['"]center['"]>[\s\S]*?(?:GHBanner|Built with AI Studio|aistudio\.google\.com)[\s\S]*?<\/div>/i
+            );
+            if (bannerHit) {
               aiTraces.push({
                 id: `banner-${f}`,
                 type: 'banner',
                 category: 'banner',
-                marker: 'Built with AI Studio HTML Banner / GHBanner',
+                marker: 'Promotional HTML banner',
                 file_path: f,
-                details: `README / HTML file contains "Built with AI Studio" hero banner and promotion`,
-                snippet: `<div align="center">...<h1>Built with AI Studio</h2>...</div>`,
+                details: 'A centered HTML banner promoting an AI generator is in this file.',
+                snippet: bannerHit[0].slice(0, 240),
                 can_auto_clean: true,
               });
             }
@@ -3615,6 +3612,10 @@ export async function auditRepositoryHistory(
         '--format=%H%x1f%s%x1f%aI',
         '-n',
         '10',
+        '--',
+        '*.md',
+        '*.html',
+        '*.htm',
       ]);
       if (bannerLog.code === 0 && bannerLog.stdout) {
         for (const line of bannerLog.stdout.split('\n').filter(Boolean)) {
@@ -3624,12 +3625,11 @@ export async function auditRepositoryHistory(
               id: `history-banner-${bSha.slice(0, 7)}`,
               type: 'banner',
               category: 'banner',
-              marker: 'Built with AI Studio Banner in Git History',
+              marker: 'Promotional banner in Markdown or HTML history',
               commit_sha: bSha,
               commit_subject: bSubj,
               date: bDate,
-              details: `Commit ${bSha.slice(0, 7)} ("${bSubj}") introduced "Built with AI Studio" hero banner into Git history.`,
-              snippet: `<div align="center">...<h1>Built with AI Studio</h2>...</div>`,
+              details: `Commit ${bSha.slice(0, 7)} ("${bSubj}") still has a promotional banner in a Markdown or HTML file.`,
               can_auto_clean: true,
             });
           }
@@ -3644,6 +3644,10 @@ export async function auditRepositoryHistory(
         '--format=%H%x1f%s%x1f%aI',
         '-n',
         '10',
+        '--',
+        '*.md',
+        '*.html',
+        '*.htm',
       ]);
       if (ghBannerLog.code === 0 && ghBannerLog.stdout) {
         for (const line of ghBannerLog.stdout.split('\n').filter(Boolean)) {
@@ -3653,12 +3657,11 @@ export async function auditRepositoryHistory(
               id: `history-ghbanner-${bSha.slice(0, 7)}`,
               type: 'banner',
               category: 'banner',
-              marker: 'AI Studio GHBanner in Git History',
+              marker: 'Promotional image banner in Markdown or HTML history',
               commit_sha: bSha,
               commit_subject: bSubj,
               date: bDate,
-              details: `Commit ${bSha.slice(0, 7)} ("${bSubj}") contains AI Studio GHBanner image in history.`,
-              snippet: `<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/..."/>`,
+              details: `Commit ${bSha.slice(0, 7)} ("${bSubj}") still has a promotional image banner in a Markdown or HTML file.`,
               can_auto_clean: true,
             });
           }

@@ -78,7 +78,7 @@ export const HELP_TOPICS: HelpTopic[] = [
       '.cursorrules',
     ],
     severity: 'safe',
-    symptom: 'Your repository or Initial Project Commit contains AI promotional signs (such as the "<div align=\'center\'>...GHBanner...<h1>Built with AI Studio</h2>...</div>" block in README.md), Cursor co-authors ("Co-authored-by: Cursor <cursor@cursor.sh>"), or config files (.cursorrules) that require tedious manual work to remove one by one.',
+    symptom: 'Your repository or initial commit contains a promotional generator banner in README.md, Cursor co-authors ("Co-authored-by: Cursor <cursor@cursor.sh>"), or config files (.cursorrules) that require tedious manual work to remove one by one.',
     solutionSteps: [
       'Click the "Clean AI Signs" button in the top header bar (or click "Clean AI Signs" in the sidebar Tools section).',
       'The AI Sanitizer automatically audits your repository in seconds, detecting all promotional banners, Cursor commit trailers, .cursorrules config files, and code watermarks across your working files AND historical commits (including the root initial commit).',
