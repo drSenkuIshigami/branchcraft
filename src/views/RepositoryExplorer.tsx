@@ -582,13 +582,12 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     };
   }, [repoPath, selectedFile, selectedSha, selectedStashRef, selectedView, recordCommand]);
 
-  // Initialize: load existing or auto-open sample sandbox repository
+  // Open the last repository. With none saved, ask which repository to open.
   useEffect(() => {
     if (repoPath) {
       loadRepositoryData(repoPath);
     } else {
-      // Auto-open sample repository for instantaneous full experience
-      handleOpenSample();
+      setIsRepoModalOpen(true);
     }
   }, []);
 
