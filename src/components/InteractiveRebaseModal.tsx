@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   GitCommit,
   ArrowUp,
@@ -7,13 +7,17 @@ import {
   Edit2,
   Terminal,
   Layers,
-  CheckCircle2,
   AlertTriangle,
   Play,
   X,
   RotateCcw,
   Sparkles,
-  ChevronRight,
+  ChevronDown,
+  Search,
+  Check,
+  Package,
+  Paperclip,
+  Info,
 } from 'lucide-react';
 import type { RebaseAction, RebaseTodoItem, Theme } from '../types';
 import { getRebaseCandidates, executeInteractiveRebase } from '../ipc';
@@ -30,49 +34,56 @@ interface InteractiveRebaseModalProps {
 
 const ACTION_CONFIG: Record<
   RebaseAction,
-  { label: string; desc: string; badgeClass: string; darkBadgeClass: string }
+  { label: string; desc: string; badgeClass: string; darkBadgeClass: string; icon: React.ReactNode }
 > = {
   pick: {
     label: 'pick',
     desc: 'Keep commit as is',
-    badgeClass: 'bg-blue-100 text-blue-700 border-blue-200',
-    darkBadgeClass: 'bg-blue-950/60 text-blue-300 border-blue-800',
-  },
-  reword: {
-    label: 'reword',
-    desc: 'Keep commit, edit message',
-    badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',
-    darkBadgeClass: 'bg-amber-950/60 text-amber-300 border-amber-800',
+    badgeClass: 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200/80',
+    darkBadgeClass: 'bg-blue-950/70 text-blue-300 border-blue-800 hover:bg-blue-900/60',
+    icon: <Check className="w-3 h-3 text-blue-500" />,
   },
   edit: {
     label: 'edit',
-    desc: 'Stop here to amend files/commit',
-    badgeClass: 'bg-purple-100 text-purple-700 border-purple-200',
-    darkBadgeClass: 'bg-purple-950/60 text-purple-300 border-purple-800',
+    desc: 'Stop here to edit/amend files in working tree',
+    badgeClass: 'bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-200/80',
+    darkBadgeClass: 'bg-purple-950/70 text-purple-300 border-purple-800 hover:bg-purple-900/60',
+    icon: <Edit2 className="w-3 h-3 text-purple-500" />,
+  },
+  reword: {
+    label: 'reword',
+    desc: 'Keep commit, edit commit message',
+    badgeClass: 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200/80',
+    darkBadgeClass: 'bg-amber-950/70 text-amber-300 border-amber-800 hover:bg-amber-900/60',
+    icon: <Edit2 className="w-3 h-3 text-amber-500" />,
   },
   squash: {
     label: 'squash',
-    desc: 'Meld into previous commit',
-    badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    darkBadgeClass: 'bg-emerald-950/60 text-emerald-300 border-emerald-800',
+    desc: 'Meld into previous commit, combining messages',
+    badgeClass: 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200/80',
+    darkBadgeClass: 'bg-emerald-950/70 text-emerald-300 border-emerald-800 hover:bg-emerald-900/60',
+    icon: <Package className="w-3 h-3 text-emerald-500" />,
   },
   fixup: {
     label: 'fixup',
-    desc: 'Meld into previous, discard log',
-    badgeClass: 'bg-teal-100 text-teal-700 border-teal-200',
-    darkBadgeClass: 'bg-teal-950/60 text-teal-300 border-teal-800',
+    desc: 'Meld into previous commit, discarding log message',
+    badgeClass: 'bg-teal-100 text-teal-700 border-teal-300 hover:bg-teal-200/80',
+    darkBadgeClass: 'bg-teal-950/70 text-teal-300 border-teal-800 hover:bg-teal-900/60',
+    icon: <Paperclip className="w-3 h-3 text-teal-500" />,
   },
   drop: {
     label: 'drop',
-    desc: 'Delete commit completely',
-    badgeClass: 'bg-rose-100 text-rose-700 border-rose-200',
-    darkBadgeClass: 'bg-rose-950/60 text-rose-300 border-rose-800',
+    desc: 'Delete commit completely from history',
+    badgeClass: 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200/80',
+    darkBadgeClass: 'bg-rose-950/70 text-rose-300 border-rose-800 hover:bg-rose-900/60',
+    icon: <Trash2 className="w-3 h-3 text-rose-500" />,
   },
   exec: {
     label: 'exec',
-    desc: 'Run shell command at this point',
-    badgeClass: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-    darkBadgeClass: 'bg-indigo-950/60 text-indigo-300 border-indigo-800',
+    desc: 'Run shell command (e.g. test) at this point',
+    badgeClass: 'bg-indigo-100 text-indigo-700 border-indigo-300 hover:bg-indigo-200/80',
+    darkBadgeClass: 'bg-indigo-950/70 text-indigo-300 border-indigo-800 hover:bg-indigo-900/60',
+    icon: <Terminal className="w-3 h-3 text-indigo-500" />,
   },
 };
 
@@ -86,9 +97,13 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   onRebaseStarted,
 }) => {
   const [items, setItems] = useState<RebaseTodoItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen || !repoPath || !baseSha) return;
@@ -96,6 +111,8 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     let mounted = true;
     setLoading(true);
     setError(null);
+    setSearchTerm('');
+    setOpenDropdownId(null);
 
     getRebaseCandidates(repoPath, baseSha)
       .then((candidates) => {
@@ -116,6 +133,31 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     };
   }, [isOpen, repoPath, baseSha]);
 
+  // Click outside to close dropdowns
+  useEffect(() => {
+    if (!openDropdownId) return;
+
+    const handleClickOutside = (e: MouseEvent | PointerEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdownId(null);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenDropdownId(null);
+      }
+    };
+
+    window.addEventListener('pointerdown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('pointerdown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openDropdownId]);
+
   if (!isOpen) return null;
 
   const handleActionChange = (id: string, newAction: RebaseAction) => {
@@ -130,6 +172,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
         };
       })
     );
+    setOpenDropdownId(null);
   };
 
   const handleMessageChange = (id: string, msg: string) => {
@@ -196,6 +239,18 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     {} as Record<RebaseAction, number>
   );
 
+  const filteredItems = useMemo(() => {
+    if (!searchTerm.trim()) return items;
+    const q = searchTerm.toLowerCase();
+    return items.filter(
+      (item) =>
+        item.summary.toLowerCase().includes(q) ||
+        item.short_sha.toLowerCase().includes(q) ||
+        item.author.toLowerCase().includes(q) ||
+        item.action.toLowerCase().includes(q)
+    );
+  }, [items, searchTerm]);
+
   const handleExecute = async () => {
     if (hasInvalidFirstItem || items.length === 0) return;
     setSubmitting(true);
@@ -248,10 +303,25 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           <button
             id="close-rebase-modal-button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* How-to edit banner: Explains how to edit files in previous commits */}
+        <div className="px-4 py-2.5 bg-purple-50 dark:bg-purple-950/30 border-b border-purple-200 dark:border-purple-800/60 flex items-start gap-2.5 text-xs text-purple-800 dark:text-purple-300 shrink-0">
+          <Info className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
+          <div className="flex-1 leading-relaxed">
+            <span className="font-semibold">How to edit files in a previous commit:</span> Click on{' '}
+            <span className="font-mono px-1.5 py-0.2 rounded bg-purple-200/60 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold">
+              PICK ▾
+            </span>{' '}
+            and select <strong className="uppercase">EDIT</strong> (or click the{' '}
+            <strong className="underline">Edit Files</strong> button on that commit row). When you
+            click <em>Start Rebase</em>, Git will stop at that commit, allowing you to edit files in
+            your working tree, stage changes, and amend.
+          </div>
         </div>
 
         {/* Base Info & Quick Presets Bar */}
@@ -271,21 +341,21 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
             <button
               onClick={handleFixupAllIntoFirst}
               disabled={items.length < 2 || submitting}
-              className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50"
+              className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50 cursor-pointer"
             >
               Fixup All into #1
             </button>
             <button
               onClick={handleSquashAllIntoFirst}
               disabled={items.length < 2 || submitting}
-              className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50"
+              className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50 cursor-pointer"
             >
               Squash All into #1
             </button>
             <button
               onClick={handleResetAllToPick}
               disabled={submitting}
-              className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3 inline mr-1 text-zinc-400" />
               Reset All to Pick
@@ -293,24 +363,48 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           </div>
         </div>
 
-        {/* Action Summary Pill Bar */}
-        <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-2 overflow-x-auto text-[11px] shrink-0">
-          <span className="text-zinc-400 font-medium">Plan summary:</span>
-          {(Object.keys(ACTION_CONFIG) as RebaseAction[]).map((action) => {
-            const count = actionCounts[action] || 0;
-            if (count === 0) return null;
-            const config = ACTION_CONFIG[action];
-            return (
-              <span
-                key={action}
-                className={`px-2 py-0.5 rounded-full border font-mono font-medium ${
-                  theme === 'dark' ? config.darkBadgeClass : config.badgeClass
-                }`}
+        {/* Filter and Plan Summary Bar */}
+        <div className="px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 bg-white dark:bg-zinc-900">
+          {/* Search box to find candidate commit in long lists */}
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Filter commits by message, author, or SHA..."
+              className="w-full pl-8 pr-3 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-300 dark:border-zinc-700 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 text-[10px]"
               >
-                {count} {action}
-              </span>
-            );
-          })}
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Action Summary Badges */}
+          <div className="flex items-center gap-1.5 overflow-x-auto text-[11px]">
+            <span className="text-zinc-400 font-medium">Plan:</span>
+            {(Object.keys(ACTION_CONFIG) as RebaseAction[]).map((action) => {
+              const count = actionCounts[action] || 0;
+              if (count === 0) return null;
+              const config = ACTION_CONFIG[action];
+              return (
+                <span
+                  key={action}
+                  className={`px-2 py-0.5 rounded-full border font-mono font-medium ${
+                    theme === 'dark' ? config.darkBadgeClass : config.badgeClass
+                  }`}
+                >
+                  {count} {action}
+                </span>
+              );
+            })}
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -326,7 +420,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           <div className="mx-4 mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>
-              The first commit in a rebase cannot be "squash" or "fixup". Change it to "pick" or
+              The first commit in a rebase cannot be &quot;squash&quot; or &quot;fixup&quot;. Change it to &quot;pick&quot; or
               move another commit before it.
             </span>
           </div>
@@ -344,68 +438,125 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
               No commits found between {baseSha.slice(0, 7)} and HEAD.
             </div>
           ) : (
-            items.map((item, idx) => {
-              const isFirst = idx === 0;
-              const isLast = idx === items.length - 1;
+            filteredItems.map((item) => {
+              const originalIndex = items.findIndex((it) => it.id === item.id);
+              const isFirst = originalIndex === 0;
+              const isLast = originalIndex === items.length - 1;
               const config = ACTION_CONFIG[item.action];
+              const isDropdownOpen = openDropdownId === item.id;
+              const isEdit = item.action === 'edit';
 
               return (
                 <div
                   key={item.id}
-                  className={`p-3 rounded-lg border transition-all ${
-                    item.action === 'drop'
-                      ? 'opacity-60 bg-zinc-50 dark:bg-zinc-900/40 border-dashed border-zinc-300 dark:border-zinc-800'
-                      : 'bg-white dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700/80 shadow-xs'
+                  className={`p-3 rounded-xl border transition-all ${
+                    isEdit
+                      ? 'border-purple-400/80 dark:border-purple-500/80 bg-purple-50/30 dark:bg-purple-950/20 shadow-sm ring-1 ring-purple-500/20'
+                      : item.action === 'drop'
+                        ? 'opacity-60 bg-zinc-50 dark:bg-zinc-900/40 border-dashed border-zinc-300 dark:border-zinc-800'
+                        : 'bg-white dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700/80 shadow-xs'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Index & Reorder Controls */}
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[11px] font-mono text-zinc-400 w-5 text-center">
-                        #{idx + 1}
+                      <span className="text-[11px] font-mono text-zinc-400 w-6 text-center">
+                        #{originalIndex + 1}
                       </span>
                       <div className="flex flex-col gap-0.5">
                         <button
-                          onClick={() => handleMoveUp(idx)}
+                          type="button"
+                          onClick={() => handleMoveUp(originalIndex)}
                           disabled={isFirst || submitting}
                           title="Move commit earlier in sequence"
-                          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-20 transition-colors"
+                          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-20 transition-colors cursor-pointer"
                         >
                           <ArrowUp className="w-3 h-3" />
                         </button>
                         <button
-                          onClick={() => handleMoveDown(idx)}
+                          type="button"
+                          onClick={() => handleMoveDown(originalIndex)}
                           disabled={isLast || submitting}
                           title="Move commit later in sequence"
-                          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-20 transition-colors"
+                          className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-20 transition-colors cursor-pointer"
                         >
                           <ArrowDown className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Action Selector */}
-                    <div className="shrink-0">
-                      <select
-                        value={item.action}
-                        onChange={(e) =>
-                          handleActionChange(item.id, e.target.value as RebaseAction)
-                        }
+                    {/* Action Selector: Custom prominent dropdown with visible chevron */}
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDropdownId(isDropdownOpen ? null : item.id);
+                        }}
                         disabled={submitting}
-                        className={`text-xs font-mono font-medium rounded-md px-2.5 py-1.5 border appearance-none cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition-colors ${
+                        className={`inline-flex items-center gap-1.5 text-xs font-mono font-semibold rounded-md px-2.5 py-1.5 border transition-all cursor-pointer shadow-2xs ${
                           theme === 'dark' ? config.darkBadgeClass : config.badgeClass
                         }`}
+                        title="Click to change rebase action (Pick, Edit, Reword, Squash, Fixup, Drop)"
                       >
-                        {(Object.keys(ACTION_CONFIG) as RebaseAction[]).map((action) => (
-                          <option key={action} value={action}>
-                            {action.toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
+                        {config.icon}
+                        <span>{item.action.toUpperCase()}</span>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 transition-transform ${
+                            isDropdownOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {isDropdownOpen && (
+                        <div
+                          ref={dropdownRef}
+                          className="absolute left-0 mt-1.5 w-64 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-2xl p-1.5 z-50 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
+                        >
+                          <div className="px-2.5 py-1 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-700/60 mb-1">
+                            Choose Rebase Action
+                          </div>
+                          {(Object.keys(ACTION_CONFIG) as RebaseAction[]).map((action) => {
+                            const actConfig = ACTION_CONFIG[action];
+                            const isCurrent = item.action === action;
+
+                            return (
+                              <button
+                                key={action}
+                                type="button"
+                                onClick={() => handleActionChange(item.id, action)}
+                                className={`w-full flex items-start gap-2.5 px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
+                                  isCurrent
+                                    ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-semibold'
+                                    : 'hover:bg-zinc-100 dark:hover:bg-zinc-700/70 text-zinc-700 dark:text-zinc-200'
+                                }`}
+                              >
+                                <span className="shrink-0 mt-0.5">{actConfig.icon}</span>
+                                <div className="flex flex-col min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-bold uppercase">
+                                      {actConfig.label}
+                                    </span>
+                                    {action === 'edit' && (
+                                      <span className="px-1 py-0.2 rounded text-[9px] font-sans font-bold bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                                        Pause &amp; Amend
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-tight">
+                                    {actConfig.desc}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Commit SHA & Author */}
-                    <div className="shrink-0 font-mono text-xs text-indigo-500 dark:text-indigo-400 font-medium">
+                    {/* Commit SHA */}
+                    <div className="shrink-0 font-mono text-xs text-indigo-600 dark:text-indigo-400 font-medium">
                       {item.short_sha}
                     </div>
 
@@ -436,10 +587,12 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                       ) : (
                         <div className="flex items-center justify-between gap-2">
                           <span
-                            className={`text-xs truncate ${
+                            className={`text-xs truncate font-medium ${
                               item.action === 'drop'
                                 ? 'line-through text-zinc-400'
-                                : 'text-zinc-800 dark:text-zinc-200'
+                                : isEdit
+                                  ? 'text-purple-900 dark:text-purple-200'
+                                  : 'text-zinc-800 dark:text-zinc-200'
                             }`}
                           >
                             {item.summary}
@@ -450,7 +603,46 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                         </div>
                       )}
                     </div>
+
+                    {/* Quick Direct Edit Action Button */}
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      {!isEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleActionChange(item.id, 'edit')}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/20 hover:border-purple-500/40 transition-colors cursor-pointer"
+                          title="Stop here during rebase to edit files in this commit"
+                        >
+                          <Edit2 className="w-3 h-3 text-purple-500" />
+                          <span>Edit Files</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleActionChange(item.id, 'pick')}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-zinc-200/70 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors cursor-pointer"
+                          title="Cancel edit and keep commit as is"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Revert to Pick</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Edit Banner when EDIT is selected */}
+                  {isEdit && (
+                    <div className="mt-2.5 pt-2 border-t border-purple-200 dark:border-purple-800/60 flex items-center justify-between gap-2 text-xs text-purple-800 dark:text-purple-300">
+                      <div className="flex items-center gap-2">
+                        <Edit2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span>
+                          <strong>Rebase will pause at commit {item.short_sha}.</strong> Your working
+                          tree will match this commit so you can edit any files, stage your changes,
+                          and amend before continuing.
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -462,8 +654,8 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             <span>
-              If conflicts arise, rebase automatically pauses allowing resolution, continuing, or
-              aborting safely.
+              If you chose <strong>EDIT</strong>, Git will pause at that commit so you can modify
+              files in your working tree.
             </span>
           </div>
 
@@ -471,7 +663,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
             <button
               onClick={onClose}
               disabled={submitting}
-              className="px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               Cancel
             </button>
@@ -479,7 +671,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
               id="start-rebase-button"
               onClick={handleExecute}
               disabled={hasInvalidFirstItem || items.length === 0 || submitting}
-              className="px-4 py-2 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
               {submitting ? (
                 <>
@@ -489,7 +681,9 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
               ) : (
                 <>
                   <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Start Rebase ({items.length} commits)</span>
+                  <span>
+                    Start Rebase ({items.length} commit{items.length !== 1 ? 's' : ''})
+                  </span>
                 </>
               )}
             </button>
