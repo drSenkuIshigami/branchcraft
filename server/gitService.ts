@@ -2362,13 +2362,13 @@ export async function executeInteractiveRebase(
 
   // Construct todo sequence text
   const todoLines: string[] = [];
+  const rewordBySha: Record<string, string> = {};
   for (const item of items) {
     if (item.action === 'drop') {
       todoLines.push(`drop ${item.sha} ${item.summary}`);
     } else if (item.action === 'reword' && item.new_message && item.new_message.trim()) {
-      todoLines.push(`pick ${item.sha} ${item.summary}`);
-      const escapedMsg = item.new_message.replace(/"/g, '\\"');
-      todoLines.push(`exec git commit --amend -m "${escapedMsg}"`);
+      todoLines.push(`reword ${item.sha} ${item.summary}`);
+      rewordBySha[item.sha] = item.new_message;
     } else if (item.action === 'exec' && item.exec_command) {
       todoLines.push(`exec ${item.exec_command}`);
     } else {
@@ -2386,8 +2386,65 @@ export async function executeInteractiveRebase(
     targetDir,
     `workbench-rebase-editor-${Date.now()}-${Math.random().toString(36).slice(2)}.cjs`
   );
+  const rewordMapPath = path.join(
+    targetDir,
+    `workbench-reword-map-${Date.now()}-${Math.random().toString(36).slice(2)}.json`
+  );
+  const rewordEditorPath = path.join(
+    targetDir,
+    `workbench-reword-editor-${Date.now()}-${Math.random().toString(36).slice(2)}.cjs`
+  );
 
   fs.writeFileSync(tempTodoPath, todoLines.join('\n') + '\n', 'utf8');
+  if (Object.keys(rewordBySha).length > 0) {
+    fs.writeFileSync(rewordMapPath, JSON.stringify(rewordBySha), 'utf8');
+    const rewordEditor = [
+      'const fs = require("fs");',
+      'const path = require("path");',
+      'function editorTarget() {',
+      '  let target = process.argv[process.argv.length - 1];',
+      '  if (target && target.length > 3 && target[0] === "/" && target[2] === "/") {',
+      '    const d = target[1].toUpperCase();',
+      '    if (d >= "A" && d <= "Z") target = d + ":" + target.slice(2);',
+      '  }',
+      '  return target;',
+      '}',
+      'function resolveGitDir() {',
+      '  const entry = path.join(process.cwd(), ".git");',
+      '  if (fs.existsSync(entry) && fs.statSync(entry).isFile()) {',
+      '    const text = fs.readFileSync(entry, "utf8");',
+      '    const match = text.match(/^gitdir:\\s*(.+)$/m);',
+      '    if (match) return path.resolve(process.cwd(), match[1].trim());',
+      '  }',
+      '  return entry;',
+      '}',
+      'const map = JSON.parse(fs.readFileSync(process.env.GIT_REWORD_MAP, "utf8"));',
+      'let last = "";',
+      'try {',
+      '  const done = fs.readFileSync(path.join(resolveGitDir(), "rebase-merge", "done"), "utf8");',
+      '  const lines = done.split(/\\r?\\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));',
+      '  last = lines[lines.length - 1] || "";',
+      '} catch (e) {',
+      '  process.exit(0);',
+      '}',
+      'const found = last.match(/^reword\\s+([0-9a-f]{7,40})\\b/i);',
+      'if (!found) process.exit(0);',
+      'const sha = found[1].toLowerCase();',
+      'let message = null;',
+      'for (const key of Object.keys(map)) {',
+      '  const normalized = key.toLowerCase();',
+      '  if (normalized === sha || normalized.startsWith(sha) || sha.startsWith(normalized)) {',
+      '    message = map[key];',
+      '    break;',
+      '  }',
+      '}',
+      'if (!message) process.exit(0);',
+      'const text = message.endsWith("\\n") ? message : message + "\\n";',
+      'fs.writeFileSync(editorTarget(), text);',
+      'process.exit(0);',
+    ].join('\n');
+    fs.writeFileSync(rewordEditorPath, rewordEditor, 'utf8');
+  }
 
   const scriptContent = [
     'const fs = require("fs");',
@@ -2410,7 +2467,10 @@ export async function executeInteractiveRebase(
 
   try {
     const sequenceEditorCmd = `"${process.execPath}" "${editorScriptPath}"`;
-    const editorCmd = `"${process.execPath}" -e "process.exit(0)"`;
+    const editorCmd =
+      Object.keys(rewordBySha).length > 0
+        ? `"${process.execPath}" "${rewordEditorPath}"`
+        : `"${process.execPath}" -e "process.exit(0)"`;
 
     const rebaseCmd: string[] = ['rebase', '-i'];
     if (autostash) {
@@ -2429,6 +2489,7 @@ export async function executeInteractiveRebase(
       {
         GIT_SEQUENCE_EDITOR: sequenceEditorCmd,
         GIT_TODO_REPLACEMENT: tempTodoPath,
+        GIT_REWORD_MAP: rewordMapPath,
         GIT_EDITOR: editorCmd,
       }
     );
@@ -2450,9 +2511,17 @@ export async function executeInteractiveRebase(
       // ignore
     }
     try {
-      if (fs.existsSync(editorScriptPath)) {
-        fs.unlinkSync(editorScriptPath);
-      }
+      if (fs.existsSync(editorScriptPath)) fs.unlinkSync(editorScriptPath);
+    } catch {
+      // ignore
+    }
+    try {
+      if (fs.existsSync(rewordMapPath)) fs.unlinkSync(rewordMapPath);
+    } catch {
+      // ignore
+    }
+    try {
+      if (fs.existsSync(rewordEditorPath)) fs.unlinkSync(rewordEditorPath);
     } catch {
       // ignore
     }
