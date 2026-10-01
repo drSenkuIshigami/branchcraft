@@ -55,6 +55,8 @@ interface WorkingTreePanelProps {
   onRebaseContinue?: () => Promise<void>;
   onRebaseSkip?: () => Promise<void>;
   onRebaseAbort?: () => Promise<void>;
+  onRebaseOpenEditor?: () => void;
+  onRebaseAmendAndContinue?: () => void;
   lastCommitMessage?: string;
   loading: boolean;
   theme: Theme;
@@ -84,6 +86,8 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
   onRebaseContinue,
   onRebaseSkip,
   onRebaseAbort,
+  onRebaseOpenEditor,
+  onRebaseAmendAndContinue,
   lastCommitMessage,
   loading,
   theme,
@@ -280,16 +284,44 @@ export const WorkingTreePanel: React.FC<WorkingTreePanelProps> = ({
           onContinue={onRebaseContinue || (async () => {})}
           onSkip={onRebaseSkip || (async () => {})}
           onAbort={onRebaseAbort || (async () => {})}
+          onOpenEditor={onRebaseOpenEditor}
+          onAmendAndContinue={onRebaseAmendAndContinue}
         />
       )}
 
       {isClean ? (
-        <div className="flex flex-col items-center justify-center p-8 text-center text-zinc-400">
-          <FileCheck className="w-10 h-10 text-emerald-500 mb-2 stroke-1" />
-          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Working tree clean</p>
-          <p className="text-xs text-zinc-500 mt-1">
-            No unstaged, staged, or untracked changes in the current directory.
-          </p>
+        <div className="flex flex-col items-center justify-center p-6 text-center text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg">
+          {rebaseStatus && rebaseStatus.in_progress ? (
+            <>
+              <div className="p-2.5 rounded-full bg-amber-500/10 text-amber-500 mb-2">
+                <FileEdit className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                Ready to Edit Files
+              </p>
+              <p className="text-xs text-zinc-500 max-w-xs mt-1">
+                Git is stopped at this commit. Open the file editor to view or modify repository files (e.g. <code className="font-mono">README.md</code>).
+              </p>
+              {onRebaseOpenEditor && (
+                <button
+                  type="button"
+                  onClick={onRebaseOpenEditor}
+                  className="mt-3 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FileEdit className="w-3.5 h-3.5" />
+                  <span>Open File Editor</span>
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <FileCheck className="w-10 h-10 text-emerald-500 mb-2 stroke-1" />
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Working tree clean</p>
+              <p className="text-xs text-zinc-500 mt-1">
+                No unstaged, staged, or untracked changes in the current directory.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

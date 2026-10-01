@@ -2276,6 +2276,94 @@ export async function executeInteractiveRebase(
 }
 
 /**
+ * Lists all tracked and untracked files in the repository (excluding .git and ignored files)
+ */
+export async function listRepositoryFiles(repoPath: string): Promise<string[]> {
+  const rootPath = await validateRepository(repoPath);
+  const res = await runGit(rootPath, ['ls-files', '-co', '--exclude-standard']);
+  if (res.code !== 0) return [];
+  return res.stdout
+    .split('\n')
+    .map((f) => f.trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Reads file content directly from working tree safely
+ */
+export async function getFileContent(
+  repoPath: string,
+  relativePath: string
+): Promise<{ path: string; content: string; exists: boolean }> {
+  const rootPath = await validateRepository(repoPath);
+  const resolved = path.resolve(rootPath, relativePath);
+  if (!resolved.startsWith(rootPath)) {
+    throw new Error('Access outside repository root is forbidden');
+  }
+  if (!fs.existsSync(resolved)) {
+    return { path: relativePath, content: '', exists: false };
+  }
+  const content = fs.readFileSync(resolved, 'utf8');
+  return { path: relativePath, content, exists: true };
+}
+
+/**
+ * Saves file content directly to working tree and optionally stages it
+ */
+export async function saveFileContent(
+  repoPath: string,
+  relativePath: string,
+  content: string,
+  autoStage?: boolean
+): Promise<{ success: boolean; staged: boolean }> {
+  const rootPath = await validateRepository(repoPath);
+  const resolved = path.resolve(rootPath, relativePath);
+  if (!resolved.startsWith(rootPath)) {
+    throw new Error('Access outside repository root is forbidden');
+  }
+  fs.mkdirSync(path.dirname(resolved), { recursive: true });
+  fs.writeFileSync(resolved, content, 'utf8');
+  let staged = false;
+  if (autoStage) {
+    const res = await runGit(rootPath, ['add', relativePath]);
+    staged = res.code === 0;
+  }
+  return { success: true, staged };
+}
+
+/**
+ * Amends current commit and continues active rebase in a single clean operation
+ */
+export async function rebaseAmendAndContinue(
+  repoPath: string,
+  message?: string
+): Promise<OperationResult> {
+  const rootPath = await validateRepository(repoPath);
+  const amendArgs = message ? ['commit', '--amend', '-m', message] : ['commit', '--amend', '--no-edit'];
+  const amendRes = await runGit(rootPath, amendArgs);
+  if (amendRes.code !== 0) {
+    return {
+      success: false,
+      stdout: amendRes.stdout,
+      stderr: amendRes.stderr,
+      exit_code: amendRes.code,
+      command_run: amendArgs,
+      duration_ms: amendRes.duration_ms,
+    };
+  }
+  const contRes = await runGit(rootPath, ['rebase', '--continue'], undefined, { GIT_EDITOR: 'cat' });
+  return {
+    success: contRes.code === 0,
+    stdout: `${amendRes.stdout}\n${contRes.stdout}`,
+    stderr: contRes.stderr,
+    exit_code: contRes.code,
+    command_run: ['rebase', '--continue'],
+    duration_ms: contRes.duration_ms,
+  };
+}
+
+/**
  * Phase 3 Step 1: Skip the current conflicting/paused commit during rebase
  */
 export async function rebaseSkip(repoPath: string): Promise<OperationResult> {

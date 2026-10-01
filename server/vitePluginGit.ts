@@ -28,6 +28,7 @@ import {
   getCommitGraph,
   getConflictState,
   getDetailedRebaseStatus,
+  getFileContent,
   getFileDiff,
   getGitUserConfig,
   getRebaseCandidates,
@@ -41,15 +42,18 @@ import {
   gitPull,
   gitPush,
   launchMergetool,
+  listRepositoryFiles,
   modifyCommitAuthorDate,
   openSystemLocation,
   popStash,
+  rebaseAmendAndContinue,
   rebaseSkip,
   renameBranch,
   resetHard,
   resetToTarget,
   resolveConflict,
   restoreFileFromCommit,
+  saveFileContent,
   revertAbort,
   revertCommit,
   revertContinue,
@@ -714,6 +718,55 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             if (!repoPath) return sendJson(400, { error: 'repo_path required' });
             const resData = await rebaseSkip(repoPath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/rebase/amend_continue' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const message = typeof body.message === 'string' ? body.message : undefined;
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const resData = await rebaseAmendAndContinue(repoPath, message);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/files/list' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            if (!repoPath) return sendJson(400, { error: 'repo_path required' });
+            const files = await listRepositoryFiles(repoPath);
+            return sendJson(200, { files });
+          }
+
+          if (pathname === '/api/git/files/content' && req.method === 'GET') {
+            const repoPath =
+              typeof parsedUrl.query.repo_path === 'string'
+                ? parsedUrl.query.repo_path
+                : typeof parsedUrl.query.path === 'string'
+                ? parsedUrl.query.path
+                : '';
+            const relativePath = typeof parsedUrl.query.relative_path === 'string' ? parsedUrl.query.relative_path : '';
+            if (!repoPath || !relativePath) {
+              return sendJson(400, { error: 'repo_path and relative_path required' });
+            }
+            const resData = await getFileContent(repoPath, relativePath);
+            return sendJson(200, resData);
+          }
+
+          if (pathname === '/api/git/files/save' && req.method === 'POST') {
+            const body = await readBody();
+            const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
+            const relativePath = typeof body.relative_path === 'string' ? body.relative_path : '';
+            const content = typeof body.content === 'string' ? body.content : '';
+            const autoStage = body.auto_stage !== false;
+            if (!repoPath || !relativePath) {
+              return sendJson(400, { error: 'repo_path and relative_path required' });
+            }
+            const resData = await saveFileContent(repoPath, relativePath, content, autoStage);
             return sendJson(200, resData);
           }
 

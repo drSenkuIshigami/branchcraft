@@ -8,6 +8,9 @@ import {
   CheckCircle2,
   GitCommit,
   ArrowRight,
+  FileEdit,
+  Save,
+  Check,
 } from 'lucide-react';
 import type { RebaseStatus, Theme } from '../types';
 
@@ -18,6 +21,8 @@ interface ActiveRebasePanelProps {
   onContinue: () => void;
   onSkip: () => void;
   onAbort: () => void;
+  onOpenEditor?: () => void;
+  onAmendAndContinue?: () => void;
 }
 
 export const ActiveRebasePanel: React.FC<ActiveRebasePanelProps> = ({
@@ -27,6 +32,8 @@ export const ActiveRebasePanel: React.FC<ActiveRebasePanelProps> = ({
   onContinue,
   onSkip,
   onAbort,
+  onOpenEditor,
+  onAmendAndContinue,
 }) => {
   if (!rebaseStatus.in_progress) return null;
 
@@ -46,7 +53,7 @@ export const ActiveRebasePanel: React.FC<ActiveRebasePanelProps> = ({
           : 'bg-amber-50/80 border-amber-300 text-amber-900'
       }`}
     >
-      <div className="flex items-start justify-between gap-3 mb-2.5">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 mb-2.5">
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400">
             <Layers className="w-4 h-4" />
@@ -67,44 +74,95 @@ export const ActiveRebasePanel: React.FC<ActiveRebasePanelProps> = ({
               <span className="font-mono font-semibold">
                 {rebaseStatus.current_commit ? rebaseStatus.current_commit.slice(0, 7) : 'paused'}
               </span>
-              {hasConflicts ? ' (conflicts must be resolved)' : ' (ready to continue or amend)'}
+              {hasConflicts ? ' (conflicts must be resolved)' : ' (ready to edit files or amend)'}
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center flex-wrap gap-1.5 shrink-0">
+          {onOpenEditor && (
+            <button
+              type="button"
+              id="rebase-open-editor-button"
+              onClick={onOpenEditor}
+              title="Open repository file editor (e.g. README.md)"
+              className="px-2.5 py-1.5 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <FileEdit className="w-3.5 h-3.5" />
+              <span>Edit Files</span>
+            </button>
+          )}
+
+          {onAmendAndContinue && (
+            <button
+              type="button"
+              id="rebase-amend-continue-button"
+              onClick={onAmendAndContinue}
+              disabled={hasConflicts}
+              title="Amend staged changes into this commit and continue rebase"
+              className="px-2.5 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Amend & Continue</span>
+            </button>
+          )}
+
           <button
+            type="button"
             id="rebase-continue-button"
             onClick={onContinue}
             disabled={hasConflicts}
             title={
               hasConflicts ? 'Resolve all conflicts first before continuing' : 'Continue rebase'
             }
-            className="px-2.5 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium flex items-center gap-1 shadow-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-2.5 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <Play className="w-3 h-3 fill-current" />
             <span>Continue</span>
           </button>
+
           <button
+            type="button"
             id="rebase-skip-button"
             onClick={onSkip}
             title="Skip this commit and proceed to next"
-            className="px-2.5 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium flex items-center gap-1 transition-colors"
+            className="px-2.5 py-1.5 rounded-md bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
           >
             <SkipForward className="w-3 h-3" />
             <span>Skip</span>
           </button>
+
           <button
+            type="button"
             id="rebase-abort-button"
             onClick={onAbort}
             title="Abort rebase and restore original branch state"
-            className="px-2.5 py-1.5 rounded-md bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 hover:bg-rose-200 dark:hover:bg-rose-900 text-rose-800 dark:text-rose-200 text-xs font-medium flex items-center gap-1 transition-colors"
+            className="px-2.5 py-1.5 rounded-md bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 hover:bg-rose-200 dark:hover:bg-rose-900 text-rose-800 dark:text-rose-200 text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
           >
             <XCircle className="w-3 h-3" />
             <span>Abort</span>
           </button>
         </div>
+      </div>
+
+      {/* Helper message banner */}
+      <div className="flex items-center justify-between px-2.5 py-1.5 mb-2 rounded bg-amber-100/60 dark:bg-amber-900/40 text-[11px] text-amber-800 dark:text-amber-200">
+        <div className="flex items-center gap-1.5">
+          <FileEdit className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span>
+            Git is paused at this commit. Use <strong>Edit Files</strong> to view or change files (e.g. <code className="font-mono">README.md</code>), then click <strong>Amend & Continue</strong>.
+          </span>
+        </div>
+        {onOpenEditor && (
+          <button
+            type="button"
+            onClick={onOpenEditor}
+            className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 underline hover:no-underline ml-2 shrink-0 cursor-pointer"
+          >
+            Open Editor →
+          </button>
+        )}
       </div>
 
       {/* Progress Bar */}

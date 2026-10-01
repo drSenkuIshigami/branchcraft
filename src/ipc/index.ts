@@ -1342,6 +1342,85 @@ export async function rebaseSkip(repoPath: string): Promise<OperationResult> {
 }
 
 /**
+ * Amends current commit and continues active rebase
+ */
+export async function rebaseAmendAndContinue(
+  repoPath: string,
+  message?: string
+): Promise<OperationResult> {
+  const res = await fetch('/api/git/rebase/amend_continue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo_path: repoPath, message }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to amend and continue rebase' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as OperationResult;
+}
+
+/**
+ * Lists all repository files (working tree)
+ */
+export async function listRepositoryFiles(repoPath: string): Promise<string[]> {
+  const res = await fetch(`/api/git/files/list?repo_path=${encodeURIComponent(repoPath)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to list repository files' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const data = (await res.json()) as { files: string[] };
+  return data.files || [];
+}
+
+/**
+ * Reads file content directly from working tree
+ */
+export async function getFileContent(
+  repoPath: string,
+  relativePath: string
+): Promise<{ path: string; content: string; exists: boolean }> {
+  const res = await fetch(
+    `/api/git/files/content?repo_path=${encodeURIComponent(repoPath)}&relative_path=${encodeURIComponent(relativePath)}`
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to get file content' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return (await res.json()) as { path: string; content: string; exists: boolean };
+}
+
+/**
+ * Saves file content directly to working tree and optionally stages it
+ */
+export async function saveFileContent(
+  repoPath: string,
+  relativePath: string,
+  content: string,
+  autoStage: boolean = true
+): Promise<{ success: boolean; staged: boolean }> {
+  const res = await fetch('/api/git/files/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_path: repoPath,
+      relative_path: relativePath,
+      content,
+      auto_stage: autoStage,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Failed to save file content' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+
+  return (await res.json()) as { success: boolean; staged: boolean };
+}
+
+/**
  * Phase 3 Step 2: Fetch Git user config (name & email)
  */
 export async function getGitUserConfig(repoPath: string): Promise<GitUserConfig> {

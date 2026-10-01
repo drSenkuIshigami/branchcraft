@@ -33,6 +33,7 @@ interface InteractiveRebaseModalProps {
   theme: Theme;
   onClose: () => void;
   onRebaseStarted: (commandTokens: string[]) => void;
+  onRebaseCompleted?: (hasEditOrPause: boolean) => void;
 }
 
 const ACTION_CONFIG: Record<
@@ -100,6 +101,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   theme,
   onClose,
   onRebaseStarted,
+  onRebaseCompleted,
 }) => {
   const [items, setItems] = useState<RebaseTodoItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -276,6 +278,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     if (isRootRebase) cmdTokens.push('--root');
     else cmdTokens.push(baseSha);
 
+    const hasEditAction = items.some((it) => it.action === 'edit');
     try {
       onRebaseStarted(cmdTokens);
       const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, autoStash);
@@ -283,6 +286,10 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
         setError(res.stderr);
       } else {
         onClose();
+        if (onRebaseCompleted) {
+          const isPaused = hasEditAction || Boolean(res.stdout && res.stdout.includes('Stopped at'));
+          onRebaseCompleted(isPaused);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -295,6 +302,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   const handleStashAndRetry = async () => {
     setIsStashing(true);
     setError(null);
+    const hasEditAction = items.some((it) => it.action === 'edit');
     try {
       await createStash(repoPath, 'Auto-stash before interactive rebase', true);
       // Run rebase with autostash enabled
@@ -308,6 +316,10 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
         setError(res.stderr);
       } else {
         onClose();
+        if (onRebaseCompleted) {
+          const isPaused = hasEditAction || Boolean(res.stdout && res.stdout.includes('Stopped at'));
+          onRebaseCompleted(isPaused);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

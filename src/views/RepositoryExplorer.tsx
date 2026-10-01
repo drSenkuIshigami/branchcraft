@@ -18,6 +18,11 @@ import {
   HelpCircle,
   Search,
   Sparkles,
+  Layers,
+  Play,
+  SkipForward,
+  XCircle,
+  FileEdit,
 } from 'lucide-react';
 import type {
   BranchInfo,
@@ -90,6 +95,7 @@ import {
   openSystemLocation,
   pickFolder,
   popStash,
+  rebaseAmendAndContinue,
   rebaseSkip,
   renameBranch,
   resetHard,
@@ -125,6 +131,7 @@ import { BranchFromStashModal } from '../components/BranchFromStashModal';
 import { ResetHardModal } from '../components/ResetHardModal';
 import { RestoreFileModal } from '../components/RestoreFileModal';
 import { InteractiveRebaseModal } from '../components/InteractiveRebaseModal';
+import { RebaseFileEditorModal } from '../components/RebaseFileEditorModal';
 import { CommitAuthorDateModal } from '../components/CommitAuthorDateModal';
 import { CherryPickModal } from '../components/CherryPickModal';
 import { RevertModal } from '../components/RevertModal';
@@ -239,6 +246,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
     baseSummary?: string;
     isRoot?: boolean;
   } | null>(null);
+  const [isRebaseEditorOpen, setIsRebaseEditorOpen] = useState<boolean>(false);
 
   // Commit Author & Date Modification State (Phase 3 Step 2)
   const [authorDateModalCommit, setAuthorDateModalCommit] = useState<CommitInfo | null>(null);
@@ -1553,9 +1561,59 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   // Interactive Rebase Handlers (Phase 3 Step 1)
   const handleOpenRebaseModal = (baseSha: string, baseSummary?: string, isRoot?: boolean) => {
     const targetCommit = commits.find((c) => c.sha === baseSha);
-    const detectedIsRoot =
-      isRoot ?? Boolean(baseSha === '--root' || (targetCommit && targetCommit.parents.length === 0));
-    setRebaseModalTarget({ baseSha, baseSummary, isRoot: detectedIsRoot });
+    const isRootCommit = Boolean(
+      isRoot || baseSha === '--root' || (targetCommit && targetCommit.parents.length === 0)
+    );
+    if (isRootCommit) {
+      setRebaseModalTarget({
+        baseSha: '--root',
+        baseSummary: targetCommit?.subject || baseSummary,
+        isRoot: true,
+      });
+    } else if (targetCommit && targetCommit.parents.length > 0) {
+      // Rebase onto targetCommit's parent so that targetCommit is included in the interactive todo list
+      setRebaseModalTarget({
+        baseSha: targetCommit.parents[0],
+        baseSummary: targetCommit.subject || baseSummary,
+        isRoot: false,
+      });
+    } else {
+      setRebaseModalTarget({ baseSha, baseSummary, isRoot: Boolean(isRoot) });
+    }
+  };
+
+  const handleRebaseAmendAndContinue = async () => {
+    if (!repoPath) return;
+    const start = performance.now();
+    try {
+      const res = await rebaseAmendAndContinue(repoPath);
+      recordCommand(
+        res.command_run,
+        Math.round(performance.now() - start),
+        res.success,
+        res.exit_code,
+        res.stderr
+      );
+      if (res.success) {
+        setSystemToast({
+          message: 'Commit amended & rebase continued',
+          commandSnippet: 'git commit --amend && git rebase --continue',
+        });
+        await loadRepositoryData(repoPath);
+        const detailedRebase = await getDetailedRebaseStatus(repoPath);
+        if (!detailedRebase.in_progress) {
+          setIsRebaseEditorOpen(false);
+          setSystemToast({
+            message: 'Interactive rebase completed successfully! All changes applied.',
+          });
+        }
+      } else {
+        setError(res.stderr || 'Failed to amend and continue rebase');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    }
   };
 
   const handleRebaseContinue = async () => {
@@ -2158,6 +2216,69 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
 
         {/* Center & Right Work Area */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-zinc-50/20 dark:bg-zinc-950">
+          {/* Global Interactive Rebase Active Banner (Visible across all tabs) */}
+          {rebaseStatus && rebaseStatus.in_progress && (
+            <div className="shrink-0 px-4 py-2 bg-amber-500/15 dark:bg-amber-950/40 border-b border-amber-300/80 dark:border-amber-800/80 flex flex-wrap items-center justify-between gap-3 text-xs z-20">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-1 rounded bg-amber-500 text-white shrink-0">
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex items-center gap-2 truncate">
+                  <span className="font-semibold text-amber-900 dark:text-amber-200">
+                    Interactive Rebase Active
+                  </span>
+                  <span className="text-zinc-400">•</span>
+                  <span className="text-zinc-700 dark:text-zinc-300 truncate">
+                    Stopped at commit{' '}
+                    <code className="font-mono font-semibold px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                      {rebaseStatus.current_commit?.slice(0, 7) || 'paused'}
+                    </code>
+                  </span>
+                  {rebaseStatus.head_name && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                      {rebaseStatus.head_name}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsRebaseEditorOpen(true)}
+                  className="px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                >
+                  <FileEdit className="w-3.5 h-3.5" />
+                  <span>Edit Files</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRebaseAmendAndContinue}
+                  className="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Amend & Continue</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRebaseContinue}
+                  className="px-2.5 py-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>Continue</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRebaseAbort}
+                  className="px-2 py-1 rounded-md border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Abort</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {selectedView === 'working-tree' ? (
             /* Working tree mode: File status on top/left, Monaco diff on right/bottom */
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
@@ -2186,6 +2307,8 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                   onRebaseContinue={handleRebaseContinue}
                   onRebaseSkip={handleRebaseSkip}
                   onRebaseAbort={handleRebaseAbort}
+                  onRebaseOpenEditor={() => setIsRebaseEditorOpen(true)}
+                  onRebaseAmendAndContinue={handleRebaseAmendAndContinue}
                   lastCommitMessage={latestCommitMsg}
                   loading={loading}
                   theme={theme}
@@ -2496,9 +2619,47 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               message: 'Interactive rebase initiated',
               commandSnippet: cmd.join(' '),
             });
-            if (repoPath) loadRepositoryData(repoPath);
+          }}
+          onRebaseCompleted={async (_isPaused) => {
+            setRebaseModalTarget(null);
+            if (repoPath) {
+              await loadRepositoryData(repoPath);
+              const detailedRebase = await getDetailedRebaseStatus(repoPath);
+              if (detailedRebase.in_progress) {
+                setSelectedView('working-tree');
+                setIsRebaseEditorOpen(true);
+                setSystemToast({
+                  message: 'Rebase paused: Ready to edit commit files.',
+                  commandSnippet: 'git rebase -i (paused for edit)',
+                });
+              } else {
+                setSystemToast({
+                  message: 'Interactive rebase completed successfully! All changes applied.',
+                  commandSnippet: 'git rebase -i (completed)',
+                });
+              }
+            }
           }}
           theme={theme}
+        />
+      )}
+
+      {/* Rebase File Editor Modal */}
+      {repoPath && (
+        <RebaseFileEditorModal
+          isOpen={isRebaseEditorOpen}
+          repoPath={repoPath}
+          rebaseStatus={rebaseStatus}
+          theme={theme}
+          onClose={() => setIsRebaseEditorOpen(false)}
+          onRebaseFinished={async (success, message) => {
+            setIsRebaseEditorOpen(false);
+            setSystemToast({ message });
+            if (repoPath) await loadRepositoryData(repoPath);
+          }}
+          onRefreshRepo={async () => {
+            if (repoPath) await loadRepositoryData(repoPath);
+          }}
         />
       )}
 
