@@ -98,6 +98,11 @@ function runGit(
   });
 }
 
+/** Accept the commit message Git already prepared. Works when `cat` is not on PATH. */
+function keepCommitMessageEditor(): string {
+  return `"${process.execPath}" -e "process.exit(0)"`;
+}
+
 export async function checkGitAvailability(): Promise<GitAvailability> {
   try {
     const res = await runGit(null, ['--version']);
@@ -1733,7 +1738,9 @@ export async function continueConflictOperation(repoPath: string): Promise<Opera
     args = ['merge', '--continue'];
   }
 
-  let res = await runGit(rootPath, args);
+  let res = await runGit(rootPath, args, undefined, {
+    GIT_EDITOR: keepCommitMessageEditor(),
+  });
   // Fallback for merge if older git versions expect commit -m
   if (res.code !== 0 && !state.in_rebase && !state.in_cherry_pick && !state.in_revert) {
     res = await runGit(rootPath, ['commit', '--no-edit']);
@@ -2605,7 +2612,9 @@ export async function rebaseAmendAndContinue(
       duration_ms: amendRes.duration_ms,
     };
   }
-  const contRes = await runGit(rootPath, ['rebase', '--continue'], undefined, { GIT_EDITOR: 'cat' });
+  const contRes = await runGit(rootPath, ['rebase', '--continue'], undefined, {
+    GIT_EDITOR: keepCommitMessageEditor(),
+  });
   return {
     success: contRes.code === 0,
     stdout: `${amendRes.stdout}\n${contRes.stdout}`,
@@ -2786,7 +2795,7 @@ export async function modifyCommitAuthorDate(
 
     // Continue the rebase to HEAD
     const continueRes = await runGit(rootPath, ['rebase', '--continue'], undefined, {
-      GIT_EDITOR: 'cat',
+      GIT_EDITOR: keepCommitMessageEditor(),
     });
 
     return {
