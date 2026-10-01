@@ -14,7 +14,15 @@
   <a href="#architecture"><img src="https://img.shields.io/badge/UI-React%2019%20%2B%20Tailwind%20v4-38bdf8?style=flat-square" alt="Frontend" /></a>
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-emerald?style=flat-square" alt="License" /></a>
   <a href="#security"><img src="https://img.shields.io/badge/Security-100%25%20Local--First%20%7C%20No%20Telemetry-purple?style=flat-square" alt="Local First" /></a>
-  <a href="https://github.com"><img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square" alt="PRs Welcome" /></a>
+  <a href="https://github.com/drSenkuIshigami/branchcraft"><img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square" alt="PRs Welcome" /></a>
+</p>
+
+<p align="center">
+  Git Workbench (<code>branchcraft</code>) is a local-first visual Git client for Windows, macOS, and Linux. The commit graph, interactive rebase, conflict resolver, reflog recovery, and repository search run on your machine and call the Git executable you already have. Repository contents are not uploaded.
+</p>
+
+<p align="center">
+  <a href="https://github.com/drSenkuIshigami/branchcraft">github.com/drSenkuIshigami/branchcraft</a>
 </p>
 
 ---
@@ -84,7 +92,7 @@ Most traditional Git GUIs are either **bloated Electron resource hogs**, paywall
 - Live search for real-world problems: *"Conflict"*, *"Remove file from commit"*, *"Undo reset --hard"*, *"Detached HEAD"*, *"Push rejected"*, *"Stash changes"*.
 - Step-by-step guidance tailored directly to Git Workbench buttons, plus 1-click terminal CLI equivalent commands.
 
-### 9. 🎨 Modern Dark / Light Mode & Native OS File Dialogs
+### 10. 🎨 Modern Dark / Light Mode & Native OS File Dialogs
 - Complete theme support (Dark Mode and Light Mode) across all components, diff inspectors, and dialogs.
 - Native operating system folder browser dialogs for Windows Explorer, macOS Finder, and Linux file managers.
 
@@ -96,8 +104,8 @@ Most traditional Git GUIs are either **bloated Electron resource hogs**, paywall
 
 1. Clone or download this repository:
    ```cmd
-   git clone https://github.com/your-username/git-workbench.git
-   cd git-workbench
+   git clone https://github.com/drSenkuIshigami/branchcraft.git
+   cd branchcraft
    ```
 2. Run the automated installer:
    ```cmd
@@ -115,8 +123,8 @@ Most traditional Git GUIs are either **bloated Electron resource hogs**, paywall
 
 1. Clone the repository and navigate to the project directory:
    ```bash
-   git clone https://github.com/your-username/git-workbench.git
-   cd git-workbench
+   git clone https://github.com/drSenkuIshigami/branchcraft.git
+   cd branchcraft
    ```
 2. Make the scripts executable and run the setup:
    ```bash
