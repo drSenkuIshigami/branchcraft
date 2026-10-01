@@ -95,84 +95,87 @@ export const CommitDetailPanel: React.FC<CommitDetailPanelProps> = ({
     <div className="flex flex-col h-full overflow-hidden text-xs">
       {/* Header Info */}
       <div className="p-3 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 shrink-0">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 leading-snug">
+        {/* Full-width Title Row with SHA Copy Badge */}
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 leading-snug break-words">
             {commit.subject}
           </h3>
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onCreateBranchAtCommit && (
-              <button
-                type="button"
-                onClick={() => onCreateBranchAtCommit(commit.sha, commit.subject)}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium transition-colors"
-                title="Create new branch at this commit"
-              >
-                <GitBranch className="w-3 h-3" />
-                <span>New Branch</span>
-              </button>
+          <button
+            type="button"
+            onClick={handleCopySha}
+            className="flex items-center gap-1 font-mono text-[11px] px-2 py-0.5 rounded bg-zinc-200/70 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors shrink-0 cursor-pointer"
+            title="Copy full SHA"
+          >
+            {copiedSha ? (
+              <Check className="w-3 h-3 text-emerald-500" />
+            ) : (
+              <Copy className="w-3 h-3" />
             )}
-            {onStartInteractiveRebase && (
-              <button
-                type="button"
-                id="commit-detail-rebase-button"
-                onClick={() => onStartInteractiveRebase(commit.sha, commit.subject)}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium transition-colors"
-                title="Start interactive rebase using this commit as base"
-              >
-                <Layers className="w-3 h-3" />
-                <span>Rebase from here</span>
-              </button>
-            )}
-            {onCherryPick && (
-              <button
-                type="button"
-                id="commit-detail-cherry-pick-button"
-                onClick={() => onCherryPick(commit)}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-colors"
-                title="Cherry-pick this commit onto current HEAD branch"
-              >
-                <Cherry className="w-3 h-3" />
-                <span>Cherry-Pick</span>
-              </button>
-            )}
-            {onRevert && (
-              <button
-                type="button"
-                id="commit-detail-revert-button"
-                onClick={() => onRevert(commit)}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium transition-colors"
-                title="Revert this commit (create inverse commit)"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Revert</span>
-              </button>
-            )}
-            {onModifyAuthorDate && (
-              <button
-                type="button"
-                id="commit-detail-modify-author-button"
-                onClick={() => onModifyAuthorDate(commit)}
-                className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-medium transition-colors"
-                title="Modify author name, email, or timestamp"
-              >
-                <Clock className="w-3 h-3" />
-                <span>Edit Author / Date</span>
-              </button>
-            )}
+            <span>{commit.sha.substring(0, 8)}</span>
+          </button>
+        </div>
+
+        {/* Action Toolbar Row - Wrapping gracefully so buttons never overflow or get cut off */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+          {onCreateBranchAtCommit && (
             <button
               type="button"
-              onClick={handleCopySha}
-              className="flex items-center gap-1 font-mono text-[11px] px-1.5 py-0.5 rounded bg-zinc-200/70 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-              title="Copy full SHA"
+              onClick={() => onCreateBranchAtCommit(commit.sha, commit.subject)}
+              className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium transition-colors cursor-pointer"
+              title="Create new branch at this commit"
             >
-              {copiedSha ? (
-                <Check className="w-3 h-3 text-emerald-500" />
-              ) : (
-                <Copy className="w-3 h-3" />
-              )}
-              <span>{commit.sha.substring(0, 8)}</span>
+              <GitBranch className="w-3 h-3" />
+              <span>New Branch</span>
             </button>
-          </div>
+          )}
+          {onStartInteractiveRebase && (
+            <button
+              type="button"
+              id="commit-detail-rebase-button"
+              onClick={() => onStartInteractiveRebase(commit.sha, commit.subject)}
+              className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium transition-colors cursor-pointer"
+              title="Start interactive rebase using this commit as base"
+            >
+              <Layers className="w-3 h-3" />
+              <span>Rebase from here</span>
+            </button>
+          )}
+          {onCherryPick && (
+            <button
+              type="button"
+              id="commit-detail-cherry-pick-button"
+              onClick={() => onCherryPick(commit)}
+              className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium transition-colors cursor-pointer"
+              title="Cherry-pick this commit onto current HEAD branch"
+            >
+              <Cherry className="w-3 h-3" />
+              <span>Cherry-Pick</span>
+            </button>
+          )}
+          {onRevert && (
+            <button
+              type="button"
+              id="commit-detail-revert-button"
+              onClick={() => onRevert(commit)}
+              className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-medium transition-colors cursor-pointer"
+              title="Revert this commit (create inverse commit)"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Revert</span>
+            </button>
+          )}
+          {onModifyAuthorDate && (
+            <button
+              type="button"
+              id="commit-detail-modify-author-button"
+              onClick={() => onModifyAuthorDate(commit)}
+              className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 font-medium transition-colors cursor-pointer"
+              title="Modify author name, email, or timestamp"
+            >
+              <Clock className="w-3 h-3" />
+              <span>Edit Author / Date</span>
+            </button>
+          )}
         </div>
 
         {commit.body && (

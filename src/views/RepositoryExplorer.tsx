@@ -2332,6 +2332,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
                       targetSubject: c.subject,
                     });
                   }}
+                  onCreateBranchAtCommit={(sha, subject) => handleOpenCreateBranch(sha, subject)}
                   loading={loading}
                   theme={theme}
                 />
