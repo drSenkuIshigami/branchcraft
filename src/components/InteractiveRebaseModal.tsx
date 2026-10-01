@@ -325,7 +325,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
       else cmdTokens.push(baseSha);
 
       onRebaseStarted(cmdTokens);
-      const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, true);
+      const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, false);
       const combinedOutput = (res.stderr || '') + '\n' + (res.stdout || '');
 
       if (!res.success) {

@@ -320,6 +320,7 @@ export async function getCommitGraph(repoPath: string, limit = 100, skip = 0): P
   const format = '%H%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%cn%x1f%ce%x1f%cI%x1f%s%x1f%b%x1f%D%x1e';
   const res = await runGit(rootPath, [
     'log',
+    '--exclude=refs/stash',
     '--all',
     '--topo-order',
     `--format=${format}`,
@@ -2208,6 +2209,19 @@ export async function executeInteractiveRebase(
       }
     } catch {
       // Fallback
+    }
+  }
+
+  // Pre-emptive safe stash: If autostash requested and working tree has uncommitted/untracked changes,
+  // cleanly stash them with -u before launching rebase so git never hits the "cannot rebase: You have unstaged changes" bug
+  if (autostash) {
+    try {
+      const statusRes = await runGit(rootPath, ['status', '--porcelain']);
+      if (statusRes.code === 0 && statusRes.stdout.trim().length > 0) {
+        await runGit(rootPath, ['stash', 'push', '-u', '-m', 'Workbench auto-stash before interactive rebase']);
+      }
+    } catch {
+      // Ignore and allow git rebase to handle
     }
   }
 

@@ -90,9 +90,15 @@ export const CommitList: React.FC<CommitListProps> = ({
   }, [activeMenu]);
 
   const filteredCommits = useMemo(() => {
-    if (!searchTerm.trim()) return commits;
+    const baseList = commits.filter(
+      (c) =>
+        !c.refs.some((r) => r.includes('refs/stash')) &&
+        !c.subject.startsWith('WIP on ') &&
+        !c.subject.startsWith('index on ')
+    );
+    if (!searchTerm.trim()) return baseList;
     const q = searchTerm.toLowerCase();
-    return commits.filter(
+    return baseList.filter(
       (c) =>
         c.subject.toLowerCase().includes(q) ||
         c.author_name.toLowerCase().includes(q) ||
