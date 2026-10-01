@@ -2227,14 +2227,42 @@ export async function executeInteractiveRebase(
     }
   }
 
+  const gitDir = path.join(rootPath, '.git');
+  const targetDir = fs.existsSync(gitDir) ? gitDir : os.tmpdir();
   const tempTodoPath = path.join(
-    os.tmpdir(),
-    `rebase-todo-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
+    targetDir,
+    `workbench-rebase-todo-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
   );
+  const editorScriptPath = path.join(
+    targetDir,
+    `workbench-rebase-editor-${Date.now()}-${Math.random().toString(36).slice(2)}.cjs`
+  );
+
   fs.writeFileSync(tempTodoPath, todoLines.join('\n') + '\n', 'utf8');
 
+  const scriptContent = [
+    'const fs = require("fs");',
+    'let target = process.argv[process.argv.length - 1];',
+    'if (target && target.length > 3 && target[0] === "/" && target[2] === "/") {',
+    '  const d = target[1].toUpperCase();',
+    '  if (d >= "A" && d <= "Z") target = d + ":" + target.slice(2);',
+    '}',
+    'const replacement = process.env.GIT_TODO_REPLACEMENT || ' + JSON.stringify(tempTodoPath) + ';',
+    'try {',
+    '  fs.copyFileSync(replacement, target);',
+    '  process.exit(0);',
+    '} catch (e) {',
+    '  console.error("Error copying todo file:", e);',
+    '  process.exit(1);',
+    '}',
+  ].join('\n');
+
+  fs.writeFileSync(editorScriptPath, scriptContent, 'utf8');
+
   try {
-    const sequenceEditorScript = `node -e "require('fs').copyFileSync(process.env.GIT_TODO_REPLACEMENT, process.argv[1])"`;
+    const sequenceEditorCmd = `"${process.execPath}" "${editorScriptPath}"`;
+    const editorCmd = `"${process.execPath}" -e "process.exit(0)"`;
+
     const rebaseCmd: string[] = ['rebase', '-i'];
     if (autostash) {
       rebaseCmd.push('--autostash');
@@ -2250,9 +2278,9 @@ export async function executeInteractiveRebase(
       rebaseCmd,
       undefined,
       {
-        GIT_SEQUENCE_EDITOR: sequenceEditorScript,
+        GIT_SEQUENCE_EDITOR: sequenceEditorCmd,
         GIT_TODO_REPLACEMENT: tempTodoPath,
-        GIT_EDITOR: 'cat',
+        GIT_EDITOR: editorCmd,
       }
     );
 
@@ -2268,6 +2296,13 @@ export async function executeInteractiveRebase(
     try {
       if (fs.existsSync(tempTodoPath)) {
         fs.unlinkSync(tempTodoPath);
+      }
+    } catch {
+      // ignore
+    }
+    try {
+      if (fs.existsSync(editorScriptPath)) {
+        fs.unlinkSync(editorScriptPath);
       }
     } catch {
       // ignore

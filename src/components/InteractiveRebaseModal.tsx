@@ -282,14 +282,28 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     try {
       onRebaseStarted(cmdTokens);
       const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, autoStash);
-      if (!res.success && res.stderr && !res.stderr.includes('CONFLICT')) {
-        setError(res.stderr);
-      } else {
-        onClose();
-        if (onRebaseCompleted) {
-          const isPaused = hasEditAction || Boolean(res.stdout && res.stdout.includes('Stopped at'));
-          onRebaseCompleted(isPaused);
+      const combinedOutput = (res.stderr || '') + '\n' + (res.stdout || '');
+
+      if (!res.success) {
+        if (combinedOutput.includes('CONFLICT') || combinedOutput.includes('Stopped at')) {
+          onClose();
+          if (onRebaseCompleted) {
+            onRebaseCompleted(true);
+          }
+        } else {
+          const errMsg =
+            res.stderr?.trim() ||
+            res.stdout?.trim() ||
+            `Interactive rebase failed to start (exit code ${res.exit_code}).`;
+          setError(errMsg);
         }
+        return;
+      }
+
+      onClose();
+      if (onRebaseCompleted) {
+        const isPaused = hasEditAction || Boolean(combinedOutput.includes('Stopped at'));
+        onRebaseCompleted(isPaused);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -312,14 +326,28 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
 
       onRebaseStarted(cmdTokens);
       const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, true);
-      if (!res.success && res.stderr && !res.stderr.includes('CONFLICT')) {
-        setError(res.stderr);
-      } else {
-        onClose();
-        if (onRebaseCompleted) {
-          const isPaused = hasEditAction || Boolean(res.stdout && res.stdout.includes('Stopped at'));
-          onRebaseCompleted(isPaused);
+      const combinedOutput = (res.stderr || '') + '\n' + (res.stdout || '');
+
+      if (!res.success) {
+        if (combinedOutput.includes('CONFLICT') || combinedOutput.includes('Stopped at')) {
+          onClose();
+          if (onRebaseCompleted) {
+            onRebaseCompleted(true);
+          }
+        } else {
+          const errMsg =
+            res.stderr?.trim() ||
+            res.stdout?.trim() ||
+            `Interactive rebase failed to start (exit code ${res.exit_code}).`;
+          setError(errMsg);
         }
+        return;
+      }
+
+      onClose();
+      if (onRebaseCompleted) {
+        const isPaused = hasEditAction || Boolean(combinedOutput.includes('Stopped at'));
+        onRebaseCompleted(isPaused);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

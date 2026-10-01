@@ -2620,11 +2620,16 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
               commandSnippet: cmd.join(' '),
             });
           }}
-          onRebaseCompleted={async (_isPaused) => {
+          onRebaseCompleted={async (isPaused) => {
             setRebaseModalTarget(null);
             if (repoPath) {
               await loadRepositoryData(repoPath);
-              const detailedRebase = await getDetailedRebaseStatus(repoPath);
+              let detailedRebase = await getDetailedRebaseStatus(repoPath);
+              if (!detailedRebase.in_progress && isPaused) {
+                await new Promise((r) => setTimeout(r, 150));
+                await loadRepositoryData(repoPath);
+                detailedRebase = await getDetailedRebaseStatus(repoPath);
+              }
               if (detailedRebase.in_progress) {
                 setSelectedView('working-tree');
                 setIsRebaseEditorOpen(true);
