@@ -89,7 +89,7 @@ export const HELP_TOPICS: HelpTopic[] = [
     ],
     actionId: 'open_ai_sanitizer',
     actionLabel: 'Open Clean AI Signs Tool',
-    cliCommand: '# 1. Strip banners & Cursor trailers across all historical commits (including commit 1):\ngit filter-branch --force --tree-filter "python3 -c \\"import os, re; [os.remove(f) for f in [\'.cursorrules\'] if os.path.exists(f)]; [open(f,\'w\').write(re.sub(r\'(?si)<div\\\\s+align=[\\\\\\"\\\\x27]center[\\\\\\"\\\\x27]>.*?Built with AI Studio.*?</div>\\\\s*\',\'\',open(f).read())) for f in [\'README.md\'] if os.path.exists(f)]\\"" --msg-filter "python3 -c \\"import sys, re; msg = sys.stdin.read(); msg = re.sub(r\'(?im)^Co-authored-by:\\\\s*(?:Cursor|Copilot|Claude|ChatGPT|Gemini|v0).*$\\\\n?\', \'\', msg); sys.stdout.write(msg)\\"" -- --all',
+    cliCommand: '# Clean AI Signs runs these filters with Node, which Install.bat already requires.\n# Python is not used.',
     tips: [
       'You do NOT need to manually edit commits with git rebase -i or find and remove files one by one. The 1-click Deep Clean automatically rewrites history back to the initial commit cleanly.',
       'Safety guarantee: Git Workbench creates a backup reference before rewriting history, so you can restore your original state anytime if needed.',

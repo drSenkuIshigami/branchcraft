@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { runCleanPool, runReplacePool } from './filePool.ts';
+import { filterScriptPath, nodeFilterCommand } from './gitFilterNode.ts';
 import type {
   BranchInfo,
   ChangeType,
@@ -3812,7 +3813,7 @@ export async function executeHistoryPurge(
 
   // Strip AI trailers if requested
   if (options.remove_ai_trailers) {
-    const msgFilter = `python3 -c "import sys, re; msg = sys.stdin.read(); msg = re.sub(r'(?i)(Co-authored-by|Generated-by|AI-Assisted):.*(claude|chatgpt|copilot|cursor|gemini|openai|anthropic).*\\n?', '', msg); sys.stdout.write(msg)" 2>/dev/null || cat`;
+    const msgFilter = nodeFilterCommand(filterScriptPath('aiMsgFilter.cjs'));
     const filterArgs = [
       'filter-branch',
       '--force',
@@ -3824,6 +3825,7 @@ export async function executeHistoryPurge(
     commandsRun.push(['filter-branch', '--msg-filter', '<ai-trailer-scrub>', '--all']);
     await runGit(rootPath, filterArgs, undefined, {
       FILTER_BRANCH_SQUELCH_WARNING: '1',
+      MSYS_NO_PATHCONV: '1',
     });
   }
 
@@ -5200,89 +5202,13 @@ export async function cleanAITraces(
       await runGit(rootPath, ['clean', '-fd']);
     }
 
-    const gitDir = path.join(rootPath, '.git');
-    const treeFilterFile = path.join(gitDir, 'clean_ai_tree.py');
-    const msgFilterFile = path.join(gitDir, 'clean_ai_msg.py');
-
     const filterArgs = ['filter-branch', '--force'];
 
-    // Write tree-filter script if cleaning banners/config files in history
     if (shouldCleanHistoryBanners) {
-      const treeScriptContent = `import os, shutil
-
-# Remove AI config files from historical commit tree
-for f in [".cursorrules", ".windsurfrules", "copilot-instructions.md", ".claude.md", "agents.md"]:
-    if os.path.exists(f):
-        try: os.remove(f)
-        except: pass
-for d in [".cursor", ".claude", ".cline"]:
-    if os.path.exists(d) and os.path.isdir(d):
-        try: shutil.rmtree(d)
-        except: pass
-
-# Clean text files (README, .md, .html, source files)
-for root, dirs, files in os.walk("."):
-    if ".git" in root.split(os.sep):
-        continue
-    for fn in files:
-        low = fn.lower()
-        if low.startswith("readme") or low.endswith(".md") or low.endswith(".html") or low.endswith(".htm") or low.endswith(".txt"):
-            fp = os.path.join(root, fn)
-            try:
-                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
-                    lines = f.readlines()
-                new_lines = []
-                in_banner = False
-                modified = False
-                for line in lines:
-                    low_line = line.lower()
-                    if ("<div" in low_line and ("align=\\"center\\"" in low_line or "align='center'" in low_line)) or ("<div" in low_line and "ghbanner" in low_line):
-                        in_banner = True
-                        modified = True
-                        continue
-                    if in_banner:
-                        if "</div>" in low_line:
-                            in_banner = False
-                        continue
-                    if "built with ai studio" in low_line or "the fastest path from prompt to production with gemini" in low_line or "aistudio.google.com" in low_line:
-                        modified = True
-                        continue
-                    new_lines.append(line)
-                if modified:
-                    clean_content = "".join(new_lines).strip()
-                    with open(fp, "w", encoding="utf-8") as f:
-                        if clean_content:
-                            f.write(clean_content + "\\n")
-                        else:
-                            f.write("")
-            except Exception:
-                pass
-`;
-      try {
-        fs.writeFileSync(treeFilterFile, treeScriptContent, 'utf8');
-        filterArgs.push('--tree-filter', `python3 ${treeFilterFile}`);
-      } catch (err) {
-        console.error('Failed to write tree filter script:', err);
-      }
+      filterArgs.push('--tree-filter', nodeFilterCommand(filterScriptPath('aiTreeFilter.cjs')));
     }
-
-    // Write msg-filter script if cleaning commit trailers in history
     if (shouldCleanHistoryTrailers) {
-      const msgScriptContent = `
-import sys, re
-msg = sys.stdin.read()
-# Strip AI co-author / assistant trailers
-msg = re.sub(r'(?im)^Co-authored-by:\\s*(?:Cursor|Copilot|GitHub Copilot|Claude|ChatGPT|OpenAI|Anthropic|Gemini|v0|Devin|Windsurf|AI).*$\\n?', '', msg)
-msg = re.sub(r'(?im)^Generated-by:\\s*(?:Cursor|Copilot|Claude|ChatGPT|v0|Gemini|Windsurf|Devin).*$\\n?', '', msg)
-msg = re.sub(r'(?im)^AI-Assisted:\\s*true.*$\\n?', '', msg)
-sys.stdout.write(msg.rstrip() + '\\n')
-`;
-      try {
-        fs.writeFileSync(msgFilterFile, msgScriptContent, 'utf8');
-        filterArgs.push('--msg-filter', `python3 ${msgFilterFile}`);
-      } catch (err) {
-        console.error('Failed to write msg filter script:', err);
-      }
+      filterArgs.push('--msg-filter', nodeFilterCommand(filterScriptPath('aiMsgFilter.cjs')));
     }
 
     filterArgs.push('--tag-name-filter', 'cat', '--', '--all');
@@ -5290,6 +5216,7 @@ sys.stdout.write(msg.rstrip() + '\\n')
     try {
       const filterRes = await runGit(rootPath, filterArgs, undefined, {
         FILTER_BRANCH_SQUELCH_WARNING: '1',
+        MSYS_NO_PATHCONV: '1',
       });
       if (filterRes.code === 0) {
         cleanedCommitsCount = 1;
@@ -5306,14 +5233,6 @@ sys.stdout.write(msg.rstrip() + '\\n')
       }
     } catch (err) {
       console.error('filter-branch execution failed:', err);
-    } finally {
-      // Clean up temporary python script files
-      if (fs.existsSync(treeFilterFile)) {
-        try { fs.unlinkSync(treeFilterFile); } catch { /* ignore */ }
-      }
-      if (fs.existsSync(msgFilterFile)) {
-        try { fs.unlinkSync(msgFilterFile); } catch { /* ignore */ }
-      }
     }
   }
 

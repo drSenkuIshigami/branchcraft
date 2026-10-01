@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { filterScriptPath, nodeFilterCommand } from './gitFilterNode.ts';
 import type {
   ClassifiedFinding,
   CleanupRiskLevel,
@@ -866,9 +867,8 @@ export async function applyHistoryRewrite(
   op.status = 'RewriteRunning';
   const mirrorPath = path.join(op.isolated_workspace_path, 'repo.git');
 
-  // Filter messages in the isolated mirror clone using git filter-branch with narrow regex
-  const treeFilter = `python3 -c "import os, re; [os.remove(f) for f in ['.cursorrules'] if os.path.exists(f)]; [open(f,'w').write(re.sub(r'(?si)<div\\\\s+align=[\\\\\\"\\\\x27]center[\\\\\\"\\\\x27]>.*?Built with AI Studio.*?</div>\\\\s*','',open(f).read())) for f in ['README.md'] if os.path.exists(f)]"`;
-  const msgFilter = `python3 -c "import sys, re; msg = sys.stdin.read(); msg = re.sub(r'(?im)^Co-authored-by:\\\\s*(?:Cursor|Copilot|GitHub[- ]?Copilot|Claude|ChatGPT|OpenAI|Gemini|Devin|Windsurf|v0).*$\\\\n?', '', msg); sys.stdout.write(msg)"`;
+  const treeFilter = nodeFilterCommand(filterScriptPath('aiTreeFilter.cjs'));
+  const msgFilter = nodeFilterCommand(filterScriptPath('aiMsgFilter.cjs'));
 
   const filterRes = await runGit(
     mirrorPath,
@@ -883,7 +883,7 @@ export async function applyHistoryRewrite(
       '--all',
     ],
     undefined,
-    { FILTER_BRANCH_SQUELCH_WARNING: '1' }
+    { FILTER_BRANCH_SQUELCH_WARNING: '1', MSYS_NO_PATHCONV: '1' }
   );
 
   if (filterRes.code !== 0) {
