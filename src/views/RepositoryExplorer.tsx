@@ -2488,6 +2488,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           baseSha={rebaseModalTarget.baseSha}
           baseSummary={rebaseModalTarget.baseSummary}
           isRoot={rebaseModalTarget.isRoot}
+          hasDirtyWorkingTree={Boolean(status && (status.staged.length > 0 || status.unstaged.length > 0))}
           onClose={() => setRebaseModalTarget(null)}
           onRebaseStarted={(cmd) => {
             recordCommand(cmd, 0);

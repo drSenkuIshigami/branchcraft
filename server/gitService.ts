@@ -2191,7 +2191,8 @@ export async function executeInteractiveRebase(
   repoPath: string,
   baseSha: string,
   items: RebaseTodoItem[],
-  isRoot?: boolean
+  isRoot?: boolean,
+  autostash?: boolean
 ): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
 
@@ -2234,9 +2235,15 @@ export async function executeInteractiveRebase(
 
   try {
     const sequenceEditorScript = `node -e "require('fs').copyFileSync(process.env.GIT_TODO_REPLACEMENT, process.argv[1])"`;
-    const rebaseCmd = effectiveIsRoot
-      ? ['rebase', '-i', '--root']
-      : ['rebase', '-i', baseSha];
+    const rebaseCmd: string[] = ['rebase', '-i'];
+    if (autostash) {
+      rebaseCmd.push('--autostash');
+    }
+    if (effectiveIsRoot) {
+      rebaseCmd.push('--root');
+    } else {
+      rebaseCmd.push(baseSha);
+    }
 
     const res = await runGit(
       rootPath,

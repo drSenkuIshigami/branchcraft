@@ -1286,7 +1286,8 @@ export async function executeInteractiveRebase(
   repoPath: string,
   baseSha: string,
   items: RebaseTodoItem[],
-  isRoot?: boolean
+  isRoot?: boolean,
+  autostash?: boolean
 ): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('execute_interactive_rebase', {
@@ -1294,6 +1295,7 @@ export async function executeInteractiveRebase(
       baseSha,
       items,
       isRoot,
+      autostash,
     });
   }
 
@@ -1305,6 +1307,7 @@ export async function executeInteractiveRebase(
       base_sha: baseSha,
       items,
       is_root: Boolean(isRoot || baseSha === '--root'),
+      autostash: autostash !== false,
     }),
   });
 

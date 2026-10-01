@@ -701,10 +701,11 @@ export function gitApiPlugin(): Plugin {
             const baseSha = typeof body.base_sha === 'string' ? body.base_sha : '';
             const items = Array.isArray(body.items) ? body.items : [];
             const isRoot = Boolean(body.is_root || baseSha === '--root');
+            const autostash = body.autostash !== false;
             if (!repoPath || !baseSha || items.length === 0) {
               return sendJson(400, { error: 'repo_path, base_sha, and non-empty items required' });
             }
-            const resData = await executeInteractiveRebase(repoPath, baseSha, items, isRoot);
+            const resData = await executeInteractiveRebase(repoPath, baseSha, items, isRoot, autostash);
             return sendJson(200, resData);
           }
 

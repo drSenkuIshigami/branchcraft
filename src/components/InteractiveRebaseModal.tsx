@@ -18,9 +18,10 @@ import {
   Package,
   Paperclip,
   Info,
+  Archive,
 } from 'lucide-react';
 import type { RebaseAction, RebaseTodoItem, Theme } from '../types';
-import { getRebaseCandidates, executeInteractiveRebase } from '../ipc';
+import { getRebaseCandidates, executeInteractiveRebase, createStash } from '../ipc';
 
 interface InteractiveRebaseModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ interface InteractiveRebaseModalProps {
   baseSha: string;
   baseSummary?: string;
   isRoot?: boolean;
+  hasDirtyWorkingTree?: boolean;
   theme: Theme;
   onClose: () => void;
   onRebaseStarted: (commandTokens: string[]) => void;
@@ -94,6 +96,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   baseSha,
   baseSummary,
   isRoot,
+  hasDirtyWorkingTree = false,
   theme,
   onClose,
   onRebaseStarted,
@@ -102,6 +105,8 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [isRootRebase, setIsRootRebase] = useState<boolean>(Boolean(isRoot || baseSha === '--root'));
+  const [autoStash, setAutoStash] = useState<boolean>(true);
+  const [isStashing, setIsStashing] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,10 +271,14 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     setSubmitting(true);
     setError(null);
 
-    const cmdTokens = isRootRebase ? ['rebase', '-i', '--root'] : ['rebase', '-i', baseSha];
+    const cmdTokens: string[] = ['rebase', '-i'];
+    if (autoStash) cmdTokens.push('--autostash');
+    if (isRootRebase) cmdTokens.push('--root');
+    else cmdTokens.push(baseSha);
+
     try {
       onRebaseStarted(cmdTokens);
-      const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase);
+      const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, autoStash);
       if (!res.success && res.stderr && !res.stderr.includes('CONFLICT')) {
         setError(res.stderr);
       } else {
@@ -281,6 +290,39 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
       setSubmitting(false);
     }
   };
+
+  // 1-Click Auto-Stash & Retry Action for unstaged changes error
+  const handleStashAndRetry = async () => {
+    setIsStashing(true);
+    setError(null);
+    try {
+      await createStash(repoPath, 'Auto-stash before interactive rebase', true);
+      // Run rebase with autostash enabled
+      const cmdTokens: string[] = ['rebase', '-i'];
+      if (isRootRebase) cmdTokens.push('--root');
+      else cmdTokens.push(baseSha);
+
+      onRebaseStarted(cmdTokens);
+      const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase, true);
+      if (!res.success && res.stderr && !res.stderr.includes('CONFLICT')) {
+        setError(res.stderr);
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsStashing(false);
+    }
+  };
+
+  const isUnstagedChangesError =
+    Boolean(
+      error &&
+        (error.includes('unstaged changes') ||
+          error.includes('commit or stash them') ||
+          error.includes('cannot rebase: You have unstaged changes'))
+    );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
@@ -306,6 +348,12 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                 <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
                   {isRootRebase ? '--root' : `onto ${baseSha.slice(0, 7)}`}
                 </span>
+                {hasDirtyWorkingTree && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20 flex items-center gap-1">
+                    <Archive className="w-2.5 h-2.5" />
+                    <span>Auto-stash enabled</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Reorder, squash, edit, reword, or drop commits prior to HEAD.
@@ -449,11 +497,44 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           </div>
         </div>
 
-        {/* Error Alert */}
+        {/* Error Alert with 1-Click Stash & Retry Helper */}
         {error && (
-          <div className="mx-4 mt-3 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div className="flex-1 font-mono break-all">{error}</div>
+          <div className="mx-4 mt-3 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex flex-col gap-2 animate-in fade-in duration-150">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex-1 font-mono break-all">{error}</div>
+            </div>
+
+            {/* Smart 1-Click Unstaged Changes Recovery */}
+            {isUnstagedChangesError && (
+              <div className="mt-1 pt-2 border-t border-rose-200 dark:border-rose-800/80 flex flex-wrap items-center justify-between gap-2 bg-rose-100/60 dark:bg-rose-900/30 p-2.5 rounded-lg">
+                <div className="flex items-center gap-2 text-rose-800 dark:text-rose-200 text-xs font-medium">
+                  <Archive className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <span>
+                    You have uncommitted changes in your working tree. Would you like Git Workbench to
+                    automatically stash them now and start the rebase?
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStashAndRetry}
+                  disabled={isStashing || submitting}
+                  className="px-3.5 py-1.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer"
+                >
+                  {isStashing ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Stashing &amp; Retrying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Stash Changes &amp; Start Rebase</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -710,10 +791,27 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            {/* Auto-Stash Checkbox */}
+            <label
+              className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300 cursor-pointer select-none"
+              title="Automatically create a stash of uncommitted changes before rebasing and restore them after completion"
+            >
+              <input
+                type="checkbox"
+                checked={autoStash}
+                onChange={(e) => setAutoStash(e.target.checked)}
+                className="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span>Auto-stash changes</span>
+              <code className="text-[10px] text-zinc-400 bg-zinc-200/50 dark:bg-zinc-800 px-1 rounded">
+                --autostash
+              </code>
+            </label>
+
             <button
               onClick={onClose}
-              disabled={submitting}
+              disabled={submitting || isStashing}
               className="px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               Cancel
@@ -721,7 +819,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
             <button
               id="start-rebase-button"
               onClick={handleExecute}
-              disabled={hasInvalidFirstItem || items.length === 0 || submitting}
+              disabled={hasInvalidFirstItem || items.length === 0 || submitting || isStashing}
               className="px-4 py-2 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
               {submitting ? (
