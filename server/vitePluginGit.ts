@@ -675,10 +675,11 @@ export function gitApiPlugin(): Plugin {
                 ? parsedUrl.query.path
                 : '';
             const baseSha = typeof parsedUrl.query.base_sha === 'string' ? parsedUrl.query.base_sha : '';
+            const isRoot = parsedUrl.query.is_root === 'true' || parsedUrl.query.is_root === '1' || baseSha === '--root';
             if (!repoPath || !baseSha) {
               return sendJson(400, { error: 'repo_path and base_sha required' });
             }
-            const resData = await getRebaseCandidates(repoPath, baseSha);
+            const resData = await getRebaseCandidates(repoPath, baseSha, isRoot);
             return sendJson(200, resData);
           }
 
@@ -699,10 +700,11 @@ export function gitApiPlugin(): Plugin {
             const repoPath = typeof body.repo_path === 'string' ? body.repo_path : '';
             const baseSha = typeof body.base_sha === 'string' ? body.base_sha : '';
             const items = Array.isArray(body.items) ? body.items : [];
+            const isRoot = Boolean(body.is_root || baseSha === '--root');
             if (!repoPath || !baseSha || items.length === 0) {
               return sendJson(400, { error: 'repo_path, base_sha, and non-empty items required' });
             }
-            const resData = await executeInteractiveRebase(repoPath, baseSha, items);
+            const resData = await executeInteractiveRebase(repoPath, baseSha, items, isRoot);
             return sendJson(200, resData);
           }
 

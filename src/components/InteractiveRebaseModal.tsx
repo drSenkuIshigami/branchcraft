@@ -27,6 +27,7 @@ interface InteractiveRebaseModalProps {
   repoPath: string;
   baseSha: string;
   baseSummary?: string;
+  isRoot?: boolean;
   theme: Theme;
   onClose: () => void;
   onRebaseStarted: (commandTokens: string[]) => void;
@@ -92,6 +93,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   repoPath,
   baseSha,
   baseSummary,
+  isRoot,
   theme,
   onClose,
   onRebaseStarted,
@@ -99,11 +101,19 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
   const [items, setItems] = useState<RebaseTodoItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [isRootRebase, setIsRootRebase] = useState<boolean>(Boolean(isRoot || baseSha === '--root'));
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Sync isRoot from props when modal opens or baseSha changes
+  useEffect(() => {
+    if (isOpen) {
+      setIsRootRebase(Boolean(isRoot || baseSha === '--root'));
+    }
+  }, [isOpen, isRoot, baseSha]);
 
   useEffect(() => {
     if (!isOpen || !repoPath || !baseSha) return;
@@ -114,7 +124,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     setSearchTerm('');
     setOpenDropdownId(null);
 
-    getRebaseCandidates(repoPath, baseSha)
+    getRebaseCandidates(repoPath, baseSha, isRootRebase)
       .then((candidates) => {
         if (mounted) {
           setItems(candidates);
@@ -131,7 +141,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     return () => {
       mounted = false;
     };
-  }, [isOpen, repoPath, baseSha]);
+  }, [isOpen, repoPath, baseSha, isRootRebase]);
 
   // Click outside to close dropdowns
   useEffect(() => {
@@ -256,10 +266,10 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
     setSubmitting(true);
     setError(null);
 
-    const cmdTokens = ['rebase', '-i', baseSha];
+    const cmdTokens = isRootRebase ? ['rebase', '-i', '--root'] : ['rebase', '-i', baseSha];
     try {
       onRebaseStarted(cmdTokens);
-      const res = await executeInteractiveRebase(repoPath, baseSha, items);
+      const res = await executeInteractiveRebase(repoPath, baseSha, items, isRootRebase);
       if (!res.success && res.stderr && !res.stderr.includes('CONFLICT')) {
         setError(res.stderr);
       } else {
@@ -290,9 +300,11 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold">Interactive Rebase</h2>
+                <h2 className="text-base font-semibold">
+                  Interactive Rebase {isRootRebase ? '(from Initial / Root commit)' : ''}
+                </h2>
                 <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                  onto {baseSha.slice(0, 7)}
+                  {isRootRebase ? '--root' : `onto ${baseSha.slice(0, 7)}`}
                 </span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -309,18 +321,26 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           </button>
         </div>
 
-        {/* How-to edit banner: Explains how to edit files in previous commits */}
+        {/* How-to edit banner: Explains how to edit files in previous commits including initial commit */}
         <div className="px-4 py-2.5 bg-purple-50 dark:bg-purple-950/30 border-b border-purple-200 dark:border-purple-800/60 flex items-start gap-2.5 text-xs text-purple-800 dark:text-purple-300 shrink-0">
           <Info className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
           <div className="flex-1 leading-relaxed">
-            <span className="font-semibold">How to edit files in a previous commit:</span> Click on{' '}
-            <span className="font-mono px-1.5 py-0.2 rounded bg-purple-200/60 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold">
-              PICK ▾
-            </span>{' '}
-            and select <strong className="uppercase">EDIT</strong> (or click the{' '}
-            <strong className="underline">Edit Files</strong> button on that commit row). When you
-            click <em>Start Rebase</em>, Git will stop at that commit, allowing you to edit files in
-            your working tree, stage changes, and amend.
+            <span className="font-semibold">How to edit files in a previous commit:</span>{' '}
+            {isRootRebase ? (
+              <span>
+                The <strong>Initial / Root commit</strong> is listed as <strong>#1</strong> below. Click{' '}
+                <strong className="underline">Edit Files</strong> on commit #1 (or click{' '}
+                <span className="font-mono px-1.5 py-0.2 rounded bg-purple-200/60 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-bold">
+                  PICK ▾
+                </span>{' '}
+                and select <strong>EDIT</strong>). When you click <em>Start Rebase</em>, Git will pause at the initial commit so you can edit <code>README.md</code>, stage it, and continue!
+              </span>
+            ) : (
+              <span>
+                Click <strong className="underline">Edit Files</strong> on the commit you want to modify (or change its action to <strong className="uppercase">EDIT</strong>). If you want to edit the <strong>Initial commit</strong>, click{' '}
+                <strong>+ Include Initial Commit (--root)</strong> in the bar above.
+              </span>
+            )}
           </div>
         </div>
 
@@ -329,16 +349,36 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
             <GitCommit className="w-4 h-4 text-zinc-400" />
             <span>
-              Rebasing {items.length} commit{items.length !== 1 ? 's' : ''} onto:
+              Rebasing {items.length} commit{items.length !== 1 ? 's' : ''}{' '}
+              {isRootRebase ? 'including Initial commit:' : 'onto:'}
             </span>
             <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">
-              {baseSummary || baseSha.slice(0, 10)}
+              {isRootRebase ? 'Root commit (--root)' : baseSummary || baseSha.slice(0, 10)}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Toggle root commit inclusion */}
+            <button
+              type="button"
+              onClick={() => setIsRootRebase(!isRootRebase)}
+              disabled={submitting}
+              className={`px-2 py-1 rounded text-xs font-medium border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                isRootRebase
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-xs'
+                  : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300'
+              }`}
+              title="Include the initial root commit in the rebase (git rebase -i --root)"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>{isRootRebase ? '✓ Initial Commit Included' : '+ Include Initial Commit'}</span>
+            </button>
+
+            <span className="text-zinc-300 dark:text-zinc-600 mx-1">|</span>
+
             <span className="text-zinc-400 mr-1">Presets:</span>
             <button
+              type="button"
               onClick={handleFixupAllIntoFirst}
               disabled={items.length < 2 || submitting}
               className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50 cursor-pointer"
@@ -346,6 +386,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
               Fixup All into #1
             </button>
             <button
+              type="button"
               onClick={handleSquashAllIntoFirst}
               disabled={items.length < 2 || submitting}
               className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors disabled:opacity-50 cursor-pointer"
@@ -353,6 +394,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
               Squash All into #1
             </button>
             <button
+              type="button"
               onClick={handleResetAllToPick}
               disabled={submitting}
               className="px-2 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
@@ -435,13 +477,14 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
             </div>
           ) : items.length === 0 ? (
             <div className="py-12 text-center text-zinc-400 text-xs">
-              No commits found between {baseSha.slice(0, 7)} and HEAD.
+              No commits found.
             </div>
           ) : (
             filteredItems.map((item) => {
               const originalIndex = items.findIndex((it) => it.id === item.id);
               const isFirst = originalIndex === 0;
               const isLast = originalIndex === items.length - 1;
+              const isRootCommitItem = isRootRebase && originalIndex === 0;
               const config = ACTION_CONFIG[item.action];
               const isDropdownOpen = openDropdownId === item.id;
               const isEdit = item.action === 'edit';
@@ -454,7 +497,9 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                       ? 'border-purple-400/80 dark:border-purple-500/80 bg-purple-50/30 dark:bg-purple-950/20 shadow-sm ring-1 ring-purple-500/20'
                       : item.action === 'drop'
                         ? 'opacity-60 bg-zinc-50 dark:bg-zinc-900/40 border-dashed border-zinc-300 dark:border-zinc-800'
-                        : 'bg-white dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700/80 shadow-xs'
+                        : isRootCommitItem
+                          ? 'bg-indigo-500/5 dark:bg-indigo-950/20 border-indigo-300 dark:border-indigo-700/60 shadow-xs'
+                          : 'bg-white dark:bg-zinc-800/60 border-zinc-200 dark:border-zinc-700/80 shadow-xs'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -555,9 +600,16 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                       )}
                     </div>
 
-                    {/* Commit SHA */}
-                    <div className="shrink-0 font-mono text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                      {item.short_sha}
+                    {/* Commit SHA & Initial Commit indicator */}
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                        {item.short_sha}
+                      </span>
+                      {isRootCommitItem && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 uppercase shrink-0">
+                          Initial Commit
+                        </span>
+                      )}
                     </div>
 
                     {/* Summary / Reword / Exec Input */}
@@ -637,7 +689,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
                         <Edit2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                         <span>
                           <strong>Rebase will pause at commit {item.short_sha}.</strong> Your working
-                          tree will match this commit so you can edit any files, stage your changes,
+                          tree will match this commit so you can edit any files (like <code>README.md</code>), stage your changes,
                           and amend before continuing.
                         </span>
                       </div>
@@ -654,8 +706,7 @@ export const InteractiveRebaseModal: React.FC<InteractiveRebaseModalProps> = ({
           <div className="text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
             <span>
-              If you chose <strong>EDIT</strong>, Git will pause at that commit so you can modify
-              files in your working tree.
+              If you chose <strong>EDIT</strong> on {isRootRebase ? 'the Initial commit' : 'a commit'}, Git will pause there so you can edit files in your working tree.
             </span>
           </div>
 

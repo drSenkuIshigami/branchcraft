@@ -2075,15 +2075,33 @@ export async function createDemoConflict(repoPath: string): Promise<OperationRes
  */
 export async function getRebaseCandidates(
   repoPath: string,
-  baseSha: string
+  baseSha: string,
+  isRoot?: boolean
 ): Promise<RebaseTodoItem[]> {
   const rootPath = await validateRepository(repoPath);
-  const res = await runGit(rootPath, [
-    'log',
-    '--reverse',
-    '--format=%H%x00%h%x00%an%x00%s',
-    `${baseSha}..HEAD`,
-  ]);
+
+  // Determine if this is a root rebase (starts from the initial commit)
+  let effectiveIsRoot = Boolean(isRoot || baseSha === '--root');
+  if (!effectiveIsRoot && baseSha) {
+    try {
+      const parentCheck = await runGit(rootPath, ['rev-list', '--parents', '-n', '1', baseSha]);
+      if (parentCheck.code === 0) {
+        const tokens = parentCheck.stdout.trim().split(/\s+/).filter(Boolean);
+        // If only 1 SHA token is returned, the commit has 0 parents -> It is a ROOT commit!
+        if (tokens.length === 1 && tokens[0]) {
+          effectiveIsRoot = true;
+        }
+      }
+    } catch {
+      // Fallback to standard range
+    }
+  }
+
+  const logArgs = effectiveIsRoot
+    ? ['log', '--reverse', '--format=%H%x00%h%x00%an%x00%s', 'HEAD']
+    : ['log', '--reverse', '--format=%H%x00%h%x00%an%x00%s', `${baseSha}..HEAD`];
+
+  const res = await runGit(rootPath, logArgs);
 
   if (res.code !== 0 || !res.stdout.trim()) {
     return [];
@@ -2172,9 +2190,25 @@ export async function getDetailedRebaseStatus(repoPath: string): Promise<RebaseS
 export async function executeInteractiveRebase(
   repoPath: string,
   baseSha: string,
-  items: RebaseTodoItem[]
+  items: RebaseTodoItem[],
+  isRoot?: boolean
 ): Promise<OperationResult> {
   const rootPath = await validateRepository(repoPath);
+
+  let effectiveIsRoot = Boolean(isRoot || baseSha === '--root');
+  if (!effectiveIsRoot && baseSha) {
+    try {
+      const parentCheck = await runGit(rootPath, ['rev-list', '--parents', '-n', '1', baseSha]);
+      if (parentCheck.code === 0) {
+        const tokens = parentCheck.stdout.trim().split(/\s+/).filter(Boolean);
+        if (tokens.length === 1 && tokens[0]) {
+          effectiveIsRoot = true;
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
 
   // Construct todo sequence text
   const todoLines: string[] = [];
@@ -2200,9 +2234,13 @@ export async function executeInteractiveRebase(
 
   try {
     const sequenceEditorScript = `node -e "require('fs').copyFileSync(process.env.GIT_TODO_REPLACEMENT, process.argv[1])"`;
+    const rebaseCmd = effectiveIsRoot
+      ? ['rebase', '-i', '--root']
+      : ['rebase', '-i', baseSha];
+
     const res = await runGit(
       rootPath,
-      ['rebase', '-i', baseSha],
+      rebaseCmd,
       undefined,
       {
         GIT_SEQUENCE_EDITOR: sequenceEditorScript,
@@ -2216,7 +2254,7 @@ export async function executeInteractiveRebase(
       stdout: res.stdout,
       stderr: res.stderr,
       exit_code: res.code,
-      command_run: ['rebase', '-i', baseSha],
+      command_run: rebaseCmd,
       duration_ms: res.duration_ms,
     };
   } finally {

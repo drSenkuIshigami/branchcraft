@@ -1241,14 +1241,16 @@ export async function createDemoConflict(repoPath: string): Promise<OperationRes
  */
 export async function getRebaseCandidates(
   repoPath: string,
-  baseSha: string
+  baseSha: string,
+  isRoot?: boolean
 ): Promise<RebaseTodoItem[]> {
   if (isTauriEnvironment()) {
-    return await invoke<RebaseTodoItem[]>('get_rebase_candidates', { repoPath, baseSha });
+    return await invoke<RebaseTodoItem[]>('get_rebase_candidates', { repoPath, baseSha, isRoot });
   }
 
+  const rootParam = isRoot || baseSha === '--root' ? '&is_root=true' : '';
   const res = await fetch(
-    `/api/git/rebase/candidates?repo_path=${encodeURIComponent(repoPath)}&base_sha=${encodeURIComponent(baseSha)}`
+    `/api/git/rebase/candidates?repo_path=${encodeURIComponent(repoPath)}&base_sha=${encodeURIComponent(baseSha)}${rootParam}`
   );
   if (!res.ok) {
     const err = await res
@@ -1283,13 +1285,15 @@ export async function getDetailedRebaseStatus(repoPath: string): Promise<RebaseS
 export async function executeInteractiveRebase(
   repoPath: string,
   baseSha: string,
-  items: RebaseTodoItem[]
+  items: RebaseTodoItem[],
+  isRoot?: boolean
 ): Promise<OperationResult> {
   if (isTauriEnvironment()) {
     return await invoke<OperationResult>('execute_interactive_rebase', {
       repoPath,
       baseSha,
       items,
+      isRoot,
     });
   }
 
@@ -1300,6 +1304,7 @@ export async function executeInteractiveRebase(
       repo_path: repoPath,
       base_sha: baseSha,
       items,
+      is_root: Boolean(isRoot || baseSha === '--root'),
     }),
   });
 

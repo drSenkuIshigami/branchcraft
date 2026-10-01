@@ -237,6 +237,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   const [rebaseModalTarget, setRebaseModalTarget] = useState<{
     baseSha: string;
     baseSummary?: string;
+    isRoot?: boolean;
   } | null>(null);
 
   // Commit Author & Date Modification State (Phase 3 Step 2)
@@ -1550,8 +1551,11 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
   };
 
   // Interactive Rebase Handlers (Phase 3 Step 1)
-  const handleOpenRebaseModal = (baseSha: string, baseSummary?: string) => {
-    setRebaseModalTarget({ baseSha, baseSummary });
+  const handleOpenRebaseModal = (baseSha: string, baseSummary?: string, isRoot?: boolean) => {
+    const targetCommit = commits.find((c) => c.sha === baseSha);
+    const detectedIsRoot =
+      isRoot ?? Boolean(baseSha === '--root' || (targetCommit && targetCommit.parents.length === 0));
+    setRebaseModalTarget({ baseSha, baseSummary, isRoot: detectedIsRoot });
   };
 
   const handleRebaseContinue = async () => {
@@ -2483,6 +2487,7 @@ export const RepositoryExplorer: React.FC<RepositoryExplorerProps> = ({ theme, o
           repoPath={repoPath}
           baseSha={rebaseModalTarget.baseSha}
           baseSummary={rebaseModalTarget.baseSummary}
+          isRoot={rebaseModalTarget.isRoot}
           onClose={() => setRebaseModalTarget(null)}
           onRebaseStarted={(cmd) => {
             recordCommand(cmd, 0);
